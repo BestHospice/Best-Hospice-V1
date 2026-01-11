@@ -759,3 +759,50 @@ a {
     padding: 22px 18px;
   }
 }
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  h1 {
+    font-size: 26px;
+    line-height: 1.2;
+  }
+  h2 {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+  .page-shell,
+  .hero,
+  .card,
+  .layout,
+  .search,
+  .question-card,
+  .results-card {
+    padding: 14px;
+  }
+  .hero-body {
+    gap: 14px;
+  }
+  .hero-text p,
+  .tagline,
+  .result,
+  .question-desc {
+    font-size: 14px;
+  }
+  .button {
+    width: 100%;
+    justify-content: center;
+  }
+  .map-col {
+    padding: 8px;
+  }
+  #map {
+    min-height: 320px;
+  }
+  .result-title {
+    font-size: 16px;
+  }
+  .result-meta {
+    font-size: 13px;
+    gap: 4px;
+  }
+}
