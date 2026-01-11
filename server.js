@@ -247,12 +247,14 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     });
 
     // Log impressions
-    const impressionData = toList.map((p) => ({
-      id: uuid(),
-      providerId: p.id,
-      leadId: lead.id,
-      zip
-    }));
+    const impressionData = toList
+      .filter((p) => !!p.id)
+      .map((p) => ({
+        id: uuid(),
+        providerId: p.id,
+        leadId: lead.id,
+        zip
+      }));
     if (impressionData.length) await prisma.providerImpression.createMany({ data: impressionData });
 
     const results = await sendProviderNotifications({
