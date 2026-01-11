@@ -812,8 +812,11 @@ a {
     gap: 6px;
   }
   .pill {
-    font-size: 13px;
-    padding: 8px 10px;
+    font-size: 12px;
+    padding: 6px 8px;
+    line-height: 1.2;
+    white-space: normal;
+    max-width: 100%;
   }
   .brand-logo {
     height: 72px;
