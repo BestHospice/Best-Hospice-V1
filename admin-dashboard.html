@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Provider Dashboard | Best Hospice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .admin-shell { max-width: 960px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 10px; }
+    .note { color: #4b5563; font-size: 14px; }
+    .login-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 10px; max-width: 420px; margin: 0 auto 16px; }
+    .login-card input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .hidden { display: none; }
+    .list { display: grid; gap: 10px; }
+    .provider-item { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; background: #f8fafc; }
+    .provider-item h3 { margin: 0 0 6px; }
+    .provider-meta { color: #4b5563; font-size: 14px; display: grid; gap: 4px; }
+    .pager { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 8px; }
+    .pager .button { color: #0f172a; }
+    .input-text { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="login-card" class="login-card">
+      <h2>Provider Dashboard</h2>
+      <p class="note">Enter the Provider Dashboard Token to view all providers.</p>
+      <input id="token" type="password" placeholder="Type token here" />
+      <button class="button" id="login-btn">Unlock dashboard</button>
+      <p id="login-status" class="note"></p>
+    </div>
+
+    <div id="dashboard-card" class="card hidden">
+      <h1>All Providers</h1>
+      <input id="search" class="input-text" type="search" placeholder="Search providers by name" />
+      <div id="list" class="list"></div>
+      <div class="pager">
+        <button class="button ghost" id="prev-btn">Previous</button>
+        <span id="page-info"></span>
+        <button class="button ghost" id="next-btn">Next</button>
+      </div>
+      <p id="status" class="note"></p>
+      <a class="button" href="admin.html">Back to Admin options</a>
+    </div>
+  </div>
+  <script>
+    let dashToken = '';
+    let allProviders = [];
+    let page = 1;
+    const perPage = 10;
+    let filteredProviders = [];
+    const searchInput = document.getElementById('search');
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+    const loginCard = document.getElementById('login-card');
+    const dashboardCard = document.getElementById('dashboard-card');
+    const loginStatus = document.getElementById('login-status');
+    const pageInfo = document.getElementById('page-info');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+
+    async function verifyToken(token) {
+      // Reuse the secure providers endpoint for auth
+      try {
+        const res = await fetch('/api/providers/secure', { headers: { 'x-admin-token': token } });
+        if (!res.ok) {
+          loginStatus.textContent = 'Invalid token.';
+          return false;
+        }
+        const data = await res.json();
+        dashToken = token;
+        allProviders = Array.isArray(data) ? data : [];
+        filteredProviders = allProviders;
+        loginCard.classList.add('hidden');
+        dashboardCard.classList.remove('hidden');
+        renderPage();
+        return true;
+      } catch (err) {
+        loginStatus.textContent = 'Error verifying token.';
+        return false;
+      }
+    }
+
+    function renderPage() {
+      listEl.innerHTML = '';
+      if (!filteredProviders.length) {
+        listEl.innerHTML = '<p class="note">No providers available.</p>';
+        pageInfo.textContent = '';
+        return;
+      }
+      const totalPages = Math.max(1, Math.ceil(filteredProviders.length / perPage));
+      if (page > totalPages) page = totalPages;
+      const start = (page - 1) * perPage;
+      const slice = filteredProviders.slice(start, start + perPage);
+      slice.forEach((p) => {
+        const div = document.createElement('div');
+        div.className = 'provider-item';
+        const milesRadius = p.serviceRadiusKm ? (p.serviceRadiusKm / 1.60934).toFixed(1) + ' mi radius' : '';
+        const created = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
+        div.innerHTML = `
+          <h3><a href="admin-provider-detail.html?id=${encodeURIComponent(p.id)}">${p.name}</a></h3>
+          <div class="provider-meta">
+            <span><strong>Email:</strong> ${p.email || '—'}</span>
+            <span><strong>Phone:</strong> ${p.phone || '—'}</span>
+            <span><strong>Website:</strong> ${p.website || '—'}</span>
+            <span><strong>Address:</strong> ${p.address || '—'}</span>
+            <span><strong>Latitude:</strong> ${p.lat ?? '—'} | <strong>Longitude:</strong> ${p.lon ?? '—'}</span>
+            <span><strong>Service Radius:</strong> ${milesRadius || '—'}</span>
+            <span><strong>Leads Best Hospice has provided (${p.name}):</strong> ${p.leadCount ?? 0}</span>
+            <span><strong>Added:</strong> ${created}</span>
+          </div>
+        `;
+        listEl.appendChild(div);
+      });
+      pageInfo.textContent = `Page ${page} of ${totalPages}`;
+      prevBtn.disabled = page <= 1;
+      nextBtn.disabled = page >= totalPages;
+    }
+
+    document.getElementById('login-btn').addEventListener('click', () => {
+      const token = document.getElementById('token').value.trim();
+      if (!token) {
+        loginStatus.textContent = 'Enter your Provider Dashboard Token.';
+        return;
+      }
+      loginStatus.textContent = 'Verifying...';
+      verifyToken(token);
+    });
+
+    prevBtn.addEventListener('click', () => {
+      if (page > 1) {
+        page -= 1;
+        renderPage();
+      }
+    });
+
+    nextBtn.addEventListener('click', () => {
+      const totalPages = Math.max(1, Math.ceil(filteredProviders.length / perPage));
+      if (page < totalPages) {
+        page += 1;
+        renderPage();
+      }
+    });
+
+    function applySearch() {
+      const term = searchInput.value.trim().toLowerCase();
+      filteredProviders = term
+        ? allProviders.filter((p) => (p.name || '').toLowerCase().includes(term))
+        : allProviders;
+      page = 1;
+      renderPage();
+    }
+
+    searchInput?.addEventListener('input', applySearch);
+  </script>
+</body>
+</html>

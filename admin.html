@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Best Hospice | Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .admin-shell { max-width: 960px; margin: 32px auto; padding: 16px; }
+    .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .card { background: #fff; border-radius: 16px; padding: 20px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 12px; }
+    .card h2 { margin: 0; }
+    .card p { margin: 0; color: #4b5563; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <h1>Admin</h1>
+    <p class="note">Making sure Best Hospice stays the best by providing clients with up-to-date providers constantly.</p>
+    <p><a class="button" href="index.html">Back to main site</a></p>
+    <div class="grid">
+      <div class="card">
+        <h2>Team Up Now</h2>
+        <p>Add your hospice details to appear in searches. Requires the Provider Add Token.</p>
+        <a class="button" href="admin-add.html">Open provider form</a>
+      </div>
+      <div class="card">
+        <h2>Manage Providers</h2>
+        <p>Function for the Best Hospice team members to keep the site recent and relevant.</p>
+        <a class="button" href="admin-manage.html">Open provider management</a>
+      </div>
+      <div class="card">
+        <h2>Provider Dashboard</h2>
+        <p>View all providers in a paged list. Requires the Provider Dashboard Token.</p>
+        <a class="button" href="admin-dashboard.html">Open provider dashboard</a>
+      </div>
+      <div class="card">
+        <h2>Audit Log</h2>
+        <p>Review admin actions for adds/removals/updates. Requires the Audit Token.</p>
+        <a class="button" href="admin-audit.html">Open audit log</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

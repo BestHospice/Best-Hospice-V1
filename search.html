@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search | Best Hospice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="brand">
+          <span class="dot"></span>
+          <span class="title">Best Hospice</span>
+        </div>
+        <div class="top-links">
+          <a class="pill" href="provider.html">Are you a hospice business? Click here to join BestHospice.com</a>
+          <a class="pill ghost-pill" href="contact.html">Contact Us</a>
+        </div>
+      </div>
+      <div class="hero-body">
+        <div class="hero-text">
+          <h1>Find hospice providers near you</h1>
+          <p class="hero-line">Because your loved ones deserve the best, period.</p>
+         <p class="tagline">
+            Start with your ZIP code, answer a few guided questions, and see hospice providers within 60 miles.
+          </p>
+        </div>
+        <form id="search-form" class="search">
+          <p class="eyebrow">Start here</p>
+          <label for="zip" class="label">Enter ZIP code</label>
+          <div class="input-row">
+            <input id="zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="e.g. 30301" required />
+            <button type="submit">Begin</button>
+          </div>
+          <div id="captcha-container" class="hidden">
+            <div id="turnstile-widget"></div>
+          </div>
+          <p class="hint">US ZIP codes only for now.</p>
+        </form>
+      </div>
+    </header>
+
+    <main>
+      <section id="questionnaire" class="question-card hidden card">
+        <div class="question-top">
+          <div>
+            <p class="eyebrow" id="question-progress">Question 1</p>
+            <h2 id="question-title">Tell us about your needs</h2>
+          </div>
+          <div class="chip">Friendly guidance</div>
+        </div>
+        <p id="question-desc" class="question-desc">Answer to continue.</p>
+        <form id="question-form" class="question-form">
+          <div id="question-content" class="question-content"></div>
+          <div class="question-actions">
+            <button type="button" id="back-btn" class="ghost" disabled>Back</button>
+            <button type="submit" class="button">Next</button>
+          </div>
+        </form>
+          <p class="hint">We share because we care. Enabling providers to find you proper care quicker.</p>
+      </section>
+
+      <section id="map-section" class="layout card hidden">
+        <div class="map-col">
+          <div id="map" aria-label="Hospice locations map"></div>
+        </div>
+        <div class="results-card">
+          <div class="results-header">
+            <div>
+              <p class="eyebrow">Results</p>
+              <h2>Nearby Hospice Providers</h2>
+            </div>
+            <div id="status" class="status">Enter a ZIP to start.</div>
+          </div>
+          <ul id="results" class="results"></ul>
+        </div>
+      </section>
+
+      <section id="summary-section" class="card hidden summary-card">
+        <div>
+          <p class="eyebrow">Your Summary</p>
+          <h2>What you shared</h2>
+          <p class="tagline">Review and send to nearby hospice teams.</p>
+        </div>
+        <div id="summary-content" class="summary-content"></div>
+        <a id="summary-email" class="button" href="#" target="_blank" rel="noopener">Email this to BestHospice</a>
+        <p class="hint">We share your questionnaire with nearby hospice providers so they can reach out quickly.</p>
+      </section>
+    </main>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
+  <script src="script.js"></script>
+</body>
+</html>

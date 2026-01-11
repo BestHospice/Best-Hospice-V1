@@ -1,0 +1,22 @@
+{
+  "name": "best-hospice",
+  "version": "1.0.0",
+  "description": "Best Hospice site with simple provider API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "prisma:migrate": "prisma migrate dev --name init",
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.1",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2",
+    "@prisma/client": "^5.14.0",
+    "express": "^4.19.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.14.0"
+  }
+}

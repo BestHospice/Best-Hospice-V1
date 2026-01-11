@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Providers | Best Hospice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .admin-shell { max-width: 720px; margin: 24px auto; padding: 16px; }
+    .admin-card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 10px; }
+    .note { color: #4b5563; font-size: 14px; }
+    .login-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 10px; max-width: 420px; margin: 0 auto 16px; }
+    .login-card input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .hidden { display: none; }
+    .list { margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px solid #e5e7eb; background: #f8fafc; }
+    .provider-item { padding: 6px 0; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .provider-item:last-child { border-bottom: none; }
+    .muted { color: #6b7280; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="login-card" class="login-card">
+      <h2>Manage Providers</h2>
+      <p class="note">Enter the Admin Remove Token to view and remove providers.</p>
+      <input id="token" type="password" placeholder="Type token here" />
+      <button class="button" id="login-btn">Unlock management</button>
+      <p id="login-status" class="note"></p>
+    </div>
+
+    <div id="admin-card" class="admin-card hidden">
+      <div class="list">
+        <h3>All Providers (alphabetical)</h3>
+        <div id="list"></div>
+      </div>
+      <p id="status" class="note"></p>
+      <a class="ghost" href="admin.html">Back to Admin options</a>
+    </div>
+  </div>
+  <script>
+    let adminToken = '';
+    let allProviders = [];
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('list');
+    const loginCard = document.getElementById('login-card');
+    const adminCard = document.getElementById('admin-card');
+    const loginStatus = document.getElementById('login-status');
+
+    async function verifyToken(token) {
+      loginStatus.textContent = 'Verifying...';
+      try {
+        const res = await fetch('/api/admin/verify', {
+          method: 'POST',
+          headers: { 'x-admin-token': token }
+        });
+        if (!res.ok) {
+          loginStatus.textContent = 'Invalid token.';
+          return false;
+        }
+        loginStatus.textContent = '';
+        adminToken = token;
+        loginCard.classList.add('hidden');
+        adminCard.classList.remove('hidden');
+        statusEl.textContent = 'Ready.';
+        await loadProviders();
+        return true;
+      } catch (err) {
+        loginStatus.textContent = 'Error verifying token.';
+        return false;
+      }
+    }
+
+    async function loadProviders() {
+      if (!adminToken) return;
+      try {
+        const res = await fetch('/api/providers', { headers: { 'x-admin-token': adminToken } });
+        const data = await res.json();
+        allProviders = Array.isArray(data) ? data : [];
+        renderProvidersList();
+      } catch (err) {
+        statusEl.textContent = 'Failed to load providers.';
+      }
+    }
+
+    function renderProvidersList() {
+      listEl.innerHTML = '';
+      if (!allProviders.length) {
+        const none = document.createElement('p');
+        none.className = 'muted';
+        none.textContent = 'No providers added yet.';
+        listEl.appendChild(none);
+        return;
+      }
+      const sorted = [...allProviders].sort((a, b) => a.name.localeCompare(b.name));
+      sorted.forEach((p) => {
+        const div = document.createElement('div');
+        div.className = 'provider-item';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = `${p.name} — ${p.address || 'No address'} (${p.email || 'No email'})`;
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Remove';
+        removeBtn.className = 'button button-small';
+        removeBtn.addEventListener('click', () => removeProvider(p.id));
+        div.appendChild(nameSpan);
+        div.appendChild(removeBtn);
+        listEl.appendChild(div);
+      });
+    }
+
+    async function removeProvider(id) {
+      if (!adminToken) {
+        statusEl.textContent = 'Unlock admin first.';
+        return;
+      }
+      if (!confirm('Remove this provider?')) return;
+      statusEl.textContent = 'Removing...';
+      try {
+        const res = await fetch(`/api/providers/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: { 'x-admin-token': adminToken }
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = data.error || 'Failed to remove provider.';
+          return;
+        }
+        statusEl.textContent = 'Removed.';
+        await loadProviders();
+      } catch (err) {
+        statusEl.textContent = 'Error removing provider.';
+      }
+    }
+
+    document.getElementById('login-btn').addEventListener('click', () => {
+      const token = document.getElementById('token').value.trim();
+      if (!token) {
+        loginStatus.textContent = 'Enter your Admin Remove Token.';
+        return;
+      }
+      verifyToken(token);
+    });
+  </script>
+</body>
+</html>

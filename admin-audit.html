@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audit Log | Best Hospice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .shell { max-width: 960px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 12px; }
+    .note { color: #4b5563; font-size: 14px; }
+    .login-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 10px; max-width: 420px; margin: 0 auto 16px; }
+    .login-card input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .hidden { display: none; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+    th { background: #f8fafc; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div id="login-card" class="login-card">
+      <h2>Audit Log</h2>
+      <p class="note">Enter the Audit Token to view admin actions.</p>
+      <input id="token" type="password" placeholder="Type token here" />
+      <button class="button" id="login-btn">Unlock audit log</button>
+      <p id="login-status" class="note"></p>
+    </div>
+
+    <div id="audit-card" class="card hidden">
+      <h1>Admin Audit Log</h1>
+      <table>
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>Admin</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="audit-body"></tbody>
+      </table>
+      <a class="button" href="admin.html">Back to Admin options</a>
+    </div>
+  </div>
+  <script>
+    const loginStatus = document.getElementById('login-status');
+    const loginCard = document.getElementById('login-card');
+    const auditCard = document.getElementById('audit-card');
+    const auditBody = document.getElementById('audit-body');
+
+    async function fetchLogs(token) {
+      const res = await fetch('/api/admin/audit', { headers: { 'x-admin-token': token } });
+      if (!res.ok) throw new Error('Unauthorized');
+      return res.json();
+    }
+
+    function renderLogs(logs) {
+      auditBody.innerHTML = '';
+      logs.forEach((log) => {
+        const tr = document.createElement('tr');
+        const meta = log.metadataJson ? log.metadataJson : '';
+        tr.innerHTML = `
+          <td>${log.createdAt ? new Date(log.createdAt).toLocaleString() : ''}</td>
+          <td>${log.action}</td>
+          <td>${log.targetType || ''} ${log.targetId || ''}</td>
+          <td>${log.adminIdentifier}</td>
+          <td>${meta}</td>
+        `;
+        auditBody.appendChild(tr);
+      });
+    }
+
+    async function unlock() {
+      const token = document.getElementById('token').value.trim();
+      if (!token) {
+        loginStatus.textContent = 'Enter your Audit Token.';
+        return;
+      }
+      loginStatus.textContent = 'Loading...';
+      try {
+        const logs = await fetchLogs(token);
+        loginCard.classList.add('hidden');
+        auditCard.classList.remove('hidden');
+        renderLogs(logs);
+      } catch (err) {
+        loginStatus.textContent = 'Invalid token.';
+      }
+    }
+
+    document.getElementById('login-btn').addEventListener('click', unlock);
+  </script>
+</body>
+</html>

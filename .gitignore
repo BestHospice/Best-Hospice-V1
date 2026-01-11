@@ -1,0 +1,16 @@
+# Environment
+.env
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# OS cruft
+.DS_Store

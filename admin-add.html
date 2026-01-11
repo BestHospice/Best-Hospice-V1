@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Team Up | Best Hospice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .admin-shell { max-width: 960px; margin: 24px auto; padding: 16px; }
+    .admin-card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 10px; }
+    .admin-card h1 { margin: 0 0 6px; }
+    .admin-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .admin-grid label { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+    .admin-grid input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .admin-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    .note { color: #4b5563; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div class="admin-card">
+      <h1>Become a Best Hospice Provider</h1>
+      <p class="note">Contact the Best Hospice Team at providers@besthospice.com to gain access to your personalized Provider Add Token.</p>
+      <div class="list">
+        <p class="note">We use Longitude and Latitude to give customers the most accurate locations. Please insert negative values as needed for West and South cardinal directions.</p>
+      </div>
+      <div class="admin-grid">
+        <div>
+          <label for="name">Hospice Care Name *</label>
+          <input id="name" />
+        </div>
+        <div>
+          <label for="email">Customer Contact Email *</label>
+          <input id="email" />
+        </div>
+        <div>
+          <label for="phone">Customer Contact Phone</label>
+          <input id="phone" placeholder="(555) 123-4567" />
+        </div>
+        <div>
+          <label for="website">Website</label>
+          <input id="website" placeholder="https://example.com" />
+        </div>
+        <div>
+          <label for="address">Street Address *</label>
+          <input id="address" placeholder="123 Main St" />
+        </div>
+        <div>
+          <label for="city">City *</label>
+          <input id="city" placeholder="City" />
+        </div>
+        <div>
+          <label for="state">State *</label>
+          <input id="state" placeholder="State" />
+        </div>
+        <div>
+          <label for="zip">ZIP Code *</label>
+          <input id="zip" placeholder="12345" />
+        </div>
+        <input id="featured" type="hidden" value="true" />
+        <div>
+          <label for="token-add">Provider Add Token</label>
+          <input id="token-add" type="password" placeholder="Type token here" />
+        </div>
+      </div>
+      <div class="admin-actions">
+        <button class="button" id="submit">Submit provider</button>
+      </div>
+      <p id="status" class="note"></p>
+      <a class="button" href="admin.html">Back to Admin options</a>
+    </div>
+  </div>
+  <script>
+    const statusEl = document.getElementById('status');
+    document.getElementById('submit').addEventListener('click', async () => {
+      const addToken = document.getElementById('token-add').value.trim();
+      if (!addToken) {
+        statusEl.textContent = 'Enter the Provider Add Token.';
+        return;
+      }
+      const payload = {
+        name: document.getElementById('name').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        website: document.getElementById('website').value.trim(),
+        address: document.getElementById('address').value.trim(),
+        city: document.getElementById('city').value.trim(),
+        state: document.getElementById('state').value.trim(),
+        zip: document.getElementById('zip').value.trim(),
+        serviceRadiusMiles: 60,
+        featured: true
+      };
+      statusEl.textContent = 'Submitting...';
+      try {
+        const res = await fetch('/api/providers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-token': addToken,
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = data.error || 'Failed to add provider.';
+          return;
+        }
+        statusEl.textContent = 'Added!';
+      } catch (err) {
+        statusEl.textContent = 'Error submitting provider.';
+      }
+    });
+  </script>
+</body>
+</html>

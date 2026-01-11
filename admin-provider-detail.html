@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Provider Detail | Best Hospice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .shell { max-width: 760px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 10px; }
+    .note { color: #4b5563; font-size: 14px; }
+    .login-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 10px; max-width: 420px; margin: 0 auto 16px; }
+    .login-card input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .hidden { display: none; }
+    .meta { display: grid; gap: 6px; color: #4b5563; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div id="login-card" class="login-card">
+      <h2>Provider Detail</h2>
+      <p class="note">Enter the Provider Dashboard Token to view details.</p>
+      <input id="token" type="password" placeholder="Type token here" />
+      <button class="button" id="login-btn">Unlock</button>
+      <p id="login-status" class="note"></p>
+    </div>
+
+    <div id="detail-card" class="card hidden">
+      <h1 id="prov-name"></h1>
+      <div class="meta">
+        <span><strong>Email:</strong> <span id="prov-email"></span></span>
+        <span><strong>Phone:</strong> <span id="prov-phone"></span></span>
+        <span><strong>Website:</strong> <span id="prov-website"></span></span>
+        <span><strong>Address:</strong> <span id="prov-address"></span></span>
+        <span><strong>Latitude:</strong> <span id="prov-lat"></span> | <strong>Longitude:</strong> <span id="prov-lon"></span></span>
+        <span><strong>Service Radius:</strong> <span id="prov-radius"></span></span>
+        <span><strong>Leads Best Hospice has provided:</strong> <span id="prov-leads"></span></span>
+        <span><strong>Added:</strong> <span id="prov-added"></span></span>
+      </div>
+      <a class="button" href="admin-dashboard.html">Back to Dashboard</a>
+    </div>
+  </div>
+  <script>
+    let dashToken = '';
+    let providerId = '';
+    const params = new URLSearchParams(window.location.search);
+    providerId = params.get('id') || '';
+    const loginStatus = document.getElementById('login-status');
+    const loginCard = document.getElementById('login-card');
+    const detailCard = document.getElementById('detail-card');
+
+    async function fetchProviders(token) {
+      const res = await fetch('/api/providers/secure', { headers: { 'x-admin-token': token } });
+      if (!res.ok) throw new Error('Invalid token');
+      return res.json();
+    }
+
+    function renderProvider(p) {
+      document.getElementById('prov-name').textContent = p.name || 'Unnamed';
+      document.getElementById('prov-email').textContent = p.email || '—';
+      document.getElementById('prov-phone').textContent = p.phone || '—';
+      document.getElementById('prov-website').innerHTML = p.website ? `<a href="${p.website}" target="_blank" rel="noopener">${p.website}</a>` : '—';
+      document.getElementById('prov-address').textContent = p.address || '—';
+      document.getElementById('prov-lat').textContent = p.lat ?? '—';
+      document.getElementById('prov-lon').textContent = p.lon ?? '—';
+      document.getElementById('prov-radius').textContent = p.serviceRadiusKm ? `${(p.serviceRadiusKm / 1.60934).toFixed(1)} mi` : '—';
+      document.getElementById('prov-leads').textContent = p.leadCount ?? 0;
+      document.getElementById('prov-added').textContent = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
+    }
+
+    async function unlock() {
+      const token = document.getElementById('token').value.trim();
+      if (!token) {
+        loginStatus.textContent = 'Enter your Provider Dashboard Token.';
+        return;
+      }
+      loginStatus.textContent = 'Verifying...';
+      try {
+        const providers = await fetchProviders(token);
+        dashToken = token;
+        const found = (providers || []).find((p) => p.id === providerId);
+        if (!found) {
+          loginStatus.textContent = 'Provider not found.';
+          return;
+        }
+        loginCard.classList.add('hidden');
+        detailCard.classList.remove('hidden');
+        renderProvider(found);
+      } catch (err) {
+        loginStatus.textContent = 'Invalid token or provider.';
+      }
+    }
+
+    document.getElementById('login-btn').addEventListener('click', unlock);
+  </script>
+</body>
+</html>
