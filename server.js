@@ -286,7 +286,23 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       sentAt: r.status === 'sent' ? new Date() : null
     })).filter((n) => n.providerId);
 
-    if (notificationsData.length) await prisma.leadNotification.createMany({ data: notificationsData });
+    if (notificationsData.length) {
+      await prisma.leadNotification.createMany({ data: notificationsData });
+      // Increment provider lead counts for successful sends
+      const sentCounts = notificationsData
+        .filter((n) => n.status === 'sent')
+        .reduce((acc, n) => {
+          acc[n.providerId] = (acc[n.providerId] || 0) + 1;
+          return acc;
+        }, {});
+      const updates = Object.entries(sentCounts).map(([providerId, count]) =>
+        prisma.provider.update({
+          where: { id: providerId },
+          data: { leadCount: { increment: count } }
+        })
+      );
+      if (updates.length) await prisma.$transaction(updates);
+    }
 
     res.json({ ok: true, sent: results.filter((r) => r.status === 'sent').length, results });
   } catch (err) {
