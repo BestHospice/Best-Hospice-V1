@@ -75,7 +75,7 @@ const questions = [
       },
       {
         title: 'Medication Support',
-        subtitle: 'Common reason families seek hospice',
+        subtitle: 'Common reasons families seek hospice',
         items: [
           'Medication administration',
           'Medication education for caregivers',
@@ -150,7 +150,7 @@ const questions = [
         ]
       },
       {
-        title: 'Spiritual & Cultural Support (Optional)',
+        title: 'Spiritual & Cultural Support',
         subtitle: 'Important for many families',
         items: [
           'Chaplain or spiritual care available',
@@ -173,7 +173,7 @@ const questions = [
   {
     id: 'moreDetails',
     title: 'If you have more specific needs or want to allow us to decide what care is best, type your situation below',
-    desc: 'Optional: share anything unique about your situation',
+    desc: 'Optional: share anything unique about your situation to better inform Best Hospice providers',
     type: 'textarea'
   },
   {
@@ -294,8 +294,17 @@ questionForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const q = questions[currentQuestion];
   const answer = collectAnswer(q);
-  if (!answer || (Array.isArray(answer) && answer.length === 0)) return;
-  userResponses.answers[q.id] = answer;
+  const isEmpty = !answer || (Array.isArray(answer) && answer.length === 0);
+  if (isEmpty) {
+    // Allow optional free-text to be skipped
+    if (q.id === 'moreDetails') {
+      userResponses.answers[q.id] = '';
+    } else {
+      return;
+    }
+  } else {
+    userResponses.answers[q.id] = answer;
+  }
   currentQuestion += 1;
   if (currentQuestion >= questions.length) {
     finishQuestions();
