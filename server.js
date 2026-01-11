@@ -273,7 +273,13 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     const notificationsData = results.map((r) => ({
       id: uuid(),
       leadId: lead.id,
-      providerId: toList.find((p) => p.email === r.email)?.id || '',
+      providerId:
+        r.providerId ||
+        toList.find(
+          (p) =>
+            p.id && p.email && r.email && p.email.trim().toLowerCase() === r.email.trim().toLowerCase()
+        )?.id ||
+        '',
       status: r.status === 'sent' ? 'sent' : 'failed',
       sendgridMessageId: r.messageId || null,
       errorMessage: r.error || null,

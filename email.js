@@ -111,10 +111,10 @@ async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDa
     try {
       const [resp] = await sgMail.send(msg);
       const messageId = resp?.headers?.['x-message-id'] || resp?.headers?.['X-Message-Id'];
-      results.push({ email: provider.email, status: 'sent', messageId });
+      results.push({ email: provider.email, providerId: provider.id, status: 'sent', messageId });
     } catch (error) {
       console.error('SendGrid send failed for', provider.email, error?.response?.body || error);
-      results.push({ email: provider.email, status: 'failed', error: error.message || 'unknown error' });
+      results.push({ email: provider.email, providerId: provider.id, status: 'failed', error: error.message || 'unknown error' });
     }
   }
 
