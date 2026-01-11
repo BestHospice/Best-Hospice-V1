@@ -805,4 +805,20 @@ a {
     font-size: 13px;
     gap: 4px;
   }
+
+  /* Top pills on mobile */
+  .top-links {
+    justify-content: flex-start;
+    gap: 6px;
+  }
+  .pill {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  .brand-logo {
+    height: 72px;
+  }
+  .brand {
+    font-size: 18px;
+  }
 }
