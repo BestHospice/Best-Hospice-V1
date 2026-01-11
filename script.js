@@ -823,6 +823,7 @@ async function notifyProviders(zip, providers, answers) {
         answers,
         captchaToken: turnstileToken,
         providers: toProviders.map((p) => ({
+          id: p.id,
           name: p.name,
           address: p.address,
           email: p.email,
