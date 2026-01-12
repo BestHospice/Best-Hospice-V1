@@ -23,9 +23,19 @@
     .why-card p { margin: 0 0 10px; line-height: 1.6; }
     .why-card ul { margin: 0 0 12px 22px; padding-left: 18px; list-style: disc; }
     .why-top-link { margin-bottom: 12px; display: inline-flex; }
-    .why-hero { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
-    .why-hero-text { flex: 1 1 420px; }
-    .why-hero img { flex: 1 1 320px; max-width: 380px; width: 100%; border-radius: 10px; box-shadow: 0 8px 20px rgba(15,23,42,0.1); }
+    .why-hero { display: flex; gap: 24px; align-items: flex-start; }
+    .why-hero-text { flex: 1 1 50%; }
+    .why-hero img {
+      flex: 1 1 45%;
+      max-width: 380px;
+      width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(15,23,42,0.1);
+    }
+    @media (max-width: 900px) {
+      .why-hero { flex-wrap: wrap; }
+      .why-hero-text, .why-hero img { flex: 1 1 100%; }
+    }
   </style>
 </head>
 <body>
