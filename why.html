@@ -8,6 +8,22 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    .why-card {
+      max-width: 960px;
+      margin: 0 auto 32px;
+      display: grid;
+      gap: 12px;
+      padding: 28px 32px;
+    }
+    .why-card h1 { margin: 0 0 12px; line-height: 1.2; }
+    .why-card h2,
+    .why-card h3,
+    .why-card h4 { margin: 18px 0 8px; line-height: 1.25; }
+    .why-card p { margin: 0 0 12px; line-height: 1.6; }
+    .why-card ul { margin: 0 0 12px 20px; }
+    .why-top-link { margin-bottom: 12px; display: inline-flex; }
+  </style>
 </head>
 <body>
   <div class="page-shell">
@@ -26,7 +42,8 @@
     </header>
 
     <main>
-      <section class="card" style="max-width: 960px; margin: 0 auto 32px; display: grid; gap: 12px;">
+      <section class="card why-card">
+        <a class="pill ghost-pill why-top-link" href="index.html">← Back to main page</a>
         <h1>Best Hospice is here to help because your loved ones deserve the best, period.</h1>
 
         <h2>Understanding Hospice Care</h2>
