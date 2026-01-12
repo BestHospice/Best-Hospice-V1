@@ -14,15 +14,18 @@
       margin: 0 auto 32px;
       display: grid;
       gap: 12px;
-      padding: 28px 32px;
+      padding: 32px 40px;
     }
     .why-card h1 { margin: 0 0 12px; line-height: 1.2; }
     .why-card h2,
     .why-card h3,
     .why-card h4 { margin: 18px 0 8px; line-height: 1.25; }
-    .why-card p { margin: 0 0 12px; line-height: 1.6; }
-    .why-card ul { margin: 0 0 12px 20px; }
+    .why-card p { margin: 0 0 10px; line-height: 1.6; }
+    .why-card ul { margin: 0 0 12px 22px; padding-left: 18px; list-style: disc; }
     .why-top-link { margin-bottom: 12px; display: inline-flex; }
+    .why-hero { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+    .why-hero-text { flex: 1 1 420px; }
+    .why-hero img { flex: 1 1 320px; max-width: 380px; width: 100%; border-radius: 10px; box-shadow: 0 8px 20px rgba(15,23,42,0.1); }
   </style>
 </head>
 <body>
@@ -44,7 +47,12 @@
     <main>
       <section class="card why-card">
         <a class="pill ghost-pill why-top-link" href="index.html">← Back to main page</a>
-        <h1>Best Hospice is here to help because your loved ones deserve the best, period.</h1>
+        <div class="why-hero">
+          <div class="why-hero-text">
+            <h1>Best Hospice is here to help because your loved ones deserve the best, period.</h1>
+          </div>
+          <img src="how-best-hospice-works.png" alt="How Best Hospice works illustration">
+        </div>
 
         <h2>Understanding Hospice Care</h2>
         <p><strong>Compassionate Support When It Matters Most</strong></p>
