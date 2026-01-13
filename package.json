@@ -9,11 +9,12 @@
     "prisma:generate": "prisma generate"
   },
   "dependencies": {
+    "@prisma/client": "^5.14.0",
     "@sendgrid/mail": "^8.1.1",
     "dotenv": "^16.4.5",
-    "node-fetch": "^3.3.2",
-    "@prisma/client": "^5.14.0",
     "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "stripe": "^20.1.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
