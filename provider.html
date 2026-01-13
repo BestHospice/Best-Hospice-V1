@@ -39,8 +39,10 @@
         </div>
         <div class="search">
           <p class="eyebrow">List your hospice</p>
-          <p class="tagline">Email us and we'll onboard you within one business day.</p>
-          <a class="button" href="mailto:providers@besthospice.com?subject=List%20my%20hospice">Email to join</a>
+          <p class="tagline">Provide your email to open a secure Stripe checkout for your listing.</p>
+          <input id="provider-email" type="email" placeholder="you@example.com" class="input-text" style="margin-bottom: 8px; width: 100%;" />
+          <button class="button" id="start-checkout">Start secure checkout</button>
+          <p id="checkout-status" class="note"></p>
           <a class="ghost" href="index.html">See the family search experience</a>
         </div>
       </div>
@@ -48,18 +50,54 @@
 
     <main style="padding: 0 16px 32px;">
       <section class="card" style="max-width: 960px; margin: 0 auto; padding: 20px; display: grid; gap: 12px;">
-        <h2>Secure checkout (Stripe) — coming online here</h2>
-        <p>We’re adding a Stripe-hosted checkout so you can pay for your Best Hospice listing directly on this page.</p>
-        <p>How it will work:</p>
+        <h2>How secure checkout works</h2>
+        <p>Enter the same email you used when listing your hospice. We’ll look up your listing and open a Stripe-hosted checkout for your subscription.</p>
         <ul class="bullets">
-          <li>Submit your provider details (token-protected, like today).</li>
-          <li>Click “Complete payment” to open a secure Stripe checkout.</li>
+          <li>Click “Start secure checkout” above.</li>
+          <li>Complete payment on Stripe’s secure page.</li>
           <li>On success, your listing is marked active and appears in searches.</li>
         </ul>
-        <p>Until the Stripe button is live, email us and we’ll onboard you manually within one business day.</p>
+        <p>If you need help, email us and we’ll onboard you within one business day.</p>
         <a class="button" href="mailto:providers@besthospice.com?subject=Stripe%20Checkout%20Setup">Email to get started</a>
       </section>
     </main>
   </div>
+  <script>
+    const checkoutBtn = document.getElementById('start-checkout');
+    const emailInput = document.getElementById('provider-email');
+    const statusEl = document.getElementById('checkout-status');
+
+    checkoutBtn?.addEventListener('click', async () => {
+      statusEl.textContent = '';
+      const email = emailInput.value.trim();
+      if (!email) {
+        statusEl.textContent = 'Please enter your provider email.';
+        return;
+      }
+      checkoutBtn.disabled = true;
+      statusEl.textContent = 'Creating secure checkout...';
+      try {
+        const res = await fetch('/api/providers/email/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Checkout failed');
+        }
+        const data = await res.json();
+        if (data.url) {
+          window.location = data.url;
+        } else {
+          throw new Error('No checkout URL returned');
+        }
+      } catch (err) {
+        statusEl.textContent = err.message || 'Checkout failed. Please try again.';
+      } finally {
+        checkoutBtn.disabled = false;
+      }
+    });
+  </script>
 </body>
 </html>

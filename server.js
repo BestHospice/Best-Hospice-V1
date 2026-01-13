@@ -6,9 +6,11 @@ const { v4: uuid } = require('uuid');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { PrismaClient } = require('@prisma/client');
 const { sendProviderNotifications, sendTestEmail, emailEnabled } = require('./email');
+const Stripe = require('stripe');
 
 const app = express();
 const prisma = new PrismaClient();
+const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 const PORT = process.env.PORT || 8080;
 const ADMIN_TOKEN_ADD = process.env.ADMIN_TOKEN_ADD || 'TimetoProvideHelp12!';
@@ -22,6 +24,38 @@ const RATE_LIMIT_PER_WINDOW = 5;
 const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
+
+// Stripe webhook needs raw body
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(500).send('Stripe not configured');
+  }
+  const sig = req.headers['stripe-signature'];
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Stripe webhook signature verification failed', err);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const providerId = session.metadata?.providerId;
+      if (providerId) {
+        await prisma.provider.update({
+          where: { id: providerId },
+          data: { featured: true }
+        });
+      }
+    }
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Stripe webhook handling failed', err);
+    res.status(500).send('Webhook handler error');
+  }
+});
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -112,6 +146,39 @@ app.get('/api/providers', async (_req, res) => {
   res.json(providers);
 });
 
+// Create a checkout session using provider email (case-insensitive)
+app.post('/api/providers/email/checkout', async (req, res) => {
+  if (!stripe || !process.env.STRIPE_PRICE_ID || !process.env.STRIPE_SUCCESS_URL || !process.env.STRIPE_CANCEL_URL) {
+    return res.status(500).json({ error: 'Stripe is not fully configured.' });
+  }
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  try {
+    const provider = await prisma.provider.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } }
+    });
+    if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+    const customer = await stripe.customers.create({
+      email: provider.email,
+      name: provider.name
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customer.id,
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: process.env.STRIPE_SUCCESS_URL,
+      cancel_url: process.env.STRIPE_CANCEL_URL,
+      metadata: { providerId: provider.id }
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('Email checkout session failed', err);
+    res.status(500).json({ error: 'Checkout session failed' });
+  }
+});
+
 app.get('/api/config/turnstile', (_req, res) => {
   if (!TURNSTILE_SITE_KEY) return res.status(500).json({ error: 'Turnstile site key not configured' });
   res.json({ siteKey: TURNSTILE_SITE_KEY });
@@ -124,6 +191,35 @@ app.get('/api/providers/secure', async (req, res) => {
   }
   const providers = await prisma.provider.findMany();
   res.json(providers);
+});
+
+app.post('/api/providers/:id/checkout', async (req, res) => {
+  if (!stripe || !process.env.STRIPE_PRICE_ID || !process.env.STRIPE_SUCCESS_URL || !process.env.STRIPE_CANCEL_URL) {
+    return res.status(500).json({ error: 'Stripe is not fully configured.' });
+  }
+  const providerId = req.params.id;
+  try {
+    const provider = await prisma.provider.findUnique({ where: { id: providerId } });
+    if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+    const customer = await stripe.customers.create({
+      email: provider.email,
+      name: provider.name
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customer.id,
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: process.env.STRIPE_SUCCESS_URL,
+      cancel_url: process.env.STRIPE_CANCEL_URL,
+      metadata: { providerId: provider.id }
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('Create checkout session failed', err);
+    res.status(500).json({ error: 'Checkout session failed' });
+  }
 });
 
 app.post('/api/providers', async (req, res) => {
