@@ -348,6 +348,13 @@ privacyContinue?.addEventListener('click', () => {
   showQuestionnaire();
 });
 
+function websiteAnchor(url) {
+  if (!url) return '';
+  const trimmed = url.trim();
+  const href = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return `<a href="${href}" target="_blank" rel="noopener">Website</a>`;
+}
+
 async function finishQuestions() {
   questionnaire.classList.add('hidden');
   mapSection.classList.remove('hidden');
@@ -411,7 +418,7 @@ async function finishQuestions() {
       const badge = center.source === 'featured' ? '<span class="badge">Featured</span>' : '';
       const contactLines = [];
       if (center.phone) contactLines.push(center.phone);
-      if (center.website) contactLines.push(`<a href="${center.website}" target="_blank" rel="noopener">Website</a>`);
+      if (center.website) contactLines.push(websiteAnchor(center.website));
       if (center.email) contactLines.push(`<a href="mailto:${center.email}">${center.email}</a>`);
       const contactBlock = contactLines.length ? `<br>${contactLines.join(' | ')}` : '';
       const content = `<strong>${center.name}</strong><br>${center.address || 'Address not listed'}${badge ? '<br><em>Partner hospice</em>' : ''}${contactBlock}`;
@@ -427,7 +434,7 @@ async function finishQuestions() {
           <span>${milesAway}</span>
           ${center.phone ? `<span>Phone: <a href="tel:${center.phone}">${center.phone}</a></span>` : ''}
           ${center.email ? `<span>Email: <a href="mailto:${center.email}">${center.email}</a></span>` : ''}
-          ${center.website ? `<span><a href="${center.website}" target="_blank" rel="noopener">Website</a></span>` : ''}
+          ${center.website ? `<span>${websiteAnchor(center.website)}</span>` : ''}
         </p>
       `;
         item.addEventListener('mouseenter', () => marker.openPopup());
