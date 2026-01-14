@@ -224,6 +224,9 @@ const mapSection = document.getElementById('map-section');
 const summarySection = document.getElementById('summary-section');
 const summaryContent = document.getElementById('summary-content');
 const summaryEmail = document.getElementById('summary-email');
+const privacySection = document.getElementById('privacy-section');
+const privacyAck = document.getElementById('privacy-ack');
+const privacyContinue = document.getElementById('privacy-continue');
 
 async function loadTurnstileSiteKey() {
   try {
@@ -265,7 +268,7 @@ form.addEventListener('submit', (event) => {
           currentQuestion = 0;
           pendingZip = null;
           captchaContainer.classList.add('hidden');
-          showQuestionnaire();
+          showPrivacyNotice();
         }
       },
       'error-callback': function () {
@@ -326,6 +329,24 @@ function showQuestionnaire() {
   renderQuestion();
   questionnaire.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+function showPrivacyNotice() {
+  privacySection.classList.remove('hidden');
+  questionnaire.classList.add('hidden');
+  mapSection.classList.add('hidden');
+  summarySection.classList.add('hidden');
+  privacySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+privacyAck?.addEventListener('change', () => {
+  privacyContinue.disabled = !privacyAck.checked;
+});
+
+privacyContinue?.addEventListener('click', () => {
+  if (!privacyAck.checked) return;
+  privacySection.classList.add('hidden');
+  showQuestionnaire();
+});
 
 async function finishQuestions() {
   questionnaire.classList.add('hidden');

@@ -70,6 +70,28 @@
           <p class="hint">We share because we care. Enabling providers to find you proper care quicker.</p>
       </section>
 
+      <section id="privacy-section" class="card hidden summary-card">
+        <div>
+          <p class="eyebrow">Important Privacy Notice</p>
+          <h2>Best Hospice is a referral and connection platform and does not provide medical care or medical advice.</h2>
+        </div>
+        <div class="summary-content" style="display: grid; gap: 10px;">
+          <p>Please do not share sensitive or private health information, including diagnoses, medical records, Social Security numbers, insurance details, or other confidential medical data. This information is not required to use our service.</p>
+          <p>By continuing, you acknowledge that:</p>
+          <ul class="summary-list">
+            <li>You understand Best Hospice is not a healthcare provider.</li>
+            <li>You agree not to submit protected or sensitive health information.</li>
+            <li>You understand that Best Hospice is not responsible for information voluntarily shared beyond what is requested.</li>
+          </ul>
+          <p>If you are experiencing a medical emergency, please contact 911 or your healthcare provider immediately.</p>
+          <label style="display:flex; gap:8px; align-items:flex-start; font-size: 15px;">
+            <input type="checkbox" id="privacy-ack" />
+            <span>I have read and acknowledge the notice above.</span>
+          </label>
+          <button class="button" id="privacy-continue" disabled>I Acknowledge &amp; Continue</button>
+        </div>
+      </section>
+
       <section id="map-section" class="layout card hidden">
         <div class="map-col">
           <div id="map" aria-label="Hospice locations map"></div>
