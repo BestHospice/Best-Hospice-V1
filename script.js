@@ -418,7 +418,7 @@ async function finishQuestions() {
       const badge = center.source === 'featured' ? '<span class="badge">Featured</span>' : '';
       const contactLines = [];
       if (center.phone) contactLines.push(center.phone);
-      if (center.website) contactLines.push(websiteAnchor(center.website));
+      if (center.website) contactLines.push(`Website: ${websiteAnchor(center.website)}`);
       if (center.email) contactLines.push(`<a href="mailto:${center.email}">${center.email}</a>`);
       const contactBlock = contactLines.length ? `<br>${contactLines.join(' | ')}` : '';
       const content = `<strong>${center.name}</strong><br>${center.address || 'Address not listed'}${badge ? '<br><em>Partner hospice</em>' : ''}${contactBlock}`;
@@ -434,7 +434,7 @@ async function finishQuestions() {
           <span>${milesAway}</span>
           ${center.phone ? `<span>Phone: <a href="tel:${center.phone}">${center.phone}</a></span>` : ''}
           ${center.email ? `<span>Email: <a href="mailto:${center.email}">${center.email}</a></span>` : ''}
-          ${center.website ? `<span>${websiteAnchor(center.website)}</span>` : ''}
+          ${center.website ? `<span>Website: ${websiteAnchor(center.website)}</span>` : ''}
         </p>
       `;
         item.addEventListener('mouseenter', () => marker.openPopup());

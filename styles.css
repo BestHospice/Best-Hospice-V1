@@ -459,6 +459,11 @@ a {
   flex-direction: column;
   gap: 2px;
 }
+.result-meta a,
+.leaflet-popup-content a {
+  color: #0b63c5;
+  text-decoration: underline;
+}
 
 .hidden {
   display: none;
