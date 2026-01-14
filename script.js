@@ -352,7 +352,8 @@ function websiteAnchor(url) {
   if (!url) return '';
   const trimmed = url.trim();
   const href = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return `<a href="${href}" target="_blank" rel="noopener">Website</a>`;
+  const label = href.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+  return `<a href="${href}" target="_blank" rel="noopener">${label}</a>`;
 }
 
 async function finishQuestions() {
