@@ -67,6 +67,15 @@
     const emailInput = document.getElementById('provider-email');
     const statusEl = document.getElementById('checkout-status');
 
+    // Show message on return from Stripe
+    const params = new URLSearchParams(window.location.search);
+    const checkoutResult = params.get('checkout');
+    if (checkoutResult === 'success') {
+      statusEl.textContent = 'Payment successful. Your listing will be marked active shortly.';
+    } else if (checkoutResult === 'cancel') {
+      statusEl.textContent = 'Checkout was canceled. You can start again below.';
+    }
+
     checkoutBtn?.addEventListener('click', async () => {
       statusEl.textContent = '';
       const email = emailInput.value.trim();
