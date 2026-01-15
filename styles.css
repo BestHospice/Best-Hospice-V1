@@ -200,6 +200,9 @@ a {
   margin: 0 0 4px;
   line-height: 1.35;
 }
+.bubble-align {
+  padding-top: 12px;
+}
 
 .why-hero {
   display: flex;
