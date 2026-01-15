@@ -718,10 +718,10 @@ a {
 
 .summary-list {
   list-style: disc outside;
-  padding-left: 14px;
-  margin: 0 0 2px;
+  padding-left: 12px;
+  margin: 0;
   display: grid;
-  gap: 2px;
+  gap: 1px;
 }
 .summary-list li {
   margin: 0;
@@ -729,7 +729,7 @@ a {
 }
 .summary-list.bullets {
   margin-left: 0;
-  padding-left: 14px;
+  padding-left: 12px;
 }
 
 .summary-nearby ul {
