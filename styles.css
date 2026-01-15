@@ -718,18 +718,24 @@ a {
 
 .summary-list {
   list-style: disc outside;
-  padding-left: 10px;
+  padding-left: 12px;
   margin: 0;
-  display: grid;
-  gap: 1px;
+  display: block;
 }
 .summary-list li {
-  margin: 0;
+  margin: 0 0 4px;
   padding: 0;
+  list-style: disc outside;
 }
 .summary-list.bullets {
   margin-left: 0;
-  padding-left: 10px;
+  padding-left: 12px;
+}
+.summary-list.bullets li {
+  padding-left: 0;
+}
+.summary-list.bullets li::before {
+  content: none;
 }
 
 .summary-nearby ul {
