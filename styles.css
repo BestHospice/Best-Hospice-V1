@@ -152,6 +152,15 @@ a {
   box-shadow: 0 8px 20px rgba(15,23,42,0.1);
 }
 
+.why-body {
+  display: grid;
+  gap: 8px;
+}
+.why-body p {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
 .why-hero {
   display: flex;
   gap: 24px;
