@@ -172,22 +172,22 @@ a {
 
 .section-title {
   text-align: center;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .bubble-ring {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  margin-top: 4px;
+  margin-top: 2px;
 }
 .bubble-card {
   background: #f8fbff;
   border: 1px solid rgba(47, 125, 186, 0.15);
   border-radius: 14px;
-  padding: 8px;
+  padding: 6px;
   display: grid;
-  gap: 3px;
+  gap: 2px;
   position: relative;
   min-height: 0;
 }
@@ -718,7 +718,7 @@ a {
 
 .summary-list {
   list-style: disc outside;
-  padding-left: 12px;
+  padding-left: 10px;
   margin: 0;
   display: grid;
   gap: 1px;
@@ -729,7 +729,7 @@ a {
 }
 .summary-list.bullets {
   margin-left: 0;
-  padding-left: 12px;
+  padding-left: 10px;
 }
 
 .summary-nearby ul {
