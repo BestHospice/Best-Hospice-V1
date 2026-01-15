@@ -178,8 +178,8 @@ a {
 .bubble-ring {
   display: grid;
   gap: 4px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  margin-top: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 4px;
 }
 .bubble-card {
   background: #f8fbff;
@@ -717,20 +717,19 @@ a {
 }
 
 .summary-list {
-  list-style: disc;
-  padding-left: 16px;
-  margin: 0 0 4px;
+  list-style: disc outside;
+  padding-left: 14px;
+  margin: 0 0 2px;
   display: grid;
   gap: 2px;
 }
 .summary-list li {
   margin: 0;
   padding: 0;
-  list-style-position: inside;
 }
 .summary-list.bullets {
-  margin-left: 2px;
-  padding-left: 16px;
+  margin-left: 0;
+  padding-left: 14px;
 }
 
 .summary-nearby ul {
