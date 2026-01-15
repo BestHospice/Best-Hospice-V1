@@ -170,6 +170,36 @@ a {
   text-align: center;
 }
 
+.section-title {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.bubble-ring {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 8px;
+}
+.bubble-card {
+  background: #f8fbff;
+  border: 1px solid rgba(47, 125, 186, 0.15);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+  position: relative;
+}
+.bubble-card h3,
+.bubble-card h4 {
+  margin: 0;
+  text-align: center;
+}
+.bubble-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+
 .why-hero {
   display: flex;
   gap: 24px;
@@ -686,11 +716,15 @@ a {
 }
 
 .summary-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+  list-style: disc;
+  padding-left: 18px;
+  margin: 0 0 8px;
   display: grid;
-  gap: 6px;
+  gap: 4px;
+}
+.summary-list.bullets {
+  margin-left: 4px;
+  padding-left: 18px;
 }
 
 .summary-nearby ul {
