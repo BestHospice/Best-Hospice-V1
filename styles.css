@@ -160,6 +160,15 @@ a {
   margin: 0 0 8px;
   line-height: 1.5;
 }
+.why-body h2,
+.why-body h3,
+.why-body h4 {
+  text-align: center;
+}
+.why-body p strong {
+  display: block;
+  text-align: center;
+}
 
 .why-hero {
   display: flex;
