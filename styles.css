@@ -143,6 +143,23 @@ a {
   box-shadow: 0 12px 20px rgba(15, 23, 42, 0.15);
 }
 
+.why-hero {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.why-hero-text {
+  flex: 1 1 50%;
+}
+.why-hero img {
+  flex: 1 1 40%;
+  max-width: 380px;
+  width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.1);
+}
+
 .steps-vertical {
   margin-top: 12px;
   display: grid;
