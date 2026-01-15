@@ -172,12 +172,12 @@ a {
 
 .section-title {
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .bubble-ring {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   margin-top: 6px;
 }
@@ -185,10 +185,11 @@ a {
   background: #f8fbff;
   border: 1px solid rgba(47, 125, 186, 0.15);
   border-radius: 14px;
-  padding: 12px;
+  padding: 10px;
   display: grid;
   gap: 4px;
   position: relative;
+  min-height: 0;
 }
 .bubble-card h3,
 .bubble-card h4 {
@@ -196,8 +197,8 @@ a {
   text-align: center;
 }
 .bubble-card p {
-  margin: 0 0 6px;
-  line-height: 1.4;
+  margin: 0 0 4px;
+  line-height: 1.35;
 }
 
 .why-hero {
@@ -717,14 +718,14 @@ a {
 
 .summary-list {
   list-style: disc;
-  padding-left: 18px;
-  margin: 0 0 6px;
+  padding-left: 16px;
+  margin: 0 0 4px;
   display: grid;
   gap: 2px;
 }
 .summary-list.bullets {
-  margin-left: 4px;
-  padding-left: 18px;
+  margin-left: 2px;
+  padding-left: 16px;
 }
 
 .summary-nearby ul {
