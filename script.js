@@ -52,7 +52,7 @@ const questions = [
     desc: 'Pick days and times that apply',
     type: 'frequency',
     days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    times: ['Morning', 'Afternoon', 'Night', 'All day']
+    times: ['Morning', 'Afternoon', 'Night', 'All day', '24/7', '24/5 (Weekdays only)', '24/2 (Weekends only)']
   },
   {
     id: 'services',
@@ -142,7 +142,7 @@ const questions = [
         title: 'Care Coordination & Advocacy',
         subtitle: 'Differentiates high-quality hospices',
         items: [
-          'Coordination with hospice physician',
+          'Coordination with physician',
           'Coordination with pharmacy',
           'Coordination with social worker',
           'Care plan management',

@@ -109,6 +109,18 @@ a {
   color: var(--muted);
   font-weight: 500;
 }
+.hero-callout {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.1), rgba(47, 125, 186, 0.08));
+  border: 1px solid rgba(47, 125, 186, 0.15);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+.hero-callout .accent {
+  color: var(--accent-1);
+  font-weight: 700;
+}
 
 .hero-line {
   margin: 6px 0;
