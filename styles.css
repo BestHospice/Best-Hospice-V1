@@ -124,7 +124,7 @@ a {
 
 .why-main-title {
   text-align: center;
-  margin: 14px 0 16px;
+  margin: 18px 0 22px;
   font-size: 30px;
   font-weight: 800;
 }
@@ -133,18 +133,18 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 8px;
-  margin-bottom: 22px;
+  margin-top: 10px;
+  margin-bottom: 34px;
   color: var(--accent-2);
   font-weight: 700;
   letter-spacing: 0.2px;
 }
 .why-arrow {
-  font-size: 28px;
+  font-size: 34px;
   line-height: 1;
 }
 .why-label {
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .hero-line {
