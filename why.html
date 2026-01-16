@@ -40,6 +40,23 @@
       display: grid;
       gap: 10px;
     }
+    .founder-layout {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: minmax(220px, 260px) 1fr;
+      align-items: start;
+    }
+    .founder-photo {
+      width: 100%;
+      border-radius: 12px;
+      box-shadow: 0 10px 22px rgba(15,23,42,0.12);
+      object-fit: cover;
+    }
+    @media (max-width: 820px) {
+      .founder-layout {
+        grid-template-columns: 1fr;
+      }
+    }
     .team-card h3 {
       margin: 0;
     }
@@ -93,14 +110,19 @@
           <div class="team-card">
             <span class="role-tag">CEO and Founder</span>
             <h2 style="margin:4px 0 6px;">James Crawford Outland</h2>
-            <ul class="info-list">
-              <li>Sole operator with full ownership of product, operations, and strategic direction</li>
-              <li>Mission-driven founder inspired by firsthand family experience navigating hospice care</li>
-              <li>Current role: West Point Graduate and Army Ranger serving as a Platoon Leader in The Old Guard leading funerals in Arlington National Cemetery</li>
-            </ul>
-            <p class="founder-quote">“I grew up in a home where character and respect were second to none. From a young age I was always taught to look someone in the eye and shake their hand, use ‘Yes Ma’am and Yes Sir’, write thank you notes for everything, and be kind to those less fortunate or struggling. It was these core values that allowed me to find success as I broke away from the mold of my hometown and left for boarding school at IMG Academy. Learning to value character and respect for others above all else propelled me towards success in a boarding school environment, enabling me to live a life of service and discipline both with my academics and soccer.</p>
-            <p class="founder-quote">During my time at IMG Academy I felt called back to my childhood infatuation, serving the United States of America in the military. I then attended The United States Military Academy at West Point where character, respect and discipline were highly valued and developed. Through my childhood and time at West Point both of my parents expericned difficulties with their own parents journeys towards the end of their lives. Watching my parents navigate these hardships was both saddening and inspiring. It made me think that there had to be an easier way to connect families with reputable hospice providers without hunting down countless referals from family friends and relying on subjective experiences. While I had to focus on service to my nation through Ranger School, multiple moves and leading a Platoon, I always had a place in my heart for helping those less fortunate and knew I could enact change in such a way eventually.</p>
-            <p class="founder-quote">I am currently stationed at Fort Myer, Virginia and lead a platoon of 40 soldiers honoring our nations heroes and their families laying them to rest in Arlington National Cemetery. The job is incredibly noble and requires utmost attention to detail to honor the families of our countrys very best. I am humbled to be able to continue my current role in asissting families through my website BestHospice.com. Because your loves ones deserve the best, period. I will leave you with my favorite quote by Charles Dickens that expresses the gratitude I have towards my calling and role at Best Hospice ‘No one is useless in this world who lightens the burdens of another.’”</p>
+            <div class="founder-layout">
+              <img src="james-outland.jpg" alt="James Crawford Outland" class="founder-photo">
+              <div class="founder-copy">
+                <ul class="info-list">
+                  <li>Sole operator with full ownership of product, operations, and strategic direction</li>
+                  <li>Mission-driven founder inspired by firsthand family experience navigating hospice care</li>
+                  <li>Current role: West Point Graduate and Army Ranger serving as a Platoon Leader in The Old Guard leading funerals in Arlington National Cemetery</li>
+                </ul>
+                <p class="founder-quote">“I grew up in a home where character and respect were second to none. From a young age I was always taught to look someone in the eye and shake their hand, use ‘Yes Ma’am and Yes Sir’, write thank you notes for everything, and be kind to those less fortunate or struggling. It was these core values that allowed me to find success as I broke away from the mold of my hometown and left for boarding school at IMG Academy. Learning to value character and respect for others above all else propelled me towards success in a boarding school environment, enabling me to live a life of service and discipline both with my academics and soccer.</p>
+                <p class="founder-quote">During my time at IMG Academy I felt called back to my childhood infatuation, serving the United States of America in the military. I then attended The United States Military Academy at West Point where character, respect and discipline were highly valued and developed. Through my childhood and time at West Point both of my parents expericned difficulties with their own parents journeys towards the end of their lives. Watching my parents navigate these hardships was both saddening and inspiring. It made me think that there had to be an easier way to connect families with reputable hospice providers without hunting down countless referals from family friends and relying on subjective experiences. While I had to focus on service to my nation through Ranger School, multiple moves and leading a Platoon, I always had a place in my heart for helping those less fortunate and knew I could enact change in such a way eventually.</p>
+                <p class="founder-quote">I am currently stationed at Fort Myer, Virginia and lead a platoon of 40 soldiers honoring our nations heroes and their families laying them to rest in Arlington National Cemetery. The job is incredibly noble and requires utmost attention to detail to honor the families of our countrys very best. I am humbled to be able to continue my current role in asissting families through my website BestHospice.com. Because your loves ones deserve the best, period. I will leave you with my favorite quote by Charles Dickens that expresses the gratitude I have towards my calling and role at Best Hospice ‘No one is useless in this world who lightens the burdens of another.’”</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
