@@ -122,6 +122,13 @@ a {
   font-weight: 500;
 }
 
+.why-main-title {
+  text-align: center;
+  margin: 6px 0 10px;
+  font-size: 30px;
+  font-weight: 800;
+}
+
 .hero-line {
   margin: 6px 0;
   font-size: 22px;
@@ -200,8 +207,42 @@ a {
   margin: 0 0 4px;
   line-height: 1.35;
 }
-.bubble-align {
-  padding-top: 12px;
+
+.action-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 4px;
+}
+.action-card {
+  background: #f9fbff;
+  border: 1px solid rgba(47, 125, 186, 0.12);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 8px 18px rgba(15,23,42,0.05);
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.action-card h4 {
+  margin: 0;
+  text-align: center;
+}
+.action-card p {
+  margin: 0;
+  line-height: 1.45;
+}
+.action-card.image-card {
+  align-items: center;
+}
+.action-list {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+}
+.action-list li {
+  margin: 0;
 }
 
 .why-hero {
