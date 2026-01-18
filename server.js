@@ -331,8 +331,7 @@ app.post('/api/providers', async (req, res) => {
         lat: latVal,
         lon: lonVal,
         serviceRadiusKm: radiusKmFromMiles !== undefined ? radiusKmFromMiles : Number(serviceRadiusKm) || 96.6,
-        featured: Boolean(featured),
-        accountEmailVerified: false
+        featured: Boolean(featured)
       }
     });
     await logAdminAction(adminIdentifier, 'PROVIDER_ADD', provider.id, { name: provider.name, email: provider.email }, hashIp(req.ip || ''));
