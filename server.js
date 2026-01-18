@@ -109,12 +109,47 @@ async function verifyTurnstile(token, ip) {
 }
 
 async function geocodeAddress(addressString) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressString)}&limit=1`;
-  const response = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'BestHospice/1.0' } });
-  if (!response.ok) throw new Error('Geocoding failed');
-  const data = await response.json();
-  if (!Array.isArray(data) || !data.length) return null;
-  return { lat: Number(data[0].lat), lon: Number(data[0].lon) };
+  const headers = { 'Accept-Language': 'en', 'User-Agent': 'BestHospice/1.0 (admin@besthospice.com)' };
+  const queries = [
+    {
+      url: `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressString)}&limit=1`,
+      parse: async (resp) => {
+        const data = await resp.json();
+        if (Array.isArray(data) && data.length) {
+          return { lat: Number(data[0].lat), lon: Number(data[0].lon) };
+        }
+        return null;
+      }
+    },
+    {
+      url: `https://photon.komoot.io/api/?q=${encodeURIComponent(addressString)}&limit=1`,
+      parse: async (resp) => {
+        const data = await resp.json();
+        if (data && Array.isArray(data.features) && data.features.length) {
+          const coords = data.features[0]?.geometry?.coordinates;
+          if (Array.isArray(coords) && coords.length >= 2) {
+            return { lon: Number(coords[0]), lat: Number(coords[1]) };
+          }
+        }
+        return null;
+      }
+    }
+  ];
+
+  for (const q of queries) {
+    try {
+      const response = await fetch(q.url, { headers });
+      if (!response.ok) continue;
+      const result = await q.parse(response);
+      if (result && !Number.isNaN(result.lat) && !Number.isNaN(result.lon)) {
+        return result;
+      }
+    } catch (err) {
+      console.error('Geocode provider failed', err);
+      continue;
+    }
+  }
+  return null;
 }
 
 async function logAdminAction(adminIdentifier, action, targetId, metadata, ipHash) {
