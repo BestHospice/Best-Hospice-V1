@@ -297,23 +297,9 @@ app.post('/api/providers', async (req, res) => {
     website,
     featured = false
     ,
-    accountEmail,
-    accountPassword
   } = req.body || {};
   if (!name || !address || !city || !state || !zip || !email) {
     return res.status(400).json({ error: 'Missing required fields (name, address, city, state, zip, email).' });
-  }
-  const acctEmail = (accountEmail || '').trim();
-  const acctPassword = accountPassword ? String(accountPassword) : '';
-  if ((acctEmail && !acctPassword) || (!acctEmail && acctPassword)) {
-    return res.status(400).json({ error: 'Provide both account email and account password to set up dashboard access.' });
-  }
-  let accountPasswordHash = null;
-  if (acctEmail && acctPassword) {
-    if (acctPassword.length < 8) {
-      return res.status(400).json({ error: 'Dashboard password must be at least 8 characters.' });
-    }
-    accountPasswordHash = crypto.createHash('sha256').update(acctPassword).digest('hex');
   }
   const radiusKmFromMiles = serviceRadiusMiles ? Number(serviceRadiusMiles) * 1.60934 : undefined;
   let latVal = lat !== undefined ? Number(lat) : undefined;
@@ -346,8 +332,6 @@ app.post('/api/providers', async (req, res) => {
         lon: lonVal,
         serviceRadiusKm: radiusKmFromMiles !== undefined ? radiusKmFromMiles : Number(serviceRadiusKm) || 96.6,
         featured: Boolean(featured),
-        accountEmail: acctEmail || null,
-        accountPasswordHash,
         accountEmailVerified: false
       }
     });

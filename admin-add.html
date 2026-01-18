@@ -37,14 +37,6 @@
           <input id="email" />
         </div>
         <div>
-          <label for="account-email">Account Management Email (for dashboard login)</label>
-          <input id="account-email" placeholder="name@yourbusiness.com" />
-        </div>
-        <div>
-          <label for="account-password">Create Dashboard Password</label>
-          <input id="account-password" type="password" placeholder="Minimum 8 characters" />
-        </div>
-        <div>
           <label for="phone">Customer Contact Phone</label>
           <input id="phone" placeholder="(555) 123-4567" />
         </div>
@@ -151,9 +143,7 @@
         state: document.getElementById('state').value.trim(),
         zip: document.getElementById('zip').value.trim(),
         serviceRadiusMiles: 60,
-        featured: true,
-        accountEmail: document.getElementById('account-email').value.trim(),
-        accountPassword: document.getElementById('account-password').value.trim()
+        featured: true
       };
       statusEl.textContent = 'Submitting...';
       try {
