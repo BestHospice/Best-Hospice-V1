@@ -27,6 +27,7 @@ model Provider {
 
   notifications   LeadNotification[]
   impressions     ProviderImpression[]
+  users           ProviderUser[]
 }
 
 model Lead {
@@ -84,4 +85,14 @@ model RateLimitEvent {
   id        String   @id @default(uuid())
   ipHash    String
   createdAt DateTime @default(now())
+}
+
+model ProviderUser {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  passwordHash    String
+  emailVerifiedAt DateTime?
+  provider        Provider? @relation(fields: [providerId], references: [id])
+  providerId      String?
+  createdAt       DateTime  @default(now())
 }
