@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Provider {
+  id              String   @id @default(uuid())
+  name            String
+  email           String
+  phone           String?
+  website         String?
+  accountEmail    String?
+  accountPasswordHash String?
+  accountEmailVerified Boolean @default(false)
+  address         String
+  city            String
+  state           String
+  zip             String
+  lat             Float
+  lon             Float
+  serviceRadiusKm Float
+  featured        Boolean  @default(false)
+  leadCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  notifications   LeadNotification[]
+  impressions     ProviderImpression[]
+}
+
+model Lead {
+  id            String   @id @default(uuid())
+  zip           String
+  submittedBy   String
+  careDays      String?
+  careTimes     String?
+  services      String?
+  clientEmail   String?
+  clientPhone   String?
+  firstName     String?
+  lastName      String?
+  createdAt     DateTime @default(now())
+
+  notifications LeadNotification[]
+  impressions   ProviderImpression[]
+}
+
+model LeadNotification {
+  id                 String                 @id @default(uuid())
+  lead               Lead                   @relation(fields: [leadId], references: [id])
+  leadId             String
+  provider           Provider               @relation(fields: [providerId], references: [id])
+  providerId         String
+  status             String
+  sendgridMessageId  String?
+  errorMessage       String?
+  sentAt             DateTime?
+  createdAt          DateTime               @default(now())
+}
+
+model ProviderImpression {
+  id         String   @id @default(uuid())
+  provider   Provider @relation(fields: [providerId], references: [id])
+  providerId String
+  lead       Lead?    @relation(fields: [leadId], references: [id])
+  leadId     String?
+  zip        String
+  createdAt  DateTime @default(now())
+}
+
+model AdminAuditLog {
+  id              String     @id @default(uuid())
+  adminIdentifier String
+  action          String
+  targetType      String
+  targetId        String?
+  metadataJson    String?
+  ipHash          String?
+  createdAt       DateTime   @default(now())
+}
+
+model RateLimitEvent {
+  id        String   @id @default(uuid())
+  ipHash    String
+  createdAt DateTime @default(now())
+}
