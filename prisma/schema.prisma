@@ -13,9 +13,6 @@ model Provider {
   email           String
   phone           String?
   website         String?
-  accountEmail    String?
-  accountPasswordHash String?
-  accountEmailVerified Boolean @default(false)
   address         String
   city            String
   state           String
