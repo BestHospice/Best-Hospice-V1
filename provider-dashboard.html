@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Provider Dashboard | Best Hospice</title>
+  <link rel="stylesheet" href="styles.css?v=14" />
+  <style>
+    body { background: #f3f6fb; }
+    .dash-shell { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+    .dash-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; box-shadow:0 12px 24px rgba(15,23,42,0.08); display:grid; gap:14px; }
+    .dash-row { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
+    .dash-input { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:10px; }
+    .dash-label { font-weight:700; font-size:14px; margin-bottom:4px; display:block; }
+    .dash-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
+    .dash-btn.secondary { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; }
+    .status { color:#dc2626; }
+    .metrics { display:grid; gap:10px; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); }
+    .metric-card { background:#f8fbff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; text-align:center; }
+    .metric-card h4 { margin:0 0 6px; }
+  </style>
+</head>
+<body>
+  <div class="dash-shell">
+    <div class="dash-card">
+      <h2>Provider Dashboard</h2>
+      <p>Log in or create an account to see your metrics. Linking requires the public email on your provider listing.</p>
+
+      <div class="dash-row">
+        <div>
+          <label class="dash-label" for="email">Email</label>
+          <input id="email" class="dash-input" type="email" placeholder="you@business.com">
+        </div>
+        <div>
+          <label class="dash-label" for="password">Password</label>
+          <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
+        </div>
+      </div>
+      <div class="dash-row">
+        <button class="dash-btn" id="login">Log in</button>
+        <button class="dash-btn secondary" id="signup">Create account</button>
+      </div>
+      <p id="auth-status" class="status"></p>
+
+      <hr>
+
+      <div class="dash-row">
+        <div>
+          <label class="dash-label" for="providerEmail">Provider public email (from your listing)</label>
+          <input id="providerEmail" class="dash-input" type="email" placeholder="public email on your listing">
+        </div>
+      </div>
+      <div class="dash-row">
+        <button class="dash-btn" id="link">Link account to provider</button>
+      </div>
+      <p id="link-status" class="status"></p>
+
+      <hr>
+      <div id="metrics-area" style="display:none;">
+        <h3>Your Metrics</h3>
+        <div class="metrics">
+          <div class="metric-card">
+            <h4>Total notifications sent</h4>
+            <div id="m-total-notifs">-</div>
+          </div>
+          <div class="metric-card">
+            <h4>Total impressions</h4>
+            <div id="m-total-impr">-</div>
+          </div>
+          <div class="metric-card">
+            <h4>Notifications (last 30d)</h4>
+            <div id="m-30-notifs">-</div>
+          </div>
+          <div class="metric-card">
+            <h4>Impressions (last 30d)</h4>
+            <div id="m-30-impr">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tokenKey = 'provider_jwt';
+    const statusEl = document.getElementById('auth-status');
+    const linkStatusEl = document.getElementById('link-status');
+
+    function setStatus(msg) { statusEl.textContent = msg || ''; }
+    function setLinkStatus(msg) { linkStatusEl.textContent = msg || ''; }
+
+    async function callApi(path, method = 'GET', body) {
+      const token = localStorage.getItem(tokenKey) || '';
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    document.getElementById('signup').addEventListener('click', async () => {
+      setStatus('Signing up...');
+      try {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const data = await callApi('/api/provider-auth/signup', 'POST', { email, password });
+        localStorage.setItem(tokenKey, data.token);
+        setStatus('Account created and logged in.');
+      } catch (err) {
+        setStatus(err.message);
+      }
+    });
+
+    document.getElementById('login').addEventListener('click', async () => {
+      setStatus('Logging in...');
+      try {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const data = await callApi('/api/provider-auth/login', 'POST', { email, password });
+        localStorage.setItem(tokenKey, data.token);
+        setStatus('Logged in.');
+        await loadMetrics();
+      } catch (err) {
+        setStatus(err.message);
+      }
+    });
+
+    document.getElementById('link').addEventListener('click', async () => {
+      setLinkStatus('Linking...');
+      try {
+        const providerEmail = document.getElementById('providerEmail').value.trim();
+        const data = await callApi('/api/provider-auth/link', 'POST', { providerEmail });
+        setLinkStatus(`Linked to provider: ${data.providerName || data.providerId}`);
+        await loadMetrics();
+      } catch (err) {
+        setLinkStatus(err.message);
+      }
+    });
+
+    async function loadMetrics() {
+      try {
+        const data = await callApi('/api/provider-dashboard/metrics');
+        document.getElementById('m-total-notifs').textContent = data.metrics.totalNotifications;
+        document.getElementById('m-total-impr').textContent = data.metrics.totalImpressions;
+        document.getElementById('m-30-notifs').textContent = data.metrics.notifications30d;
+        document.getElementById('m-30-impr').textContent = data.metrics.impressions30d;
+        document.getElementById('metrics-area').style.display = 'block';
+      } catch (err) {
+        document.getElementById('metrics-area').style.display = 'none';
+      }
+    }
+
+    // If already logged in, load metrics
+    (async () => {
+      if (localStorage.getItem(tokenKey)) {
+        await loadMetrics().catch(() => {});
+      }
+    })();
+  </script>
+</body>
+</html>

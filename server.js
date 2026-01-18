@@ -7,6 +7,8 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 const { PrismaClient } = require('@prisma/client');
 const { sendProviderNotifications, sendTestEmail, emailEnabled } = require('./email');
 const Stripe = require('stripe');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -24,6 +26,7 @@ const RATE_LIMIT_PER_WINDOW = 5;
 const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
+const PROVIDER_JWT_SECRET = process.env.PROVIDER_JWT_SECRET || 'change-this-provider-secret';
 
 // Stripe webhook needs raw body
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -59,6 +62,22 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 
 app.use(express.json());
 app.use(express.static(__dirname));
+
+// Provider auth helper
+function requireProviderAuth(req, res, next) {
+  const auth = req.headers['authorization'];
+  if (!auth || !auth.toLowerCase().startsWith('bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const token = auth.slice(7);
+  try {
+    const payload = jwt.verify(token, PROVIDER_JWT_SECRET);
+    req.providerUserId = payload.sub;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
 
 function hashIp(ip) {
   return crypto.createHash('sha256').update(`${IP_SALT}:${ip || ''}`).digest('hex');
@@ -496,6 +515,117 @@ app.post('/api/test-email', async (_req, res) => {
   } catch (err) {
     console.error('Test email failed', err);
     res.status(500).json({ error: 'Test email failed' });
+  }
+});
+
+// Provider auth: signup
+app.post('/api/provider-auth/signup', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const normEmail = String(email).trim().toLowerCase();
+  try {
+    const existing = await prisma.providerUser.findUnique({ where: { email: normEmail } });
+    if (existing) return res.status(400).json({ error: 'Account already exists' });
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const user = await prisma.providerUser.create({
+      data: {
+        id: uuid(),
+        email: normEmail,
+        passwordHash
+      }
+    });
+    const token = jwt.sign({ sub: user.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
+    res.json({ ok: true, token });
+  } catch (err) {
+    console.error('Signup failed', err);
+    res.status(500).json({ error: 'Signup failed' });
+  }
+});
+
+// Provider auth: login
+app.post('/api/provider-auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const normEmail = String(email).trim().toLowerCase();
+  try {
+    const user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const ok = await bcrypt.compare(String(password), user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    const token = jwt.sign({ sub: user.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
+    res.json({ ok: true, token, providerId: user.providerId });
+  } catch (err) {
+    console.error('Login failed', err);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Provider auth: link account to a provider via public email
+app.post('/api/provider-auth/link', requireProviderAuth, async (req, res) => {
+  const { providerEmail } = req.body || {};
+  if (!providerEmail) return res.status(400).json({ error: 'providerEmail required' });
+  try {
+    const user = await prisma.providerUser.findUnique({ where: { id: req.providerUserId } });
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const provider = await prisma.provider.findFirst({
+      where: { email: { equals: providerEmail.trim(), mode: 'insensitive' } }
+    });
+    if (!provider) return res.status(404).json({ error: 'Provider with that email not found' });
+    // prevent linking to a different provider if already linked
+    if (user.providerId && user.providerId !== provider.id) {
+      return res.status(400).json({ error: 'Account already linked to a different provider' });
+    }
+    await prisma.providerUser.update({
+      where: { id: user.id },
+      data: { providerId: provider.id }
+    });
+    res.json({ ok: true, providerId: provider.id, providerName: provider.name });
+  } catch (err) {
+    console.error('Link failed', err);
+    res.status(500).json({ error: 'Link failed' });
+  }
+});
+
+// Provider dashboard metrics
+app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res) => {
+  try {
+    const user = await prisma.providerUser.findUnique({
+      where: { id: req.providerUserId },
+      include: { provider: true }
+    });
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!user.providerId || !user.provider) {
+      return res.status(400).json({ error: 'No provider linked yet' });
+    }
+    const providerId = user.providerId;
+    const [totalNotifications, totalImpressions, notifications30d, impressions30d] = await Promise.all([
+      prisma.leadNotification.count({ where: { providerId, status: 'sent' } }),
+      prisma.providerImpression.count({ where: { providerId } }),
+      prisma.leadNotification.count({
+        where: {
+          providerId,
+          status: 'sent',
+          createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+        }
+      }),
+      prisma.providerImpression.count({
+        where: { providerId, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }
+      })
+    ]);
+    res.json({
+      ok: true,
+      provider: { id: user.provider.id, name: user.provider.name, email: user.provider.email },
+      metrics: {
+        totalNotifications,
+        totalImpressions,
+        notifications30d,
+        impressions30d
+      }
+    });
+  } catch (err) {
+    console.error('Metrics failed', err);
+    res.status(500).json({ error: 'Metrics failed' });
   }
 });
 
