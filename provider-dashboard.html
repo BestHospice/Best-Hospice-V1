@@ -24,25 +24,43 @@
   <div class="dash-shell">
     <div class="dash-card">
       <h2>Provider Dashboard</h2>
-      <p>Log in or create an account to see your metrics. Linking requires the public email on your provider listing.</p>
+      <p><strong>Sign up for the dashboard</strong>: Enter your provider's customer contact email (the public email on your listing). We'll email you a link to set your password.</p>
 
       <div class="dash-row">
         <div>
-          <label class="dash-label" for="email">Email</label>
-          <input id="email" class="dash-input" type="email" placeholder="you@business.com">
+          <label class="dash-label" for="signup-email">Provider customer contact email</label>
+          <input id="signup-email" class="dash-input" type="email" placeholder="public email on your listing">
         </div>
-        <div>
-          <label class="dash-label" for="password">Password</label>
-          <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
-        </div>
-      </div>
-      <div class="dash-row">
-        <button class="dash-btn" id="login">Log in</button>
-        <button class="dash-btn secondary" id="signup">Create account</button>
+        <button class="dash-btn" id="signup-start">Send signup link</button>
       </div>
       <p id="auth-status" class="status"></p>
 
-      <hr>
+      <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
+        <div>
+          <label class="dash-label" for="token">Signup token (from email)</label>
+          <input id="token" class="dash-input" type="text" placeholder="Paste token or use the link from email">
+        </div>
+        <div>
+          <label class="dash-label" for="password">Create password</label>
+          <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
+        </div>
+        <button class="dash-btn" id="complete-signup">Complete signup</button>
+      </div>
+      <p id="complete-status" class="status"></p>
+
+      <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
+        <p><strong>Already have an account?</strong></p>
+        <div>
+          <label class="dash-label" for="login-email">Email</label>
+          <input id="login-email" class="dash-input" type="email" placeholder="you@business.com">
+        </div>
+        <div>
+          <label class="dash-label" for="login-password">Password</label>
+          <input id="login-password" class="dash-input" type="password" placeholder="Password">
+        </div>
+        <button class="dash-btn secondary" id="login">Log in</button>
+      </div>
+      <p id="login-status" class="status"></p>
 
       <div class="dash-row">
         <div>
@@ -83,9 +101,13 @@
   <script>
     const tokenKey = 'provider_jwt';
     const statusEl = document.getElementById('auth-status');
+    const completeStatusEl = document.getElementById('complete-status');
+    const loginStatusEl = document.getElementById('login-status');
     const linkStatusEl = document.getElementById('link-status');
 
     function setStatus(msg) { statusEl.textContent = msg || ''; }
+    function setCompleteStatus(msg) { completeStatusEl.textContent = msg || ''; }
+    function setLoginStatus(msg) { loginStatusEl.textContent = msg || ''; }
     function setLinkStatus(msg) { linkStatusEl.textContent = msg || ''; }
 
     async function callApi(path, method = 'GET', body) {
@@ -102,30 +124,45 @@
       return data;
     }
 
-    document.getElementById('signup').addEventListener('click', async () => {
-      setStatus('Signing up...');
+    document.getElementById('signup-start').addEventListener('click', async () => {
+      setStatus('Sending link...');
       try {
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const data = await callApi('/api/provider-auth/signup', 'POST', { email, password });
-        localStorage.setItem(tokenKey, data.token);
-        setStatus('Account created and logged in.');
+        const providerEmail = document.getElementById('signup-email').value.trim();
+        const data = await callApi('/api/provider-auth/signup-start', 'POST', { providerEmail });
+        setStatus(data.message || 'Check your email for the signup link.');
+        if (data.token) {
+          document.getElementById('token').value = data.token;
+        }
       } catch (err) {
         setStatus(err.message);
       }
     });
 
-    document.getElementById('login').addEventListener('click', async () => {
-      setStatus('Logging in...');
+    document.getElementById('complete-signup').addEventListener('click', async () => {
+      setCompleteStatus('Completing signup...');
       try {
-        const email = document.getElementById('email').value.trim();
+        const token = document.getElementById('token').value.trim();
         const password = document.getElementById('password').value.trim();
-        const data = await callApi('/api/provider-auth/login', 'POST', { email, password });
+        const data = await callApi('/api/provider-auth/complete', 'POST', { token, password });
         localStorage.setItem(tokenKey, data.token);
-        setStatus('Logged in.');
+        setCompleteStatus('Signup complete and logged in.');
         await loadMetrics();
       } catch (err) {
-        setStatus(err.message);
+        setCompleteStatus(err.message);
+      }
+    });
+
+    document.getElementById('login').addEventListener('click', async () => {
+      setLoginStatus('Logging in...');
+      try {
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+        const data = await callApi('/api/provider-auth/login', 'POST', { email, password });
+        localStorage.setItem(tokenKey, data.token);
+        setLoginStatus('Logged in.');
+        await loadMetrics();
+      } catch (err) {
+        setLoginStatus(err.message);
       }
     });
 
@@ -156,6 +193,9 @@
 
     // If already logged in, load metrics
     (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const tokenFromUrl = params.get('token');
+      if (tokenFromUrl) document.getElementById('token').value = tokenFromUrl;
       if (localStorage.getItem(tokenKey)) {
         await loadMetrics().catch(() => {});
       }

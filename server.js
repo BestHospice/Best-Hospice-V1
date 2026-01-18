@@ -27,6 +27,7 @@ const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = process.env.PROVIDER_JWT_SECRET || 'change-this-provider-secret';
+const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
 
 // Stripe webhook needs raw body
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -540,6 +541,72 @@ app.post('/api/provider-auth/signup', async (req, res) => {
   } catch (err) {
     console.error('Signup failed', err);
     res.status(500).json({ error: 'Signup failed' });
+  }
+});
+
+// Provider auth: signup start via provider public email
+app.post('/api/provider-auth/signup-start', async (req, res) => {
+  const { providerEmail } = req.body || {};
+  if (!providerEmail) return res.status(400).json({ error: 'Provider email required' });
+  const normEmail = String(providerEmail).trim().toLowerCase();
+  try {
+    const provider = await prisma.provider.findFirst({
+      where: { email: { equals: normEmail, mode: 'insensitive' } }
+    });
+    if (!provider) return res.status(404).json({ error: 'Provider with that email not found' });
+
+    let user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
+    if (!user) {
+      user = await prisma.providerUser.create({
+        data: { id: uuid(), email: normEmail, providerId: provider.id, passwordHash: '' }
+      });
+    } else if (!user.providerId) {
+      await prisma.providerUser.update({ where: { id: user.id }, data: { providerId: provider.id } });
+    }
+
+    const verifyToken = jwt.sign(
+      { sub: user.id, providerId: provider.id, action: 'complete_signup' },
+      PROVIDER_JWT_SECRET,
+      { expiresIn: '2d' }
+    );
+    const link = `${DASHBOARD_VERIFY_URL}?token=${encodeURIComponent(verifyToken)}`;
+
+    if (EMAIL_ENABLED) {
+      try {
+        await sendTestEmail(normEmail, `Best Hospice Provider Dashboard`, `Finish setting your password: ${link}`);
+      } catch (err) {
+        console.error('Send invite email failed', err);
+      }
+    }
+    res.json({ ok: true, token: verifyToken, message: EMAIL_ENABLED ? 'Check your email for the link.' : 'Token returned (email disabled).' });
+  } catch (err) {
+    console.error('Signup start failed', err);
+    res.status(500).json({ error: 'Signup start failed' });
+  }
+});
+
+// Provider auth: complete signup with token + password
+app.post('/api/provider-auth/complete', async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password) return res.status(400).json({ error: 'Token and password required' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  try {
+    const payload = jwt.verify(token, PROVIDER_JWT_SECRET);
+    if (!payload || payload.action !== 'complete_signup') {
+      return res.status(400).json({ error: 'Invalid token' });
+    }
+    const user = await prisma.providerUser.findUnique({ where: { id: payload.sub } });
+    if (!user) return res.status(400).json({ error: 'Invalid token' });
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const updated = await prisma.providerUser.update({
+      where: { id: user.id },
+      data: { passwordHash, emailVerifiedAt: new Date(), providerId: payload.providerId || user.providerId }
+    });
+    const authToken = jwt.sign({ sub: updated.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
+    res.json({ ok: true, token: authToken, providerId: updated.providerId });
+  } catch (err) {
+    console.error('Complete signup failed', err);
+    res.status(400).json({ error: 'Invalid or expired token' });
   }
 });
 
