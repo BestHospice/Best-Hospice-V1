@@ -349,12 +349,18 @@ app.delete('/api/providers/:id', async (req, res) => {
   }
   const id = req.params.id;
   try {
-    const provider = await prisma.provider.delete({ where: { id } });
+    const provider = await prisma.provider.findUnique({ where: { id } });
+    if (!provider) return res.status(404).json({ error: 'Provider not found' });
+    await prisma.$transaction([
+      prisma.leadNotification.deleteMany({ where: { providerId: id } }),
+      prisma.providerImpression.deleteMany({ where: { providerId: id } }),
+      prisma.provider.delete({ where: { id } })
+    ]);
     await logAdminAction('remove_token', 'PROVIDER_REMOVE', id, { name: provider.name }, hashIp(req.ip || ''));
     res.json({ ok: true });
   } catch (err) {
     console.error('Remove failed', err);
-    res.status(404).json({ error: 'Provider not found' });
+    res.status(500).json({ error: 'Remove failed' });
   }
 });
 
