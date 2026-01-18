@@ -8,6 +8,9 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:generate": "prisma generate"
   },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
   "dependencies": {
     "@prisma/client": "^5.14.0",
     "@sendgrid/mail": "^8.1.1",
