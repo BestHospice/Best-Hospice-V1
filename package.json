@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "prisma:migrate": "prisma migrate dev --name init",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "postinstall": "prisma generate --schema prisma/schema.prisma"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
