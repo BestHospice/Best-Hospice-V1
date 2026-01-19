@@ -697,7 +697,11 @@ app.get('/api/provider/leads', requireProviderAuth, async (req, res) => {
             id: true,
             createdAt: true,
             zip: true,
-            submittedBy: true
+            submittedBy: true,
+            clientEmail: true,
+            clientPhone: true,
+            firstName: true,
+            lastName: true
           }
         }
       }
@@ -709,7 +713,10 @@ app.get('/api/provider/leads', requireProviderAuth, async (req, res) => {
         leadId: l.id,
         createdAt: l.createdAt,
         zip: l.zip,
-        submittedBy: l.submittedBy
+        submittedBy: l.submittedBy,
+        clientEmail: l.clientEmail || '',
+        clientPhone: l.clientPhone || '',
+        clientName: [l.firstName, l.lastName].filter(Boolean).join(' ').trim()
       }));
     await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: since.toISOString(), returned: leads.length }, hashIp(req.ip || ''));
     res.json({ ok: true, since: since.toISOString().split('T')[0], leads });
@@ -896,12 +903,33 @@ app.post('/api/ai/chat', async (req, res) => {
         where: { providerId: ctx.providerId, createdAt: { gte: sinceDate } },
         orderBy: { createdAt: 'desc' },
         take: limit,
-        select: { lead: { select: { id: true, createdAt: true, zip: true, submittedBy: true } } }
+        select: {
+          lead: {
+            select: {
+              id: true,
+              createdAt: true,
+              zip: true,
+              submittedBy: true,
+              clientEmail: true,
+              clientPhone: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
       });
       return notifs
         .map((n) => n.lead)
         .filter(Boolean)
-        .map((l) => ({ leadId: l.id, createdAt: l.createdAt, zip: l.zip, submittedBy: l.submittedBy }));
+        .map((l) => ({
+          leadId: l.id,
+          createdAt: l.createdAt,
+          zip: l.zip,
+          submittedBy: l.submittedBy,
+          clientEmail: l.clientEmail || '',
+          clientPhone: l.clientPhone || '',
+          clientName: [l.firstName, l.lastName].filter(Boolean).join(' ').trim()
+        }));
     };
 
     const metricsRange = async (start, end) => {

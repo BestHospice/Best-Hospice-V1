@@ -53,6 +53,9 @@
                 <th style="padding:8px;">ZIP</th>
                 <th style="padding:8px;">Submitted by</th>
                 <th style="padding:8px;">Lead ID</th>
+                <th style="padding:8px;">Contact Email</th>
+                <th style="padding:8px;">Contact Phone</th>
+                <th style="padding:8px;">Name</th>
               </tr>
             </thead>
             <tbody id="leads-body"></tbody>
@@ -140,6 +143,9 @@
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.zip || ''}</td>
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.submittedBy || ''}</td>
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.leadId || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientEmail || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientPhone || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientName || ''}</td>
           `;
           body.appendChild(tr);
         });
