@@ -23,7 +23,7 @@
     <div class="dash-card">
       <h2>Provider Dashboard</h2>
       <p><strong>First time signing in as a provider?</strong> Click “Sign up” and enter the customer contact email from your listing. We’ll email you a code to set your password.</p>
-      <p><strong>Returning provider?</strong> Click “Log in” to access your dashboard.</p>
+      <p style="margin-top:-8px;"><strong>Returning provider?</strong> Click “Log in” to access your dashboard.</p>
 
       <div class="dash-row">
         <button class="dash-btn" id="show-signup">Sign up</button>
@@ -31,30 +31,34 @@
       </div>
 
       <div id="signup-section" class="hidden">
-        <div class="dash-row">
-          <div>
-            <label class="dash-label" for="signup-email">Provider customer contact email</label>
-            <input id="signup-email" class="dash-input" type="email" placeholder="email shown on your listing">
+        <div id="signup-step1">
+          <div class="dash-row">
+            <div>
+              <label class="dash-label" for="signup-email">Provider customer contact email</label>
+              <input id="signup-email" class="dash-input" type="email" placeholder="email shown on your listing">
+            </div>
+            <button class="dash-btn" id="signup-start">Send signup code</button>
           </div>
-          <button class="dash-btn" id="signup-start">Send signup code</button>
+          <p id="auth-status" class="status"></p>
         </div>
-        <p id="auth-status" class="status"></p>
-        <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
-          <div>
-            <label class="dash-label" for="complete-email">Email (same as above)</label>
-            <input id="complete-email" class="dash-input" type="email" placeholder="email on your listing">
+        <div id="signup-step2" class="hidden">
+          <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
+            <div>
+              <label class="dash-label" for="complete-email">Email (same as above)</label>
+              <input id="complete-email" class="dash-input" type="email" placeholder="email on your listing">
+            </div>
+            <div>
+              <label class="dash-label" for="token">Signup code (from email)</label>
+              <input id="token" class="dash-input" type="text" placeholder="Paste code from your email">
+            </div>
+            <div>
+              <label class="dash-label" for="password">Create password</label>
+              <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
+            </div>
+            <button class="dash-btn" id="complete-signup">Complete signup</button>
           </div>
-          <div>
-            <label class="dash-label" for="token">Signup code (from email)</label>
-            <input id="token" class="dash-input" type="text" placeholder="Paste code from your email">
-          </div>
-          <div>
-            <label class="dash-label" for="password">Create password</label>
-            <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
-          </div>
-          <button class="dash-btn" id="complete-signup">Complete signup</button>
+          <p id="complete-status" class="status"></p>
         </div>
-        <p id="complete-status" class="status"></p>
       </div>
 
       <div id="login-section" class="hidden" style="border-top:1px solid #e5e7eb; padding-top:10px;">
@@ -104,6 +108,9 @@
         const providerEmail = document.getElementById('signup-email').value.trim();
         const data = await callApi('/api/provider-auth/signup-start', 'POST', { providerEmail });
         setStatus(data.message || 'Check your email for the signup code.');
+        document.getElementById('signup-step1').classList.add('hidden');
+        document.getElementById('signup-step2').classList.remove('hidden');
+        document.getElementById('complete-email').value = providerEmail;
       } catch (err) {
         setStatus(err.message);
       }
@@ -142,6 +149,8 @@
     (async () => {
       document.getElementById('signup-section').classList.remove('hidden');
       document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('signup-step1').classList.remove('hidden');
+      document.getElementById('signup-step2').classList.add('hidden');
       if (localStorage.getItem(tokenKey)) {
         window.location.href = 'provider-dashboard-home.html';
       }
@@ -150,10 +159,13 @@
     document.getElementById('show-signup').addEventListener('click', () => {
       document.getElementById('signup-section').classList.remove('hidden');
       document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('signup-step1').classList.remove('hidden');
+      document.getElementById('signup-step2').classList.add('hidden');
     });
     document.getElementById('show-login').addEventListener('click', () => {
       document.getElementById('login-section').classList.remove('hidden');
       document.getElementById('signup-section').classList.add('hidden');
+      document.getElementById('signup-step2').classList.add('hidden');
     });
   </script>
 </body>
