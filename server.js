@@ -961,6 +961,14 @@ app.post('/api/ai/chat', async (req, res) => {
       return new Set(notifs.map((n) => n.leadId)).size;
     };
 
+    const leadCountAllTime = async () => {
+      const notifs = await prisma.leadNotification.findMany({
+        where: { providerId: ctx.providerId },
+        select: { leadId: true }
+      });
+      return new Set(notifs.map((n) => n.leadId)).size;
+    };
+
     const leadListSince = async (sinceDate, limit = 50) => {
       const notifs = await prisma.leadNotification.findMany({
         where: { providerId: ctx.providerId, createdAt: { gte: sinceDate } },
@@ -1009,13 +1017,17 @@ app.post('/api/ai/chat', async (req, res) => {
       return res.json({ reply: 'Opening billing portal for you.', navigateTo: '/provider/billing' });
     }
 
-    // Lead count intent
-    if (text.includes('lead') && text.includes('since')) {
-      const match = text.match(/\\d{4}-\\d{2}-\\d{2}/);
+    // Lead count intent (optional since)
+    if (text.includes('lead') && (text.includes('since') || !text.includes('show'))) {
+      const match = text.match(/\d{4}-\d{2}-\d{2}/);
       const sinceDate = match ? new Date(match[0]) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const count = await leadCountSince(sinceDate);
+      const countSince = await leadCountSince(sinceDate);
+      const countAll = await leadCountAllTime();
       await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_COUNT', ctx.providerId, { since: iso(sinceDate) }, hashIp(req.ip || ''));
-      return res.json({ reply: `Leads since ${iso(sinceDate)}: ${count}`, navigateTo: '/provider/leads' });
+      return res.json({
+        reply: `Leads since ${iso(sinceDate)}: ${countSince}. All-time leads: ${countAll}.`,
+        navigateTo: '/provider/leads'
+      });
     }
 
     // Lead list intent
@@ -1052,6 +1064,17 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
 
+    // Revenue intent (estimate)
+    if (text.includes('revenue') || text.includes('made') || text.includes('profit')) {
+      const countAll = await leadCountAllTime();
+      const estimate = countAll * 8000;
+      await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', ctx.providerId, { leads: countAll, estimate }, hashIp(req.ip || ''));
+      return res.json({
+        reply: `You’ve been notified about ${countAll} unique leads. At $8,000 per converted client (industry avg), potential revenue is ~$${estimate.toLocaleString()}. Update your actual conversions in your dashboard to refine this.`,
+        navigateTo: '/provider/leads'
+      });
+    }
+
     // Account intent
     if (text.includes('account') || text.includes('plan')) {
       await logAdminAction('provider_user', 'PROVIDER_AI_ACCOUNT', ctx.providerId, {}, hashIp(req.ip || ''));
@@ -1061,7 +1084,10 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
 
-    return res.json({ reply: 'Ask me for lead counts, lead lists, performance, billing, or account status.', navigateTo: '/provider/dashboard' });
+    return res.json({
+      reply: 'I can help with lead counts (optionally “since YYYY-MM-DD”), lead lists (“show leads since YYYY-MM-DD”), performance metrics, billing, spend, or estimated revenue. Ask away.',
+      navigateTo: '/provider/dashboard'
+    });
   } catch (err) {
     console.error('AI chat failed', err);
     res.status(500).json({ error: 'AI chat failed' });
