@@ -953,7 +953,7 @@ app.post('/api/ai/chat', async (req, res) => {
     }
     if (lower.includes('best hospice')) {
       return res.json({
-        reply: 'Best Hospice helps you quickly find reputable hospice providers near a ZIP code. Start the questionnaire and we’ll show options within ~60 miles.',
+        reply: 'Best Hospice connects families with reputable hospice providers fast. Enter a ZIP code, answer a few guided questions, and we match you to providers within ~60 miles. We also notify nearby providers so they can reach out quickly. Start the questionnaire to see your matches.',
         navigateTo: '/questionnaire'
       });
     }
