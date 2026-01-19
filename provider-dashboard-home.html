@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Provider Dashboard | Best Hospice</title>
+  <link rel="stylesheet" href="styles.css?v=15" />
+  <style>
+    body { background:#f3f6fb; }
+    .dash-shell { max-width: 960px; margin:24px auto; padding:0 16px; }
+    .dash-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:20px; box-shadow:0 12px 24px rgba(15,23,42,0.08); display:grid; gap:16px; }
+    .metrics { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); }
+    .metric-card { background:#f8fbff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; text-align:center; }
+    .metric-card h4 { margin:0 0 6px; }
+    .dash-btn { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; padding:8px 12px; border-radius:10px; font-weight:700; cursor:pointer; justify-self:end; }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+  <div class="dash-shell">
+    <div class="dash-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div>
+          <p id="welcome" style="margin:0; font-size:22px; font-weight:800;">Welcome to your Dashboard</p>
+          <p id="provider-label" style="margin:0; color:#4b5563;"></p>
+        </div>
+        <button class="dash-btn" id="logout">Log out</button>
+      </div>
+
+      <div class="metrics">
+        <div class="metric-card">
+          <h4>Total notifications sent</h4>
+          <div id="m-total-notifs">-</div>
+        </div>
+        <div class="metric-card">
+          <h4>Total impressions</h4>
+          <div id="m-total-impr">-</div>
+        </div>
+        <div class="metric-card">
+          <h4>Notifications (last 30d)</h4>
+          <div id="m-30-notifs">-</div>
+        </div>
+        <div class="metric-card">
+          <h4>Impressions (last 30d)</h4>
+          <div id="m-30-impr">-</div>
+        </div>
+      </div>
+      <p id="status" style="color:#dc2626;"></p>
+    </div>
+  </div>
+
+  <script>
+    const tokenKey = 'provider_jwt';
+    const statusEl = document.getElementById('status');
+
+    function setStatus(msg){ statusEl.textContent = msg || ''; }
+
+    async function callApi(path, method='GET', body){
+      const token = localStorage.getItem(tokenKey) || '';
+      if(!token){
+        window.location.href = 'provider-dashboard.html';
+        return;
+      }
+      const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+      const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body): undefined });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    async function loadMetrics(){
+      try{
+        const data = await callApi('/api/provider-dashboard/metrics');
+        document.getElementById('m-total-notifs').textContent = data.metrics.totalNotifications;
+        document.getElementById('m-total-impr').textContent = data.metrics.totalImpressions;
+        document.getElementById('m-30-notifs').textContent = data.metrics.notifications30d;
+        document.getElementById('m-30-impr').textContent = data.metrics.impressions30d;
+        document.getElementById('provider-label').textContent = data.provider ? data.provider.name + ' — ' + data.provider.email : '';
+        document.getElementById('welcome').textContent = data.provider ? `Welcome to ${data.provider.name} Dashboard` : 'Welcome to your Dashboard';
+        setStatus('');
+      }catch(err){
+        setStatus(err.message);
+        localStorage.removeItem(tokenKey);
+        window.location.href = 'provider-dashboard.html';
+      }
+    }
+
+    document.getElementById('logout').addEventListener('click', ()=>{
+      localStorage.removeItem(tokenKey);
+      window.location.href = 'provider-dashboard.html';
+    });
+
+    loadMetrics();
+  </script>
+</body>
+</html>

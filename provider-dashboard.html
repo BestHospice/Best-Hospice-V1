@@ -4,20 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Provider Dashboard | Best Hospice</title>
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="styles.css?v=15" />
   <style>
     body { background: #f3f6fb; }
-    .dash-shell { max-width: 980px; margin: 24px auto; padding: 0 16px; }
-    .dash-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; box-shadow:0 12px 24px rgba(15,23,42,0.08); display:grid; gap:14px; }
-    .dash-row { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
+    .dash-shell { max-width: 920px; margin: 24px auto; padding: 0 16px; }
+    .dash-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:20px; box-shadow:0 12px 24px rgba(15,23,42,0.08); display:grid; gap:16px; }
+    .dash-row { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); align-items:end; }
     .dash-input { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:10px; }
     .dash-label { font-weight:700; font-size:14px; margin-bottom:4px; display:block; }
     .dash-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
     .dash-btn.secondary { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; }
     .status { color:#dc2626; }
-    .metrics { display:grid; gap:10px; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); }
-    .metric-card { background:#f8fbff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; text-align:center; }
-    .metric-card h4 { margin:0 0 6px; }
     .hidden { display:none !important; }
   </style>
 </head>
@@ -25,7 +22,7 @@
   <div class="dash-shell">
     <div class="dash-card">
       <h2>Provider Dashboard</h2>
-      <p><strong>First time signing in as a provider?</strong> Click “Sign up” and enter the customer contact email from your listing. We’ll email you a token to set your password.</p>
+      <p><strong>First time signing in as a provider?</strong> Click “Sign up” and enter the customer contact email from your listing. We’ll email you a code to set your password.</p>
       <p><strong>Returning provider?</strong> Click “Log in” to access your dashboard.</p>
 
       <div class="dash-row">
@@ -39,7 +36,7 @@
             <label class="dash-label" for="signup-email">Provider customer contact email</label>
             <input id="signup-email" class="dash-input" type="email" placeholder="email shown on your listing">
           </div>
-          <button class="dash-btn" id="signup-start">Send signup token</button>
+          <button class="dash-btn" id="signup-start">Send signup code</button>
         </div>
         <p id="auth-status" class="status"></p>
         <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
@@ -74,29 +71,6 @@
         </div>
         <p id="login-status" class="status"></p>
       </div>
-
-      <hr>
-      <div id="metrics-area" class="hidden">
-        <h3>Your Metrics</h3>
-        <div class="metrics">
-          <div class="metric-card">
-            <h4>Total notifications sent</h4>
-            <div id="m-total-notifs">-</div>
-          </div>
-          <div class="metric-card">
-            <h4>Total impressions</h4>
-            <div id="m-total-impr">-</div>
-          </div>
-          <div class="metric-card">
-            <h4>Notifications (last 30d)</h4>
-            <div id="m-30-notifs">-</div>
-          </div>
-          <div class="metric-card">
-            <h4>Impressions (last 30d)</h4>
-            <div id="m-30-impr">-</div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -125,11 +99,11 @@
     }
 
     document.getElementById('signup-start').addEventListener('click', async () => {
-      setStatus('Sending link...');
+      setStatus('Sending code...');
       try {
         const providerEmail = document.getElementById('signup-email').value.trim();
         const data = await callApi('/api/provider-auth/signup-start', 'POST', { providerEmail });
-        setStatus(data.message || 'Check your email for the signup token.');
+        setStatus(data.message || 'Check your email for the signup code.');
       } catch (err) {
         setStatus(err.message);
       }
@@ -143,8 +117,8 @@
         const password = document.getElementById('password').value.trim();
         const data = await callApi('/api/provider-auth/complete', 'POST', { email, code, password });
         localStorage.setItem(tokenKey, data.token);
-        setCompleteStatus('Signup complete and logged in.');
-        await loadMetrics();
+        setCompleteStatus('Signup complete.');
+        window.location.href = 'provider-dashboard-home.html';
       } catch (err) {
         setCompleteStatus(err.message);
       }
@@ -158,49 +132,28 @@
         const data = await callApi('/api/provider-auth/login', 'POST', { email, password });
         localStorage.setItem(tokenKey, data.token);
         setLoginStatus('Logged in.');
-        await loadMetrics();
+        window.location.href = 'provider-dashboard-home.html';
       } catch (err) {
         setLoginStatus(err.message);
       }
     });
 
-    async function loadMetrics() {
-      try {
-        const data = await callApi('/api/provider-dashboard/metrics');
-        document.getElementById('m-total-notifs').textContent = data.metrics.totalNotifications;
-        document.getElementById('m-total-impr').textContent = data.metrics.totalImpressions;
-        document.getElementById('m-30-notifs').textContent = data.metrics.notifications30d;
-        document.getElementById('m-30-impr').textContent = data.metrics.impressions30d;
-        document.getElementById('metrics-area').classList.remove('hidden');
-      } catch (err) {
-        document.getElementById('metrics-area').classList.add('hidden');
-      }
-    }
-
-    // If already logged in, load metrics
+    // Default view: show signup
     (async () => {
-      // Show signup by default
       document.getElementById('signup-section').classList.remove('hidden');
       document.getElementById('login-section').classList.add('hidden');
-
       if (localStorage.getItem(tokenKey)) {
-        document.getElementById('signup-section').classList.add('hidden');
-        document.getElementById('login-section').classList.add('hidden');
-        await loadMetrics().catch(() => {});
+        window.location.href = 'provider-dashboard-home.html';
       }
     })();
 
     document.getElementById('show-signup').addEventListener('click', () => {
       document.getElementById('signup-section').classList.remove('hidden');
       document.getElementById('login-section').classList.add('hidden');
-      document.getElementById('metrics-area').classList.add('hidden');
-      document.getElementById('link-row').classList.add('hidden');
     });
     document.getElementById('show-login').addEventListener('click', () => {
       document.getElementById('login-section').classList.remove('hidden');
       document.getElementById('signup-section').classList.add('hidden');
-      document.getElementById('metrics-area').classList.add('hidden');
-      document.getElementById('link-row').classList.add('hidden');
     });
   </script>
 </body>
