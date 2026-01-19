@@ -677,35 +677,41 @@ app.get('/api/provider/leads/count', requireProviderAuth, async (req, res) => {
   }
 });
 
-// Provider leads list since date (safe fields only)
+// Provider leads list since date (safe fields only, paginated)
 app.get('/api/provider/leads', requireProviderAuth, async (req, res) => {
   try {
     const ctx = await getProviderContext(req.providerUserId);
     if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
     const sinceParam = req.query.since;
-    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const limit = Math.min(parseInt(req.query.limit || '10', 10), 200);
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const skip = (page - 1) * limit;
     const since = sinceParam ? new Date(String(sinceParam)) : null;
     if (!since || isNaN(since.getTime())) return res.status(400).json({ error: 'Invalid since date' });
 
-    const notifs = await prisma.leadNotification.findMany({
-      where: { providerId: ctx.providerId, createdAt: { gte: since } },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: {
-        lead: {
-          select: {
-            id: true,
-            createdAt: true,
-            zip: true,
-            submittedBy: true,
-            clientEmail: true,
-            clientPhone: true,
-            firstName: true,
-            lastName: true
+    const [notifs, total] = await Promise.all([
+      prisma.leadNotification.findMany({
+        where: { providerId: ctx.providerId, createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          lead: {
+            select: {
+              id: true,
+              createdAt: true,
+              zip: true,
+              submittedBy: true,
+              clientEmail: true,
+              clientPhone: true,
+              firstName: true,
+              lastName: true
+            }
           }
         }
-      }
-    });
+      }),
+      prisma.leadNotification.count({ where: { providerId: ctx.providerId, createdAt: { gte: since } } })
+    ]);
     const leads = notifs
       .map((n) => n.lead)
       .filter(Boolean)
@@ -719,7 +725,7 @@ app.get('/api/provider/leads', requireProviderAuth, async (req, res) => {
         clientName: [l.firstName, l.lastName].filter(Boolean).join(' ').trim()
       }));
     await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: since.toISOString(), returned: leads.length }, hashIp(req.ip || ''));
-    res.json({ ok: true, since: since.toISOString().split('T')[0], leads });
+    res.json({ ok: true, since: since.toISOString().split('T')[0], leads, total, page, pageSize: limit });
   } catch (err) {
     console.error('Lead list failed', err);
     res.status(500).json({ error: 'Server error' });

@@ -60,6 +60,11 @@
             </thead>
             <tbody id="leads-body"></tbody>
           </table>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+            <button class="dash-btn secondary" id="prev-page">Prev</button>
+            <span id="page-info" style="font-weight:700;"></span>
+            <button class="dash-btn secondary" id="next-page">Next</button>
+          </div>
         </div>
       </div>
 
@@ -118,6 +123,8 @@
       }
     }
 
+    let leadsPage = 1;
+
     async function loadLeadKPIs() {
       try {
         const sinceInput = document.getElementById('since-date').value;
@@ -129,7 +136,7 @@
           callApi(`/api/provider/leads/count?since=${since}`),
           callApi(`/api/provider/leads/count?since=${seven}`),
           callApi(`/api/provider/leads/count?since=${thirty}`),
-          callApi(`/api/provider/leads?since=${since}&limit=50`)
+          callApi(`/api/provider/leads?since=${since}&limit=10&page=${leadsPage}`)
         ]);
         document.getElementById('kpi-since').textContent = sinceCount.count;
         document.getElementById('kpi-7d').textContent = sevenCount.count;
@@ -149,6 +156,9 @@
           `;
           body.appendChild(tr);
         });
+        document.getElementById('page-info').textContent = `Page ${leads.page || 1} of ${Math.max(1, Math.ceil((leads.total || 0)/(leads.pageSize || 10)))}`;
+        document.getElementById('prev-page').disabled = (leads.page || 1) <= 1;
+        document.getElementById('next-page').disabled = (leads.page || 1) >= Math.max(1, Math.ceil((leads.total || 0)/(leads.pageSize || 10)));
       } catch (err) {
         setStatus(err.message);
       }
@@ -173,6 +183,16 @@
     });
 
     document.getElementById('load-leads').addEventListener('click', loadLeadKPIs);
+    document.getElementById('prev-page').addEventListener('click', () => {
+      if (leadsPage > 1) {
+        leadsPage -= 1;
+        loadLeadKPIs();
+      }
+    });
+    document.getElementById('next-page').addEventListener('click', () => {
+      leadsPage += 1;
+      loadLeadKPIs();
+    });
     document.getElementById('load-perf').addEventListener('click', loadPerformance);
     document.getElementById('billing').addEventListener('click', async () => {
       try {
