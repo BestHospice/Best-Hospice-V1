@@ -25,7 +25,7 @@
   <div class="dash-shell">
     <div class="dash-card">
       <h2>Provider Dashboard</h2>
-      <p><strong>First time signing in as a provider?</strong> Click “Sign up” and enter the public email on your listing. We’ll email you a link to set your password.</p>
+      <p><strong>First time signing in as a provider?</strong> Click “Sign up” and enter the customer contact email from your listing. We’ll email you a token to set your password.</p>
       <p><strong>Returning provider?</strong> Click “Log in” to access your dashboard.</p>
 
       <div class="dash-row">
@@ -37,15 +37,19 @@
         <div class="dash-row">
           <div>
             <label class="dash-label" for="signup-email">Provider customer contact email</label>
-            <input id="signup-email" class="dash-input" type="email" placeholder="public email on your listing">
+            <input id="signup-email" class="dash-input" type="email" placeholder="email shown on your listing">
           </div>
-          <button class="dash-btn" id="signup-start">Send signup link</button>
+          <button class="dash-btn" id="signup-start">Send signup token</button>
         </div>
         <p id="auth-status" class="status"></p>
         <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
           <div>
-            <label class="dash-label" for="token">Signup token (from email)</label>
-            <input id="token" class="dash-input" type="text" placeholder="Paste token or use the link from email">
+            <label class="dash-label" for="complete-email">Email (same as above)</label>
+            <input id="complete-email" class="dash-input" type="email" placeholder="email on your listing">
+          </div>
+          <div>
+            <label class="dash-label" for="token">Signup code (from email)</label>
+            <input id="token" class="dash-input" type="text" placeholder="Paste code from your email">
           </div>
           <div>
             <label class="dash-label" for="password">Create password</label>
@@ -70,17 +74,6 @@
         </div>
         <p id="login-status" class="status"></p>
       </div>
-
-      <div class="dash-row">
-        <div>
-          <label class="dash-label" for="providerEmail">Provider public email (from your listing)</label>
-          <input id="providerEmail" class="dash-input" type="email" placeholder="public email on your listing">
-        </div>
-      </div>
-      <div class="dash-row hidden" id="link-row">
-        <button class="dash-btn" id="link">Link account to provider</button>
-      </div>
-      <p id="link-status" class="status"></p>
 
       <hr>
       <div id="metrics-area" class="hidden">
@@ -112,12 +105,10 @@
     const statusEl = document.getElementById('auth-status');
     const completeStatusEl = document.getElementById('complete-status');
     const loginStatusEl = document.getElementById('login-status');
-    const linkStatusEl = document.getElementById('link-status');
 
     function setStatus(msg) { statusEl.textContent = msg || ''; }
     function setCompleteStatus(msg) { completeStatusEl.textContent = msg || ''; }
     function setLoginStatus(msg) { loginStatusEl.textContent = msg || ''; }
-    function setLinkStatus(msg) { linkStatusEl.textContent = msg || ''; }
 
     async function callApi(path, method = 'GET', body) {
       const token = localStorage.getItem(tokenKey) || '';
@@ -147,9 +138,10 @@
     document.getElementById('complete-signup').addEventListener('click', async () => {
       setCompleteStatus('Completing signup...');
       try {
-        const token = document.getElementById('token').value.trim();
+        const email = document.getElementById('complete-email').value.trim() || document.getElementById('signup-email').value.trim();
+        const code = document.getElementById('token').value.trim();
         const password = document.getElementById('password').value.trim();
-        const data = await callApi('/api/provider-auth/complete', 'POST', { token, password });
+        const data = await callApi('/api/provider-auth/complete', 'POST', { email, code, password });
         localStorage.setItem(tokenKey, data.token);
         setCompleteStatus('Signup complete and logged in.');
         await loadMetrics();
@@ -172,18 +164,6 @@
       }
     });
 
-    document.getElementById('link').addEventListener('click', async () => {
-      setLinkStatus('Linking...');
-      try {
-        const providerEmail = document.getElementById('providerEmail').value.trim();
-        const data = await callApi('/api/provider-auth/link', 'POST', { providerEmail });
-        setLinkStatus(`Linked to provider: ${data.providerName || data.providerId}`);
-        await loadMetrics();
-      } catch (err) {
-        setLinkStatus(err.message);
-      }
-    });
-
     async function loadMetrics() {
       try {
         const data = await callApi('/api/provider-dashboard/metrics');
@@ -192,10 +172,8 @@
         document.getElementById('m-30-notifs').textContent = data.metrics.notifications30d;
         document.getElementById('m-30-impr').textContent = data.metrics.impressions30d;
         document.getElementById('metrics-area').classList.remove('hidden');
-        document.getElementById('link-row').classList.remove('hidden');
       } catch (err) {
         document.getElementById('metrics-area').classList.add('hidden');
-        document.getElementById('link-row').classList.add('hidden');
       }
     }
 

@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { v4: uuid } = require('uuid');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { PrismaClient } = require('@prisma/client');
-const { sendProviderNotifications, sendTestEmail, emailEnabled } = require('./email');
+const { sendProviderNotifications, sendTestEmail, sendGenericEmail, emailEnabled } = require('./email');
 const Stripe = require('stripe');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -519,31 +519,6 @@ app.post('/api/test-email', async (_req, res) => {
   }
 });
 
-// Provider auth: signup
-app.post('/api/provider-auth/signup', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-  const normEmail = String(email).trim().toLowerCase();
-  try {
-    const existing = await prisma.providerUser.findUnique({ where: { email: normEmail } });
-    if (existing) return res.status(400).json({ error: 'Account already exists' });
-    const passwordHash = await bcrypt.hash(String(password), 10);
-    const user = await prisma.providerUser.create({
-      data: {
-        id: uuid(),
-        email: normEmail,
-        passwordHash
-      }
-    });
-    const token = jwt.sign({ sub: user.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
-    res.json({ ok: true, token });
-  } catch (err) {
-    console.error('Signup failed', err);
-    res.status(500).json({ error: 'Signup failed' });
-  }
-});
-
 // Provider auth: signup start via provider public email
 app.post('/api/provider-auth/signup-start', async (req, res) => {
   const { providerEmail } = req.body || {};
@@ -564,22 +539,26 @@ app.post('/api/provider-auth/signup-start', async (req, res) => {
       await prisma.providerUser.update({ where: { id: user.id }, data: { providerId: provider.id } });
     }
 
-    const verifyToken = jwt.sign(
-      { sub: user.id, providerId: provider.id, action: 'complete_signup' },
-      PROVIDER_JWT_SECRET,
-      { expiresIn: '2d' }
-    );
-    const link = `${DASHBOARD_VERIFY_URL}`;
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    await prisma.providerUser.update({
+      where: { email: normEmail },
+      data: { verifyCode: code, verifyCodeExpiresAt: expiresAt }
+    });
 
     if (!EMAIL_ENABLED) {
       return res.status(500).json({ error: 'Email not configured. Please contact support.' });
     }
     try {
-      await sendTestEmail(
-        normEmail,
-        `Best Hospice Provider Dashboard`,
-        `Finish setting your password by visiting ${link} and entering this token: ${verifyToken}`
-      );
+      const html = `
+        <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111">
+          <p>You requested access to the Best Hospice Provider Dashboard for <strong>${provider.name}</strong>.</p>
+          <p>Please copy this one-time code and paste it in the dashboard to finish creating your password:</p>
+          <p style="font-size:22px; font-weight:800; letter-spacing:2px;">${code}</p>
+          <p>Open: <a href="${DASHBOARD_VERIFY_URL}">${DASHBOARD_VERIFY_URL}</a> and use the code above. Codes expire in 48 hours.</p>
+        </div>
+      `;
+      await sendGenericEmail(normEmail, 'Finish setting up your Best Hospice dashboard', html);
     } catch (err) {
       console.error('Send invite email failed', err);
       return res.status(500).json({ error: 'Failed to send signup email.' });
@@ -591,28 +570,39 @@ app.post('/api/provider-auth/signup-start', async (req, res) => {
   }
 });
 
-// Provider auth: complete signup with token + password
+// Provider auth: complete signup with code + password
 app.post('/api/provider-auth/complete', async (req, res) => {
-  const { token, password } = req.body || {};
-  if (!token || !password) return res.status(400).json({ error: 'Token and password required' });
+  const { email, code, password } = req.body || {};
+  if (!email || !code || !password) return res.status(400).json({ error: 'Email, code, and password are required' });
   if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const normEmail = String(email).trim().toLowerCase();
   try {
-    const payload = jwt.verify(token, PROVIDER_JWT_SECRET);
-    if (!payload || payload.action !== 'complete_signup') {
-      return res.status(400).json({ error: 'Invalid token' });
+    const user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
+    if (!user || !user.verifyCode || !user.verifyCodeExpiresAt) {
+      return res.status(400).json({ error: 'Invalid or missing code' });
     }
-    const user = await prisma.providerUser.findUnique({ where: { id: payload.sub } });
-    if (!user) return res.status(400).json({ error: 'Invalid token' });
+    if (user.verifyCode !== String(code).trim()) {
+      return res.status(400).json({ error: 'Invalid code' });
+    }
+    if (new Date() > user.verifyCodeExpiresAt) {
+      return res.status(400).json({ error: 'Code expired. Please start signup again.' });
+    }
+
     const passwordHash = await bcrypt.hash(String(password), 10);
     const updated = await prisma.providerUser.update({
       where: { id: user.id },
-      data: { passwordHash, emailVerifiedAt: new Date(), providerId: payload.providerId || user.providerId }
+      data: {
+        passwordHash,
+        emailVerifiedAt: new Date(),
+        verifyCode: null,
+        verifyCodeExpiresAt: null
+      }
     });
     const authToken = jwt.sign({ sub: updated.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
     res.json({ ok: true, token: authToken, providerId: updated.providerId });
   } catch (err) {
     console.error('Complete signup failed', err);
-    res.status(400).json({ error: 'Invalid or expired token' });
+    res.status(400).json({ error: 'Invalid or expired code' });
   }
 });
 

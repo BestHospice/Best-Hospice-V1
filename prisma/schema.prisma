@@ -92,6 +92,8 @@ model ProviderUser {
   email           String    @unique
   passwordHash    String
   emailVerifiedAt DateTime?
+  verifyCode      String?
+  verifyCodeExpiresAt DateTime?
   provider        Provider? @relation(fields: [providerId], references: [id])
   providerId      String?
   createdAt       DateTime  @default(now())

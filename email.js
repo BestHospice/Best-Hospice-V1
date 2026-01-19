@@ -121,16 +121,20 @@ async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDa
   return results;
 }
 
-async function sendTestEmail(to) {
+async function sendGenericEmail(to, subject, html) {
   if (!initSendGrid()) throw new Error('SendGrid not configured');
   const msg = {
     to,
     from: process.env.SENDGRID_FROM_EMAIL,
     replyTo: process.env.SENDGRID_REPLY_TO || process.env.SENDGRID_FROM_EMAIL,
-    subject: 'Best Hospice test email',
-    html: '<p>This is a test email from Best Hospice backend.</p>'
+    subject,
+    html
   };
   await sgMail.send(msg);
 }
 
-module.exports = { sendProviderNotifications, sendTestEmail, emailEnabled };
+async function sendTestEmail(to) {
+  return sendGenericEmail(to, 'Best Hospice test email', '<p>This is a test email from Best Hospice backend.</p>');
+}
+
+module.exports = { sendProviderNotifications, sendTestEmail, sendGenericEmail, emailEnabled };
