@@ -33,6 +33,51 @@
           <div id="m-total-notifs">-</div>
         </div>
       </div>
+
+      <div style="border-top:1px solid #e5e7eb; padding-top:12px;">
+        <h3>Lead Analytics</h3>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <label>Since <input id="since-date" type="date" /></label>
+          <button class="dash-btn" id="load-leads">Load leads</button>
+        </div>
+        <div class="metrics" style="margin-top:12px;">
+          <div class="metric-card"><h4>Leads since date</h4><div id="kpi-since">-</div></div>
+          <div class="metric-card"><h4>Leads last 7 days</h4><div id="kpi-7d">-</div></div>
+          <div class="metric-card"><h4>Leads last 30 days</h4><div id="kpi-30d">-</div></div>
+        </div>
+        <div style="margin-top:12px; overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <thead>
+              <tr style="text-align:left; border-bottom:1px solid #e5e7eb;">
+                <th style="padding:8px;">Date received</th>
+                <th style="padding:8px;">ZIP</th>
+                <th style="padding:8px;">Submitted by</th>
+                <th style="padding:8px;">Lead ID</th>
+              </tr>
+            </thead>
+            <tbody id="leads-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #e5e7eb; padding-top:12px;">
+        <h3>Performance</h3>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <label>Start <input id="perf-start" type="date" /></label>
+          <label>End <input id="perf-end" type="date" /></label>
+          <button class="dash-btn" id="load-perf">Load performance</button>
+        </div>
+        <div class="metrics" style="margin-top:12px;">
+          <div class="metric-card"><h4>Impressions</h4><div id="perf-impr">-</div></div>
+          <div class="metric-card"><h4>Emails Sent</h4><div id="perf-email">-</div></div>
+          <div class="metric-card"><h4>Leads Generated</h4><div id="perf-leads">-</div></div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #e5e7eb; padding-top:12px; display:flex; justify-content:flex-start;">
+        <button class="dash-btn" id="billing">Manage Billing</button>
+      </div>
+
       <p id="status" style="color:#dc2626;"></p>
     </div>
   </div>
@@ -70,12 +115,75 @@
       }
     }
 
+    async function loadLeadKPIs() {
+      try {
+        const sinceInput = document.getElementById('since-date').value;
+        const since = sinceInput || new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+        const seven = new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0];
+        const thirty = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+
+        const [sinceCount, sevenCount, thirtyCount, leads] = await Promise.all([
+          callApi(`/api/provider/leads/count?since=${since}`),
+          callApi(`/api/provider/leads/count?since=${seven}`),
+          callApi(`/api/provider/leads/count?since=${thirty}`),
+          callApi(`/api/provider/leads?since=${since}&limit=50`)
+        ]);
+        document.getElementById('kpi-since').textContent = sinceCount.count;
+        document.getElementById('kpi-7d').textContent = sevenCount.count;
+        document.getElementById('kpi-30d').textContent = thirtyCount.count;
+        const body = document.getElementById('leads-body');
+        body.innerHTML = '';
+        (leads.leads || []).forEach((l) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${(l.createdAt || '').toString().slice(0,10)}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.zip || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.submittedBy || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.leadId || ''}</td>
+          `;
+          body.appendChild(tr);
+        });
+      } catch (err) {
+        setStatus(err.message);
+      }
+    }
+
+    async function loadPerformance() {
+      try {
+        const start = document.getElementById('perf-start').value || new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+        const end = document.getElementById('perf-end').value || new Date().toISOString().split('T')[0];
+        const data = await callApi(`/api/provider/metrics?start=${start}&end=${end}`);
+        document.getElementById('perf-impr').textContent = data.impressions;
+        document.getElementById('perf-email').textContent = data.emailsSent;
+        document.getElementById('perf-leads').textContent = data.leadsGenerated;
+      } catch (err) {
+        setStatus(err.message);
+      }
+    }
+
     document.getElementById('logout').addEventListener('click', ()=>{
       localStorage.removeItem(tokenKey);
       window.location.href = 'provider-dashboard.html';
     });
 
+    document.getElementById('load-leads').addEventListener('click', loadLeadKPIs);
+    document.getElementById('load-perf').addEventListener('click', loadPerformance);
+    document.getElementById('billing').addEventListener('click', async () => {
+      try {
+        const data = await callApi('/api/provider/billing', 'POST');
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          setStatus(data.error || 'Billing not available.');
+        }
+      } catch (err) {
+        setStatus(err.message);
+      }
+    });
+
     loadMetrics();
+    loadLeadKPIs();
+    loadPerformance();
   </script>
 </body>
 </html>

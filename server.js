@@ -28,6 +28,7 @@ const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = process.env.PROVIDER_JWT_SECRET || 'change-this-provider-secret';
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
+const PROVIDER_PLAN_DEFAULT = 'active';
 
 // Stripe webhook needs raw body
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -828,6 +829,139 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
   } catch (err) {
     console.error('Metrics failed', err);
     res.status(500).json({ error: 'Metrics failed' });
+  }
+});
+
+// Provider billing portal (Stripe portal session)
+app.post('/api/provider/billing', requireProviderAuth, async (req, res) => {
+  if (!stripe || !process.env.STRIPE_SECRET_KEY) {
+    return res.status(500).json({ error: 'Billing is not configured yet.' });
+  }
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const customer = await stripe.customers.create({
+      email: ctx.provider?.email || undefined,
+      name: ctx.provider?.name || undefined,
+      metadata: { providerId: ctx.providerId }
+    });
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customer.id,
+      return_url: 'https://www.besthospice.com/provider-dashboard-home.html'
+    });
+    res.json({ ok: true, url: session.url });
+  } catch (err) {
+    console.error('Billing portal failed', err);
+    res.status(500).json({ error: 'Billing portal failed' });
+  }
+});
+
+// AI chat endpoint (provider/client minimal)
+app.post('/api/ai/chat', async (req, res) => {
+  const { message, mode, turnstileToken } = req.body || {};
+  if (!message || !mode) return res.status(400).json({ error: 'message and mode required' });
+
+  const nav = (path) => ({ reply: '', navigateTo: path });
+
+  if (mode === 'client') {
+    const captcha = await verifyTurnstile(turnstileToken, req.ip);
+    if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
+    return res.json({ reply: 'Please start with the questionnaire to find nearby providers.', navigateTo: '/questionnaire' });
+  }
+
+  if (mode !== 'provider') return res.status(400).json({ error: 'Unsupported mode' });
+
+  try {
+    const auth = req.headers['authorization'];
+    if (!auth || !auth.toLowerCase().startsWith('bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+    const token = auth.slice(7);
+    const payload = jwt.verify(token, PROVIDER_JWT_SECRET);
+    const ctx = await getProviderContext(payload.sub);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+
+    const text = String(message).toLowerCase();
+    const today = new Date();
+    const iso = (d) => d.toISOString().split('T')[0];
+
+    const leadCountSince = async (sinceDate) => {
+      const notifs = await prisma.leadNotification.findMany({
+        where: { providerId: ctx.providerId, createdAt: { gte: sinceDate } },
+        select: { leadId: true }
+      });
+      return new Set(notifs.map((n) => n.leadId)).size;
+    };
+
+    const leadListSince = async (sinceDate, limit = 50) => {
+      const notifs = await prisma.leadNotification.findMany({
+        where: { providerId: ctx.providerId, createdAt: { gte: sinceDate } },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        select: { lead: { select: { id: true, createdAt: true, zip: true, submittedBy: true } } }
+      });
+      return notifs
+        .map((n) => n.lead)
+        .filter(Boolean)
+        .map((l) => ({ leadId: l.id, createdAt: l.createdAt, zip: l.zip, submittedBy: l.submittedBy }));
+    };
+
+    const metricsRange = async (start, end) => {
+      const [impressions, emailsSent, leadNotifications] = await Promise.all([
+        prisma.providerImpression.count({ where: { providerId: ctx.providerId, createdAt: { gte: start, lte: end } } }),
+        prisma.leadNotification.count({ where: { providerId: ctx.providerId, status: 'sent', createdAt: { gte: start, lte: end } } }),
+        prisma.leadNotification.findMany({ where: { providerId: ctx.providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true } })
+      ]);
+      const leadsGenerated = new Set(leadNotifications.map((n) => n.leadId)).size;
+      return { impressions, emailsSent, leadsGenerated };
+    };
+
+    // Billing intent
+    if (text.includes('billing')) {
+      return res.json({ reply: 'Opening billing portal for you.', navigateTo: '/provider/billing' });
+    }
+
+    // Lead count intent
+    if (text.includes('lead') && text.includes('since')) {
+      const match = text.match(/\\d{4}-\\d{2}-\\d{2}/);
+      const sinceDate = match ? new Date(match[0]) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const count = await leadCountSince(sinceDate);
+      await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_COUNT', ctx.providerId, { since: iso(sinceDate) }, hashIp(req.ip || ''));
+      return res.json({ reply: `Leads since ${iso(sinceDate)}: ${count}`, navigateTo: '/provider/leads' });
+    }
+
+    // Lead list intent
+    if (text.includes('show') && text.includes('lead')) {
+      const match = text.match(/\\d{4}-\\d{2}-\\d{2}/);
+      const sinceDate = match ? new Date(match[0]) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const leads = await leadListSince(sinceDate, 50);
+      await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: iso(sinceDate), returned: leads.length }, hashIp(req.ip || ''));
+      return res.json({ reply: `Here are your leads since ${iso(sinceDate)}.`, data: leads, navigateTo: '/provider/leads' });
+    }
+
+    // Metrics intent
+    if (text.includes('metric') || text.includes('performance')) {
+      const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const end = today;
+      const m = await metricsRange(start, end);
+      await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', ctx.providerId, { start: iso(start), end: iso(end) }, hashIp(req.ip || ''));
+      return res.json({
+        reply: `Last 30 days: Impressions ${m.impressions}, Emails sent ${m.emailsSent}, Leads ${m.leadsGenerated}.`,
+        navigateTo: '/provider/leads'
+      });
+    }
+
+    // Account intent
+    if (text.includes('account') || text.includes('plan')) {
+      await logAdminAction('provider_user', 'PROVIDER_AI_ACCOUNT', ctx.providerId, {}, hashIp(req.ip || ''));
+      return res.json({
+        reply: `Your account is active for ${ctx.provider?.name || 'your listing'}.`,
+        data: { providerId: ctx.providerId, providerName: ctx.provider?.name || '', providerEmail: ctx.provider?.email || '', planStatus: ctx.provider?.planStatus || PROVIDER_PLAN_DEFAULT }
+      });
+    }
+
+    return res.json({ reply: 'Ask me for lead counts, lead lists, performance, billing, or account status.', navigateTo: '/provider/dashboard' });
+  } catch (err) {
+    console.error('AI chat failed', err);
+    res.status(500).json({ error: 'AI chat failed' });
   }
 });
 
