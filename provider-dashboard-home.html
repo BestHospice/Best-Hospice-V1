@@ -88,7 +88,6 @@
           <div class="metrics" style="margin-top:8px;">
             <div class="metric-card"><h4>Monthly subscription</h4><div id="bill-monthly">$250</div></div>
             <div class="metric-card"><h4>Projected revenue from leads</h4><div id="bill-revenue">-</div></div>
-            <div class="metric-card"><h4>Projected net (revenue - monthly)</h4><div id="bill-net">-</div></div>
           </div>
           <div style="margin-top:10px;">
             <button class="dash-btn" id="billing">Open Billing Portal</button>
@@ -192,10 +191,7 @@
 
     function updateBillingCards() {
       const revenue = totalNotificationsCache * 8000;
-      const monthly = 250;
-      const net = revenue - monthly;
       document.getElementById('bill-revenue').textContent = revenue ? `$${revenue.toLocaleString()}` : '$0';
-      document.getElementById('bill-net').textContent = `$${net.toLocaleString()}`;
     }
 
     document.getElementById('logout').addEventListener('click', ()=>{
