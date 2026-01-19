@@ -937,7 +937,24 @@ app.post('/api/ai/chat', async (req, res) => {
     if (maybePhi(message)) {
       return res.json({ reply: 'For privacy, please avoid sharing medical details here. Start the questionnaire to connect with providers.', navigateTo: '/questionnaire' });
     }
-    return res.json({ reply: 'Please start with the questionnaire to find nearby providers.', navigateTo: '/questionnaire' });
+    const lower = String(message || '').toLowerCase();
+    // Basic info replies for clients
+    if (lower.includes('hospice')) {
+      return res.json({
+        reply: 'Hospice care focuses on comfort, dignity, and support for patients and families—emphasizing symptom relief and emotional support. To see nearby providers, please start the questionnaire.',
+        navigateTo: '/questionnaire'
+      });
+    }
+    if (lower.includes('best hospice')) {
+      return res.json({
+        reply: 'Best Hospice helps you quickly find reputable hospice providers near a ZIP code. Start the questionnaire and we’ll show options within ~60 miles.',
+        navigateTo: '/questionnaire'
+      });
+    }
+    return res.json({
+      reply: 'Please start with the questionnaire to find nearby providers. I can also answer general questions about hospice care.',
+      navigateTo: '/questionnaire'
+    });
   }
 
   if (effectiveMode !== 'provider') return res.status(400).json({ error: 'Unsupported mode' });
