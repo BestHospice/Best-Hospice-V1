@@ -23,10 +23,10 @@
     return div;
   };
 
-  function getMode() {
-    const token = localStorage.getItem('provider_jwt');
-    return token ? 'provider' : 'client';
-  }
+    function getMode() {
+      const token = localStorage.getItem('provider_jwt');
+      return token ? 'provider' : 'client';
+    }
 
   async function chat(message, mode, token) {
     const payload = { message, mode };
@@ -99,8 +99,8 @@
     const sendAction = async () => {
       const msg = input.value.trim();
       if (!msg) return;
-      const mode = getMode();
       const token = localStorage.getItem('provider_jwt');
+      const mode = token ? 'provider' : 'client';
       body.appendChild(bubble(msg, 'user'));
       input.value = '';
       body.scrollTop = body.scrollHeight;
