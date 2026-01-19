@@ -1103,11 +1103,19 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
 
+    // Best Hospice description (provider asking about the platform)
+    if (text.includes('best hospice')) {
+      return res.json({
+        reply: 'Best Hospice connects families to reputable hospice providers fast. Families enter a ZIP code, answer a few guided questions, and we match them to providers within ~60 miles. We also notify nearby providers so they can reach out quickly.',
+        navigateTo: '/provider-dashboard-home.html'
+      });
+    }
+
     // Who/intro intent
     if (text.includes('who are you') || text.includes('what are you') || text.includes('are you')) {
       return res.json({
         reply: "I’m Abel, your Best Hospice assistant. I can pull your lead counts (with dates), lead lists, performance metrics, billing/spend, revenue and ROI estimates, and help you navigate the dashboard.",
-        navigateTo: '/provider/dashboard'
+        navigateTo: '/provider-dashboard-home.html'
       });
     }
 
