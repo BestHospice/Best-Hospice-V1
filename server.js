@@ -80,6 +80,16 @@ function requireProviderAuth(req, res, next) {
   }
 }
 
+async function getProviderContext(providerUserId) {
+  if (!providerUserId) return null;
+  const user = await prisma.providerUser.findUnique({
+    where: { id: providerUserId },
+    include: { provider: true }
+  });
+  if (!user || !user.providerId) return null;
+  return { providerId: user.providerId, provider: user.provider, providerUserId: user.id };
+}
+
 function hashIp(ip) {
   return crypto.createHash('sha256').update(`${IP_SALT}:${ip || ''}`).digest('hex');
 }
@@ -256,6 +266,26 @@ app.post('/api/providers/email/checkout', async (req, res) => {
 app.get('/api/config/turnstile', (_req, res) => {
   if (!TURNSTILE_SITE_KEY) return res.status(500).json({ error: 'Turnstile site key not configured' });
   res.json({ siteKey: TURNSTILE_SITE_KEY });
+});
+
+// Provider identity
+app.get('/api/provider/me', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const planStatus = ctx.provider?.planStatus || 'active';
+    res.json({
+      ok: true,
+      providerId: ctx.providerId,
+      providerName: ctx.provider?.name || '',
+      providerEmail: ctx.provider?.email || '',
+      planStatus
+    });
+    await logAdminAction('provider_user', 'PROVIDER_AI_ACCOUNT', ctx.providerId, {}, hashIp(req.ip || ''));
+  } catch (err) {
+    console.error('Provider me failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 app.get('/api/providers/secure', async (req, res) => {
@@ -624,6 +654,118 @@ app.post('/api/provider-auth/login', async (req, res) => {
   }
 });
 
+// Provider leads count since date
+app.get('/api/provider/leads/count', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const sinceParam = req.query.since;
+    const since = sinceParam ? new Date(String(sinceParam)) : null;
+    if (!since || isNaN(since.getTime())) return res.status(400).json({ error: 'Invalid since date' });
+
+    const notifications = await prisma.leadNotification.findMany({
+      where: { providerId: ctx.providerId, createdAt: { gte: since } },
+      select: { leadId: true }
+    });
+    const distinctLeadIds = new Set(notifications.map((n) => n.leadId));
+    await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_COUNT', ctx.providerId, { since: since.toISOString() }, hashIp(req.ip || ''));
+    res.json({ ok: true, since: since.toISOString().split('T')[0], count: distinctLeadIds.size });
+  } catch (err) {
+    console.error('Lead count failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Provider leads list since date (safe fields only)
+app.get('/api/provider/leads', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const sinceParam = req.query.since;
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const since = sinceParam ? new Date(String(sinceParam)) : null;
+    if (!since || isNaN(since.getTime())) return res.status(400).json({ error: 'Invalid since date' });
+
+    const notifs = await prisma.leadNotification.findMany({
+      where: { providerId: ctx.providerId, createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        lead: {
+          select: {
+            id: true,
+            createdAt: true,
+            zip: true,
+            submittedBy: true
+          }
+        }
+      }
+    });
+    const leads = notifs
+      .map((n) => n.lead)
+      .filter(Boolean)
+      .map((l) => ({
+        leadId: l.id,
+        createdAt: l.createdAt,
+        zip: l.zip,
+        submittedBy: l.submittedBy
+      }));
+    await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: since.toISOString(), returned: leads.length }, hashIp(req.ip || ''));
+    res.json({ ok: true, since: since.toISOString().split('T')[0], leads });
+  } catch (err) {
+    console.error('Lead list failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Provider metrics in date range
+app.get('/api/provider/metrics', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const startParam = req.query.start;
+    const endParam = req.query.end;
+    const start = startParam ? new Date(String(startParam)) : null;
+    const end = endParam ? new Date(String(endParam)) : null;
+    if (!start || isNaN(start.getTime()) || !end || isNaN(end.getTime())) {
+      return res.status(400).json({ error: 'Invalid start/end date' });
+    }
+
+    const [impressions, emailsSent, leadNotifications] = await Promise.all([
+      prisma.providerImpression.count({
+        where: { providerId: ctx.providerId, createdAt: { gte: start, lte: end } }
+      }),
+      prisma.leadNotification.count({
+        where: { providerId: ctx.providerId, status: 'sent', createdAt: { gte: start, lte: end } }
+      }),
+      prisma.leadNotification.findMany({
+        where: { providerId: ctx.providerId, createdAt: { gte: start, lte: end } },
+        select: { leadId: true }
+      })
+    ]);
+    const leadsGenerated = new Set(leadNotifications.map((n) => n.leadId)).size;
+
+    await logAdminAction(
+      'provider_user',
+      'PROVIDER_AI_METRICS',
+      ctx.providerId,
+      { start: start.toISOString(), end: end.toISOString() },
+      hashIp(req.ip || '')
+    );
+    res.json({
+      ok: true,
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+      impressions,
+      emailsSent,
+      leadsGenerated
+    });
+  } catch (err) {
+    console.error('Provider metrics failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Provider auth: link account to a provider via public email
 app.post('/api/provider-auth/link', requireProviderAuth, async (req, res) => {
   const { providerEmail } = req.body || {};
@@ -653,15 +795,12 @@ app.post('/api/provider-auth/link', requireProviderAuth, async (req, res) => {
 // Provider dashboard metrics
 app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res) => {
   try {
-    const user = await prisma.providerUser.findUnique({
-      where: { id: req.providerUserId },
-      include: { provider: true }
-    });
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    if (!user.providerId || !user.provider) {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    if (!ctx.providerId || !ctx.provider) {
       return res.status(400).json({ error: 'No provider linked yet' });
     }
-    const providerId = user.providerId;
+    const providerId = ctx.providerId;
     const [totalNotifications, totalImpressions, notifications30d, impressions30d] = await Promise.all([
       prisma.leadNotification.count({ where: { providerId, status: 'sent' } }),
       prisma.providerImpression.count({ where: { providerId } }),
