@@ -1093,12 +1093,25 @@ app.post('/api/ai/chat', async (req, res) => {
         select: { createdAt: true }
       });
       const sinceDate = firstNotif?.createdAt ? new Date(firstNotif.createdAt) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const spend = await spendSince(sinceDate);
+      // If user mentions months, override spend calc with that number of months
+      const monthMatch = text.match(/(\d+)\s*month/);
+      const overrideMonths = monthMatch ? Math.max(1, parseInt(monthMatch[1], 10)) : null;
+      const spend = overrideMonths
+        ? { monthlyRate: PROVIDER_MONTHLY_RATE, months: overrideMonths, totalSpend: overrideMonths * PROVIDER_MONTHLY_RATE }
+        : await spendSince(sinceDate);
       const net = estimateRevenue - spend.totalSpend;
       await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', ctx.providerId, { leads: countAll, estimateRevenue, spend: spend.totalSpend, net }, hashIp(req.ip || ''));
       return res.json({
         reply: `Estimated revenue: ~$${estimateRevenue.toLocaleString()}. Estimated spend (at $${PROVIDER_MONTHLY_RATE}/mo): ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}. Refine this in your dashboard by entering actual conversions and months subscribed.`,
         navigateTo: '/provider/leads'
+      });
+    }
+
+    // Basic hospice info (non-medical)
+    if (text.includes('hospice')) {
+      return res.json({
+        reply: 'Hospice care focuses on comfort, dignity, and support for patients with serious or life-limiting illnesses—emphasizing symptom relief, emotional and spiritual support, and help for families. I can also help with your leads, billing, or ROI.',
+        navigateTo: '/provider/dashboard'
       });
     }
 
