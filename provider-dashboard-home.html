@@ -89,6 +89,17 @@
             <div class="metric-card"><h4>Monthly subscription</h4><div id="bill-monthly">$250</div></div>
             <div class="metric-card"><h4>Projected revenue from leads</h4><div id="bill-revenue">-</div></div>
           </div>
+          <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <label style="font-weight:700;">Leads you converted to clients:
+              <input id="converted-leads" type="number" min="0" value="0" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px; width:120px;">
+            </label>
+            <button class="dash-btn secondary" id="calc-converted">Calculate estimated revenue</button>
+          </div>
+          <div class="metric-card" style="margin-top:10px; max-width:320px;">
+            <h4>Estimated revenue from converted leads</h4>
+            <div id="converted-revenue">$0</div>
+            <p style="margin:6px 0 0; font-size:12px; color:#4b5563;">$8,000 per client (market average hospice profit)</p>
+          </div>
           <div style="margin-top:10px;">
             <button class="dash-btn" id="billing">Open Billing Portal</button>
           </div>
@@ -222,6 +233,11 @@
       } catch (err) {
         setStatus(err.message);
       }
+    });
+    document.getElementById('calc-converted').addEventListener('click', () => {
+      const num = Math.max(0, parseInt(document.getElementById('converted-leads').value || '0', 10));
+      const est = num * 8000;
+      document.getElementById('converted-revenue').textContent = `$${est.toLocaleString()}`;
     });
 
     loadMetrics();
