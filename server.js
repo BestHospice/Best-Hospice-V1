@@ -1095,6 +1095,14 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
 
+    // Who/intro intent
+    if (text.includes('who are you') || text.includes('what are you') || text.includes('are you')) {
+      return res.json({
+        reply: "I’m Abel, your Best Hospice assistant. I can pull your lead counts (with dates), lead lists, performance metrics, billing/spend, revenue and ROI estimates, and help you navigate the dashboard.",
+        navigateTo: '/provider/dashboard'
+      });
+    }
+
     // Revenue intent (estimate)
     if (text.includes('revenue') || text.includes('made') || text.includes('profit')) {
       const countAll = await leadCountAllTime();
@@ -1148,7 +1156,7 @@ app.post('/api/ai/chat', async (req, res) => {
     }
 
     return res.json({
-      reply: 'I can help with lead counts (optionally “since YYYY-MM-DD” or natural dates), lead lists (“show leads since ...”), performance metrics, billing, spend, estimated revenue, or ROI (revenue minus subscription cost). Ask away.',
+      reply: 'I can get lead counts (date-based), lead lists, metrics, billing/spend, revenue, and ROI. Ask me something like “lead count since 2025-01-16”, “show leads since March 1”, “metrics”, “billing”, or “ROI.”',
       navigateTo: '/provider/dashboard'
     });
   } catch (err) {
