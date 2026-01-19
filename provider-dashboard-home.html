@@ -83,7 +83,17 @@
       </div>
 
       <div style="border-top:1px solid #e5e7eb; padding-top:12px; display:flex; justify-content:flex-start;">
-        <button class="dash-btn" id="billing">Manage Billing</button>
+        <div style="width:100%;">
+          <h3>Manage Billing</h3>
+          <div class="metrics" style="margin-top:8px;">
+            <div class="metric-card"><h4>Monthly subscription</h4><div id="bill-monthly">$250</div></div>
+            <div class="metric-card"><h4>Projected revenue from leads</h4><div id="bill-revenue">-</div></div>
+            <div class="metric-card"><h4>Projected net (revenue - monthly)</h4><div id="bill-net">-</div></div>
+          </div>
+          <div style="margin-top:10px;">
+            <button class="dash-btn" id="billing">Open Billing Portal</button>
+          </div>
+        </div>
       </div>
 
       <p id="status" style="color:#dc2626;"></p>
@@ -93,6 +103,7 @@
   <script>
     const tokenKey = 'provider_jwt';
     const statusEl = document.getElementById('status');
+    let totalNotificationsCache = 0;
 
     function setStatus(msg){ statusEl.textContent = msg || ''; }
 
@@ -113,8 +124,10 @@
       try{
         const data = await callApi('/api/provider-dashboard/metrics');
         document.getElementById('m-total-notifs').textContent = data.metrics.totalNotifications;
+        totalNotificationsCache = data.metrics.totalNotifications || 0;
         document.getElementById('provider-label').textContent = data.provider ? data.provider.name + ' — ' + data.provider.email : '';
         document.getElementById('welcome').textContent = data.provider ? `Welcome to ${data.provider.name} Dashboard` : 'Welcome to your Dashboard';
+        updateBillingCards();
         setStatus('');
       }catch(err){
         setStatus(err.message);
@@ -175,6 +188,14 @@
       } catch (err) {
         setStatus(err.message);
       }
+    }
+
+    function updateBillingCards() {
+      const revenue = totalNotificationsCache * 8000;
+      const monthly = 250;
+      const net = revenue - monthly;
+      document.getElementById('bill-revenue').textContent = revenue ? `$${revenue.toLocaleString()}` : '$0';
+      document.getElementById('bill-net').textContent = `$${net.toLocaleString()}`;
     }
 
     document.getElementById('logout').addEventListener('click', ()=>{
