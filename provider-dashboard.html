@@ -52,10 +52,13 @@
               <label class="dash-label" for="token">Signup code (from email)</label>
               <input id="token" class="dash-input" type="text" placeholder="Paste code from your email">
             </div>
-            <div>
-              <label class="dash-label" for="password">Create password</label>
-              <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
+          <div>
+            <label class="dash-label" for="password">Create password</label>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters" style="flex:1;">
+              <button type="button" id="toggle-pass" class="dash-btn secondary" style="padding:8px 10px;">👁</button>
             </div>
+          </div>
             <button class="dash-btn" id="complete-signup">Complete signup</button>
           </div>
           <p id="complete-status" class="status"></p>
@@ -70,7 +73,10 @@
           </div>
           <div>
             <label class="dash-label" for="login-password">Password</label>
-            <input id="login-password" class="dash-input" type="password" placeholder="Password">
+            <div style="display:flex; gap:6px; align-items:center;">
+              <input id="login-password" class="dash-input" type="password" placeholder="Password" style="flex:1;">
+              <button type="button" id="toggle-login-pass" class="dash-btn secondary" style="padding:8px 10px;">👁</button>
+            </div>
           </div>
           <button class="dash-btn secondary" id="login">Log in</button>
         </div>
@@ -163,11 +169,21 @@
       document.getElementById('signup-step1').classList.remove('hidden');
       document.getElementById('signup-step2').classList.add('hidden');
     });
-    document.getElementById('show-login').addEventListener('click', () => {
-      document.getElementById('login-section').classList.remove('hidden');
-      document.getElementById('signup-section').classList.add('hidden');
-      document.getElementById('signup-step2').classList.add('hidden');
-    });
+  document.getElementById('show-login').addEventListener('click', () => {
+    document.getElementById('login-section').classList.remove('hidden');
+    document.getElementById('signup-section').classList.add('hidden');
+    document.getElementById('signup-step2').classList.add('hidden');
+  });
+
+  // Toggle password visibility
+  document.getElementById('toggle-pass').addEventListener('click', () => {
+    const field = document.getElementById('password');
+    field.type = field.type === 'password' ? 'text' : 'password';
+  });
+  document.getElementById('toggle-login-pass').addEventListener('click', () => {
+    const field = document.getElementById('login-password');
+    field.type = field.type === 'password' ? 'text' : 'password';
+  });
   </script>
 </body>
 </html>
