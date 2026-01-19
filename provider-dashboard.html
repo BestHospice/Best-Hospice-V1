@@ -18,49 +18,58 @@
     .metrics { display:grid; gap:10px; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); }
     .metric-card { background:#f8fbff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; text-align:center; }
     .metric-card h4 { margin:0 0 6px; }
+    .hidden { display:none !important; }
   </style>
 </head>
 <body>
   <div class="dash-shell">
     <div class="dash-card">
       <h2>Provider Dashboard</h2>
-      <p><strong>Sign up for the dashboard</strong>: Enter your provider's customer contact email (the public email on your listing). We'll email you a link to set your password.</p>
+      <p><strong>First time signing in as a provider?</strong> Click “Sign up” and enter the public email on your listing. We’ll email you a link to set your password.</p>
+      <p><strong>Returning provider?</strong> Click “Log in” to access your dashboard.</p>
 
       <div class="dash-row">
-        <div>
-          <label class="dash-label" for="signup-email">Provider customer contact email</label>
-          <input id="signup-email" class="dash-input" type="email" placeholder="public email on your listing">
-        </div>
-        <button class="dash-btn" id="signup-start">Send signup link</button>
+        <button class="dash-btn" id="show-signup">Sign up</button>
+        <button class="dash-btn secondary" id="show-login">Log in</button>
       </div>
-      <p id="auth-status" class="status"></p>
 
-      <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
-        <div>
-          <label class="dash-label" for="token">Signup token (from email)</label>
-          <input id="token" class="dash-input" type="text" placeholder="Paste token or use the link from email">
+      <div id="signup-section" class="hidden">
+        <div class="dash-row">
+          <div>
+            <label class="dash-label" for="signup-email">Provider customer contact email</label>
+            <input id="signup-email" class="dash-input" type="email" placeholder="public email on your listing">
+          </div>
+          <button class="dash-btn" id="signup-start">Send signup link</button>
         </div>
-        <div>
-          <label class="dash-label" for="password">Create password</label>
-          <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
+        <p id="auth-status" class="status"></p>
+        <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
+          <div>
+            <label class="dash-label" for="token">Signup token (from email)</label>
+            <input id="token" class="dash-input" type="text" placeholder="Paste token or use the link from email">
+          </div>
+          <div>
+            <label class="dash-label" for="password">Create password</label>
+            <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
+          </div>
+          <button class="dash-btn" id="complete-signup">Complete signup</button>
         </div>
-        <button class="dash-btn" id="complete-signup">Complete signup</button>
+        <p id="complete-status" class="status"></p>
       </div>
-      <p id="complete-status" class="status"></p>
 
-      <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
-        <p><strong>Already have an account?</strong></p>
-        <div>
-          <label class="dash-label" for="login-email">Email</label>
-          <input id="login-email" class="dash-input" type="email" placeholder="you@business.com">
+      <div id="login-section" class="hidden" style="border-top:1px solid #e5e7eb; padding-top:10px;">
+        <div class="dash-row">
+          <div>
+            <label class="dash-label" for="login-email">Email</label>
+            <input id="login-email" class="dash-input" type="email" placeholder="you@business.com">
+          </div>
+          <div>
+            <label class="dash-label" for="login-password">Password</label>
+            <input id="login-password" class="dash-input" type="password" placeholder="Password">
+          </div>
+          <button class="dash-btn secondary" id="login">Log in</button>
         </div>
-        <div>
-          <label class="dash-label" for="login-password">Password</label>
-          <input id="login-password" class="dash-input" type="password" placeholder="Password">
-        </div>
-        <button class="dash-btn secondary" id="login">Log in</button>
+        <p id="login-status" class="status"></p>
       </div>
-      <p id="login-status" class="status"></p>
 
       <div class="dash-row">
         <div>
@@ -68,13 +77,13 @@
           <input id="providerEmail" class="dash-input" type="email" placeholder="public email on your listing">
         </div>
       </div>
-      <div class="dash-row">
+      <div class="dash-row hidden" id="link-row">
         <button class="dash-btn" id="link">Link account to provider</button>
       </div>
       <p id="link-status" class="status"></p>
 
       <hr>
-      <div id="metrics-area" style="display:none;">
+      <div id="metrics-area" class="hidden">
         <h3>Your Metrics</h3>
         <div class="metrics">
           <div class="metric-card">
@@ -185,9 +194,11 @@
         document.getElementById('m-total-impr').textContent = data.metrics.totalImpressions;
         document.getElementById('m-30-notifs').textContent = data.metrics.notifications30d;
         document.getElementById('m-30-impr').textContent = data.metrics.impressions30d;
-        document.getElementById('metrics-area').style.display = 'block';
+        document.getElementById('metrics-area').classList.remove('hidden');
+        document.getElementById('link-row').classList.remove('hidden');
       } catch (err) {
-        document.getElementById('metrics-area').style.display = 'none';
+        document.getElementById('metrics-area').classList.add('hidden');
+        document.getElementById('link-row').classList.add('hidden');
       }
     }
 
@@ -196,10 +207,29 @@
       const params = new URLSearchParams(window.location.search);
       const tokenFromUrl = params.get('token');
       if (tokenFromUrl) document.getElementById('token').value = tokenFromUrl;
+      // Show signup by default
+      document.getElementById('signup-section').classList.remove('hidden');
+      document.getElementById('login-section').classList.add('hidden');
+
       if (localStorage.getItem(tokenKey)) {
+        document.getElementById('signup-section').classList.add('hidden');
+        document.getElementById('login-section').classList.add('hidden');
         await loadMetrics().catch(() => {});
       }
     })();
+
+    document.getElementById('show-signup').addEventListener('click', () => {
+      document.getElementById('signup-section').classList.remove('hidden');
+      document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('metrics-area').classList.add('hidden');
+      document.getElementById('link-row').classList.add('hidden');
+    });
+    document.getElementById('show-login').addEventListener('click', () => {
+      document.getElementById('login-section').classList.remove('hidden');
+      document.getElementById('signup-section').classList.add('hidden');
+      document.getElementById('metrics-area').classList.add('hidden');
+      document.getElementById('link-row').classList.add('hidden');
+    });
   </script>
 </body>
 </html>
