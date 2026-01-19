@@ -29,6 +29,7 @@ const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = process.env.PROVIDER_JWT_SECRET || 'change-this-provider-secret';
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
 const PROVIDER_PLAN_DEFAULT = 'active';
+const PROVIDER_MONTHLY_RATE = 250;
 
 // Stripe webhook needs raw body
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -780,6 +781,29 @@ app.get('/api/provider/metrics', requireProviderAuth, async (req, res) => {
   }
 });
 
+// Provider spend since date (flat monthly rate for now)
+app.get('/api/provider/spend', requireProviderAuth, async (req, res) => {
+  try {
+    const sinceParam = req.query.since;
+    const since = sinceParam ? new Date(String(sinceParam)) : null;
+    if (!since || isNaN(since.getTime())) return res.status(400).json({ error: 'Invalid since date' });
+    const today = new Date();
+    const diffDays = Math.max(0, (today - since) / (1000 * 60 * 60 * 24));
+    const months = Math.max(1, Math.ceil(diffDays / 30));
+    const totalSpend = months * PROVIDER_MONTHLY_RATE;
+    res.json({
+      ok: true,
+      since: since.toISOString().split('T')[0],
+      monthlyRate: PROVIDER_MONTHLY_RATE,
+      months,
+      totalSpend
+    });
+  } catch (err) {
+    console.error('Provider spend failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Provider auth: link account to a provider via public email
 app.post('/api/provider-auth/link', requireProviderAuth, async (req, res) => {
   const { providerEmail } = req.body || {};
@@ -948,6 +972,12 @@ app.post('/api/ai/chat', async (req, res) => {
       return { impressions, emailsSent, leadsGenerated };
     };
 
+    const spendSince = async (sinceDate) => {
+      const diffDays = Math.max(0, (today - sinceDate) / (1000 * 60 * 60 * 24));
+      const months = Math.max(1, Math.ceil(diffDays / 30));
+      return { monthlyRate: PROVIDER_MONTHLY_RATE, months, totalSpend: months * PROVIDER_MONTHLY_RATE };
+    };
+
     // Billing intent
     if (text.includes('billing')) {
       return res.json({ reply: 'Opening billing portal for you.', navigateTo: '/provider/billing' });
@@ -969,6 +999,19 @@ app.post('/api/ai/chat', async (req, res) => {
       const leads = await leadListSince(sinceDate, 50);
       await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: iso(sinceDate), returned: leads.length }, hashIp(req.ip || ''));
       return res.json({ reply: `Here are your leads since ${iso(sinceDate)}.`, data: leads, navigateTo: '/provider/leads' });
+    }
+
+    // Spend intent
+    if (text.includes('spend') || text.includes('paid')) {
+      const match = text.match(/\\d{4}-\\d{2}-\\d{2}/);
+      const sinceDate = match ? new Date(match[0]) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const spend = await spendSince(sinceDate);
+      await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', ctx.providerId, { spendSince: iso(sinceDate), totalSpend: spend.totalSpend }, hashIp(req.ip || ''));
+      return res.json({
+        reply: `Since ${iso(sinceDate)}, at $${PROVIDER_MONTHLY_RATE}/month, estimated spend is $${spend.totalSpend}.`,
+        data: spend,
+        navigateTo: '/provider/billing'
+      });
     }
 
     // Metrics intent
