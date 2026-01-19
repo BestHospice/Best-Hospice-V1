@@ -9,7 +9,7 @@
     body { background:#f3f6fb; }
     .dash-shell { max-width: 960px; margin:24px auto; padding:0 16px; }
     .dash-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:20px; box-shadow:0 12px 24px rgba(15,23,42,0.08); display:grid; gap:16px; }
-    .metrics { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); }
+    .metrics { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); }
     .metric-card { background:#f8fbff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; text-align:center; }
     .metric-card h4 { margin:0 0 6px; }
     .dash-btn { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; padding:8px 12px; border-radius:10px; font-weight:700; cursor:pointer; justify-self:end; }
@@ -29,20 +29,8 @@
 
       <div class="metrics">
         <div class="metric-card">
-          <h4>Total notifications sent</h4>
+          <h4>Clients Best Hospice Has Connected You With</h4>
           <div id="m-total-notifs">-</div>
-        </div>
-        <div class="metric-card">
-          <h4>Total impressions</h4>
-          <div id="m-total-impr">-</div>
-        </div>
-        <div class="metric-card">
-          <h4>Notifications (last 30d)</h4>
-          <div id="m-30-notifs">-</div>
-        </div>
-        <div class="metric-card">
-          <h4>Impressions (last 30d)</h4>
-          <div id="m-30-impr">-</div>
         </div>
       </div>
       <p id="status" style="color:#dc2626;"></p>
@@ -72,9 +60,6 @@
       try{
         const data = await callApi('/api/provider-dashboard/metrics');
         document.getElementById('m-total-notifs').textContent = data.metrics.totalNotifications;
-        document.getElementById('m-total-impr').textContent = data.metrics.totalImpressions;
-        document.getElementById('m-30-notifs').textContent = data.metrics.notifications30d;
-        document.getElementById('m-30-impr').textContent = data.metrics.impressions30d;
         document.getElementById('provider-label').textContent = data.provider ? data.provider.name + ' — ' + data.provider.email : '';
         document.getElementById('welcome').textContent = data.provider ? `Welcome to ${data.provider.name} Dashboard` : 'Welcome to your Dashboard';
         setStatus('');
