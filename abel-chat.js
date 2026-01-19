@@ -58,7 +58,13 @@
 
     const header = document.createElement('div');
     header.style.cssText = headerStyles;
-    header.innerHTML = `<span>Abel (AI)</span><button id="abel-close" style="background:transparent; color:#fff; border:none; font-size:16px; cursor:pointer;">×</button>`;
+    header.innerHTML = `
+      <span>Abel (AI)</span>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <button id="abel-send-top" style="background:#38bdf8; color:#0f172a; border:none; padding:6px 10px; border-radius:8px; font-weight:700; cursor:pointer;">Send</button>
+        <button id="abel-close" style="background:transparent; color:#fff; border:none; font-size:16px; cursor:pointer;">×</button>
+      </div>
+    `;
 
     const body = document.createElement('div');
     body.id = 'abel-body';
@@ -72,12 +78,7 @@
     input.rows = 2;
     input.style.cssText = `${inputStyles} flex:1;`;
     input.placeholder = 'Type your message...';
-    const send = document.createElement('button');
-    send.id = 'abel-send';
-    send.style.cssText = `${btnStyles} box-shadow:none; padding:10px 12px;`;
-    send.textContent = 'Send';
     inputRow.appendChild(input);
-    inputRow.appendChild(send);
 
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'display:flex; flex-direction:column; gap:8px; padding:10px;';
@@ -95,7 +96,7 @@
     });
     header.querySelector('#abel-close').addEventListener('click', () => panel.style.display = 'none');
 
-    send.addEventListener('click', async () => {
+    const sendAction = async () => {
       const msg = input.value.trim();
       if (!msg) return;
       const mode = getMode();
@@ -120,6 +121,14 @@
         body.appendChild(bubble(err.message, 'agent'));
       }
       body.scrollTop = body.scrollHeight;
+    };
+
+    header.querySelector('#abel-send-top').addEventListener('click', sendAction);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendAction();
+      }
     });
   }
 
