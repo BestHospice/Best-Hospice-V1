@@ -31,6 +31,14 @@ const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.be
 const PROVIDER_PLAN_DEFAULT = 'active';
 const PROVIDER_MONTHLY_RATE = 250;
 
+// Basic PHI keyword detector (lightweight guardrail)
+function maybePhi(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const phiKeywords = ['diagnosis', 'medication', 'prescription', 'ssn', 'social security', 'mrn', 'medical record', 'hipaa', 'treatment', 'symptom', 'disease', 'blood pressure'];
+  return phiKeywords.some((k) => lower.includes(k));
+}
+
 // Stripe webhook needs raw body
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
@@ -901,8 +909,17 @@ app.post('/api/ai/chat', async (req, res) => {
   const nav = (path) => ({ reply: '', navigateTo: path });
 
   if (mode === 'client') {
+    // rate limit clients by IP using existing rateLimitEvent
+    try {
+      await rateLimit(req, res, () => {});
+    } catch (err) {
+      return; // rateLimit already responded
+    }
     const captcha = await verifyTurnstile(turnstileToken, req.ip);
     if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
+    if (maybePhi(message)) {
+      return res.json({ reply: 'For privacy, please avoid sharing medical details here. Start the questionnaire to connect with providers.', navigateTo: '/questionnaire' });
+    }
     return res.json({ reply: 'Please start with the questionnaire to find nearby providers.', navigateTo: '/questionnaire' });
   }
 
@@ -919,6 +936,10 @@ app.post('/api/ai/chat', async (req, res) => {
     const text = String(message).toLowerCase();
     const today = new Date();
     const iso = (d) => d.toISOString().split('T')[0];
+
+    if (maybePhi(message)) {
+      return res.json({ reply: 'For privacy, please avoid sharing medical details here. Focus on your leads, billing, and account questions.', navigateTo: '/provider/dashboard' });
+    }
 
     const leadCountSince = async (sinceDate) => {
       const notifs = await prisma.leadNotification.findMany({
@@ -939,11 +960,7 @@ app.post('/api/ai/chat', async (req, res) => {
               id: true,
               createdAt: true,
               zip: true,
-              submittedBy: true,
-              clientEmail: true,
-              clientPhone: true,
-              firstName: true,
-              lastName: true
+              submittedBy: true
             }
           }
         }
@@ -955,10 +972,7 @@ app.post('/api/ai/chat', async (req, res) => {
           leadId: l.id,
           createdAt: l.createdAt,
           zip: l.zip,
-          submittedBy: l.submittedBy,
-          clientEmail: l.clientEmail || '',
-          clientPhone: l.clientPhone || '',
-          clientName: [l.firstName, l.lastName].filter(Boolean).join(' ').trim()
+          submittedBy: l.submittedBy
         }));
     };
 
