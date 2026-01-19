@@ -138,10 +138,7 @@
       try {
         const providerEmail = document.getElementById('signup-email').value.trim();
         const data = await callApi('/api/provider-auth/signup-start', 'POST', { providerEmail });
-        setStatus(data.message || 'Check your email for the signup link.');
-        if (data.token) {
-          document.getElementById('token').value = data.token;
-        }
+        setStatus(data.message || 'Check your email for the signup token.');
       } catch (err) {
         setStatus(err.message);
       }
@@ -204,9 +201,6 @@
 
     // If already logged in, load metrics
     (async () => {
-      const params = new URLSearchParams(window.location.search);
-      const tokenFromUrl = params.get('token');
-      if (tokenFromUrl) document.getElementById('token').value = tokenFromUrl;
       // Show signup by default
       document.getElementById('signup-section').classList.remove('hidden');
       document.getElementById('login-section').classList.add('hidden');

@@ -569,16 +569,22 @@ app.post('/api/provider-auth/signup-start', async (req, res) => {
       PROVIDER_JWT_SECRET,
       { expiresIn: '2d' }
     );
-    const link = `${DASHBOARD_VERIFY_URL}?token=${encodeURIComponent(verifyToken)}`;
+    const link = `${DASHBOARD_VERIFY_URL}`;
 
-    if (EMAIL_ENABLED) {
-      try {
-        await sendTestEmail(normEmail, `Best Hospice Provider Dashboard`, `Finish setting your password: ${link}`);
-      } catch (err) {
-        console.error('Send invite email failed', err);
-      }
+    if (!EMAIL_ENABLED) {
+      return res.status(500).json({ error: 'Email not configured. Please contact support.' });
     }
-    res.json({ ok: true, token: verifyToken, message: EMAIL_ENABLED ? 'Check your email for the link.' : 'Token returned (email disabled).' });
+    try {
+      await sendTestEmail(
+        normEmail,
+        `Best Hospice Provider Dashboard`,
+        `Finish setting your password by visiting ${link} and entering this token: ${verifyToken}`
+      );
+    } catch (err) {
+      console.error('Send invite email failed', err);
+      return res.status(500).json({ error: 'Failed to send signup email.' });
+    }
+    res.json({ ok: true, message: 'Check your email for the signup token.' });
   } catch (err) {
     console.error('Signup start failed', err);
     res.status(500).json({ error: 'Signup start failed' });
