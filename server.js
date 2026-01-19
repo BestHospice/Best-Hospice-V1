@@ -915,8 +915,10 @@ app.post('/api/ai/chat', async (req, res) => {
     } catch (err) {
       return; // rateLimit already responded
     }
-    const captcha = await verifyTurnstile(turnstileToken, req.ip);
-    if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
+    if (!TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
+      const captcha = await verifyTurnstile(turnstileToken, req.ip);
+      if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
+    }
     if (maybePhi(message)) {
       return res.json({ reply: 'For privacy, please avoid sharing medical details here. Start the questionnaire to connect with providers.', navigateTo: '/questionnaire' });
     }

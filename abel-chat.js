@@ -5,7 +5,7 @@
     border:none; border-radius:999px; padding:10px 14px; font-weight:700;
     box-shadow:0 10px 20px rgba(37,99,235,0.35); cursor:pointer;
   `;
-  const panelStyles = `
+    const panelStyles = `
     position:fixed; right:18px; bottom:70px; z-index:9999; width:320px;
     background:#fff; border:1px solid #e5e7eb; border-radius:14px;
     box-shadow:0 18px 38px rgba(15,23,42,0.25); display:flex; flex-direction:column; overflow:hidden;
@@ -65,22 +65,24 @@
     body.style.cssText = bodyStyles;
     body.appendChild(bubble('Hi, I am Abel. Are you a Client/Family member or a Provider? I can help with questions and site navigation.', 'agent'));
 
+    const inputRow = document.createElement('div');
+    inputRow.style.cssText = 'display:flex; gap:8px; align-items:flex-end;';
     const input = document.createElement('textarea');
     input.id = 'abel-input';
     input.rows = 2;
-    input.style.cssText = inputStyles;
+    input.style.cssText = `${inputStyles} flex:1;`;
     input.placeholder = 'Type your message...';
-
     const send = document.createElement('button');
     send.id = 'abel-send';
-    send.style.cssText = `${btnStyles} width:100%; border-radius:10px; box-shadow:none;`;
+    send.style.cssText = `${btnStyles} box-shadow:none; padding:10px 12px;`;
     send.textContent = 'Send';
+    inputRow.appendChild(input);
+    inputRow.appendChild(send);
 
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'display:flex; flex-direction:column; gap:8px; padding:10px;';
     wrapper.appendChild(body);
-    wrapper.appendChild(input);
-    wrapper.appendChild(send);
+    wrapper.appendChild(inputRow);
 
     panel.appendChild(header);
     panel.appendChild(wrapper);
