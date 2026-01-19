@@ -1017,10 +1017,18 @@ app.post('/api/ai/chat', async (req, res) => {
       return res.json({ reply: 'Opening billing portal for you.', navigateTo: '/provider/billing' });
     }
 
+    const parseDateFromText = (txt) => {
+      if (!txt) return null;
+      const iso = txt.match(/\d{4}-\d{2}-\d{2}/);
+      if (iso) return new Date(iso[0]);
+      const parsed = Date.parse(txt);
+      return Number.isNaN(parsed) ? null : new Date(parsed);
+    };
+
     // Lead count intent (optional since)
     if (text.includes('lead') && (text.includes('since') || !text.includes('show'))) {
-      const match = text.match(/\d{4}-\d{2}-\d{2}/);
-      const sinceDate = match ? new Date(match[0]) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const parsed = parseDateFromText(text);
+      const sinceDate = parsed || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const countSince = await leadCountSince(sinceDate);
       const countAll = await leadCountAllTime();
       await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_COUNT', ctx.providerId, { since: iso(sinceDate) }, hashIp(req.ip || ''));
@@ -1032,8 +1040,8 @@ app.post('/api/ai/chat', async (req, res) => {
 
     // Lead list intent
     if (text.includes('show') && text.includes('lead')) {
-      const match = text.match(/\\d{4}-\\d{2}-\\d{2}/);
-      const sinceDate = match ? new Date(match[0]) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const parsed = parseDateFromText(text);
+      const sinceDate = parsed || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const leads = await leadListSince(sinceDate, 50);
       await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: iso(sinceDate), returned: leads.length }, hashIp(req.ip || ''));
       return res.json({ reply: `Here are your leads since ${iso(sinceDate)}.`, data: leads, navigateTo: '/provider/leads' });
@@ -1075,6 +1083,25 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
 
+    // ROI intent (estimate revenue minus subscription spend)
+    if (text.includes('roi') || text.includes('net') || (text.includes('subtract') && text.includes('cost'))) {
+      const countAll = await leadCountAllTime();
+      const estimateRevenue = countAll * 8000;
+      const firstNotif = await prisma.leadNotification.findFirst({
+        where: { providerId: ctx.providerId },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true }
+      });
+      const sinceDate = firstNotif?.createdAt ? new Date(firstNotif.createdAt) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const spend = await spendSince(sinceDate);
+      const net = estimateRevenue - spend.totalSpend;
+      await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', ctx.providerId, { leads: countAll, estimateRevenue, spend: spend.totalSpend, net }, hashIp(req.ip || ''));
+      return res.json({
+        reply: `Estimated revenue: ~$${estimateRevenue.toLocaleString()}. Estimated spend (at $${PROVIDER_MONTHLY_RATE}/mo): ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}. Refine this in your dashboard by entering actual conversions and months subscribed.`,
+        navigateTo: '/provider/leads'
+      });
+    }
+
     // Account intent
     if (text.includes('account') || text.includes('plan')) {
       await logAdminAction('provider_user', 'PROVIDER_AI_ACCOUNT', ctx.providerId, {}, hashIp(req.ip || ''));
@@ -1085,7 +1112,7 @@ app.post('/api/ai/chat', async (req, res) => {
     }
 
     return res.json({
-      reply: 'I can help with lead counts (optionally “since YYYY-MM-DD”), lead lists (“show leads since YYYY-MM-DD”), performance metrics, billing, spend, or estimated revenue. Ask away.',
+      reply: 'I can help with lead counts (optionally “since YYYY-MM-DD” or natural dates), lead lists (“show leads since ...”), performance metrics, billing, spend, estimated revenue, or ROI (revenue minus subscription cost). Ask away.',
       navigateTo: '/provider/dashboard'
     });
   } catch (err) {
