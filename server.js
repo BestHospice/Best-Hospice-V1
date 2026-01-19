@@ -938,6 +938,12 @@ app.post('/api/ai/chat', async (req, res) => {
       return res.json({ reply: 'For privacy, please avoid sharing medical details here. Start the questionnaire to connect with providers.', navigateTo: '/questionnaire' });
     }
     const lower = String(message || '').toLowerCase();
+    if (lower.includes('provider')) {
+      return res.json({
+        reply: 'If you are a provider, please log in on the Provider Dashboard to continue. Once logged in, I can help with your leads, billing, and ROI.',
+        navigateTo: '/provider/dashboard'
+      });
+    }
     // Basic info replies for clients
     if (lower.includes('hospice')) {
       return res.json({
