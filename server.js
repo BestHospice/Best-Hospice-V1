@@ -1070,6 +1070,14 @@ app.post('/api/ai/chat', async (req, res) => {
       return res.json({ reply: `Here are your leads since ${iso(sinceDate)}.`, data: leads, navigateTo: '/provider/leads' });
     }
 
+    // Provider says they are a client (but token present). We cannot change mode server-side with token, so instruct logout.
+    if (text.includes('i am a client') || text.includes('client now')) {
+      return res.json({
+        reply: 'You are logged in as a provider. To use the client flow, please log out or use a non-provider session, then start the questionnaire.',
+        navigateTo: '/provider/dashboard'
+      });
+    }
+
     // Spend intent
     if (text.includes('spend') || text.includes('paid')) {
       const match = text.match(/\\d{4}-\\d{2}-\\d{2}/);
