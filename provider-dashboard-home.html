@@ -245,8 +245,12 @@
     });
     document.getElementById('calc-converted').addEventListener('click', () => {
       const num = Math.max(0, parseInt(document.getElementById('converted-leads').value || '0', 10));
+      const months = Math.max(1, parseInt(document.getElementById('roi-months').value || '1', 10));
       const est = num * 8000;
+      const spend = months * 250;
+      const net = est - spend;
       document.getElementById('converted-revenue').textContent = `$${est.toLocaleString()}`;
+      document.getElementById('roi-net').textContent = `$${net.toLocaleString()}`;
     });
 
     loadMetrics();
