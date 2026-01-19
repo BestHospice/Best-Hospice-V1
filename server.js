@@ -903,12 +903,27 @@ app.post('/api/provider/billing', requireProviderAuth, async (req, res) => {
 
 // AI chat endpoint (provider/client minimal)
 app.post('/api/ai/chat', async (req, res) => {
-  const { message, mode, turnstileToken } = req.body || {};
-  if (!message || !mode) return res.status(400).json({ error: 'message and mode required' });
+  const { message, turnstileToken } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+
+  // Force mode on the server: if provider is authenticated, treat as provider; otherwise client.
+  let ctx = null;
+  const auth = req.headers['authorization'];
+  if (auth && auth.toLowerCase().startsWith('bearer ')) {
+    try {
+      const token = auth.slice(7);
+      const payload = jwt.verify(token, PROVIDER_JWT_SECRET);
+      ctx = await getProviderContext(payload.sub);
+    } catch (err) {
+      ctx = null; // fall through to client mode on invalid/expired token
+    }
+  }
+
+  const effectiveMode = ctx ? 'provider' : 'client';
 
   const nav = (path) => ({ reply: '', navigateTo: path });
 
-  if (mode === 'client') {
+  if (effectiveMode === 'client') {
     // rate limit clients by IP using existing rateLimitEvent
     try {
       await rateLimit(req, res, () => {});
@@ -925,14 +940,9 @@ app.post('/api/ai/chat', async (req, res) => {
     return res.json({ reply: 'Please start with the questionnaire to find nearby providers.', navigateTo: '/questionnaire' });
   }
 
-  if (mode !== 'provider') return res.status(400).json({ error: 'Unsupported mode' });
+  if (effectiveMode !== 'provider') return res.status(400).json({ error: 'Unsupported mode' });
 
   try {
-    const auth = req.headers['authorization'];
-    if (!auth || !auth.toLowerCase().startsWith('bearer ')) return res.status(401).json({ error: 'Unauthorized' });
-    const token = auth.slice(7);
-    const payload = jwt.verify(token, PROVIDER_JWT_SECRET);
-    const ctx = await getProviderContext(payload.sub);
     if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
 
     const text = String(message).toLowerCase();
