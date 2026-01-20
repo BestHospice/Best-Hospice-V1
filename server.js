@@ -951,6 +951,24 @@ app.post('/api/ai/chat', async (req, res) => {
         navigateTo: '/index.html'
       });
     }
+    if (lower.includes('cost') || lower.includes('price') || lower.includes('charge')) {
+      return res.json({
+        reply: 'Best Hospice is free for families. You can enter your ZIP, answer a few guided questions, and contact providers directly. Providers pay to be listed; families do not pay for using the site.',
+        navigateTo: '/index.html'
+      });
+    }
+    if (lower.includes('sell') && lower.includes('data')) {
+      return res.json({
+        reply: 'We do not sell your data. We share your details with nearby providers to connect you with care quickly, but we discourage sharing any sensitive medical information here.',
+        navigateTo: '/index.html'
+      });
+    }
+    if (lower.includes('security') || lower.includes('secure') || lower.includes('captcha')) {
+      return res.json({
+        reply: 'We use CAPTCHA/Turnstile to help protect users and their data. Please avoid sharing sensitive medical information here; connect directly with providers for private details.',
+        navigateTo: '/index.html'
+      });
+    }
     if (lower.includes('palliative')) {
       return res.json({
         reply: 'Palliative care focuses on quality of life and symptom relief at any stage of a serious illness; hospice is palliative care when treatments are no longer pursued. If you’re ready to see nearby providers, click “Start Questionnaire” on the home page and enter your ZIP.',
@@ -970,7 +988,7 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
     return res.json({
-      reply: 'I can help explain hospice/palliative care or guide you to start the questionnaire. What would you like to do next—learn more, or begin finding providers?',
+      reply: 'I can help explain hospice/palliative care or guide you to start the questionnaire. What would you like to learn about (e.g., hospice, palliative, how Best Hospice works)? Or shall we start finding providers?',
       navigateTo: '/index.html'
     });
   }
