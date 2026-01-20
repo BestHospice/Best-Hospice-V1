@@ -924,12 +924,12 @@ app.post('/api/ai/chat', async (req, res) => {
   const nav = (path) => ({ reply: '', navigateTo: path });
 
   if (effectiveMode === 'client') {
-    // rate limit clients by IP using existing rateLimitEvent
-    try {
-      await rateLimit(req, res, () => {});
-    } catch (err) {
-      return; // rateLimit already responded
-    }
+    // (Temporarily) disable client rate limiting to avoid “Too many submissions” during testing
+    // try {
+    //   await rateLimit(req, res, () => {});
+    // } catch (err) {
+    //   return; // rateLimit already responded
+    // }
     if (!TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
       const captcha = await verifyTurnstile(turnstileToken, req.ip);
       if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
