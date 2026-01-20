@@ -951,6 +951,12 @@ app.post('/api/ai/chat', async (req, res) => {
         navigateTo: '/index.html'
       });
     }
+    if (lower.includes('palliative')) {
+      return res.json({
+        reply: 'Palliative care focuses on quality of life and symptom relief at any stage of a serious illness; hospice is palliative care when treatments are no longer pursued. If you’re ready to see nearby providers, click “Start Questionnaire” on the home page and enter your ZIP.',
+        navigateTo: '/index.html'
+      });
+    }
     if (lower.includes('what happens after') || lower.includes('after i do the questionnaire')) {
       return res.json({
         reply: 'After you finish the questionnaire, we show nearby providers on the map and list view. You can contact them directly, and we also alert providers in range so they may reach out to you promptly.',
@@ -964,7 +970,7 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
     return res.json({
-      reply: 'From the home page, click “Start Questionnaire,” enter your ZIP, and answer the guided questions to see nearby providers. I can also answer general questions about hospice care.',
+      reply: 'I can help explain hospice/palliative care or guide you to start the questionnaire. What would you like to do next—learn more, or begin finding providers?',
       navigateTo: '/index.html'
     });
   }
