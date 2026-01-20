@@ -945,15 +945,21 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
     // Basic info replies for clients
-    if (lower.includes('hospice')) {
+    if (lower.includes('best hospice')) {
       return res.json({
-        reply: 'Hospice care focuses on comfort, dignity, and support—emphasizing symptom relief and emotional support. From the home page, click “Start Questionnaire,” enter your ZIP, and we’ll show nearby providers.',
+        reply: 'Best Hospice connects families with reputable hospice providers fast. Enter a ZIP, answer a few guided questions, and we match you to providers within ~60 miles while notifying them to respond quickly. Want help finding the “Start Questionnaire” button?',
         navigateTo: '/index.html'
       });
     }
-    if (lower.includes('best hospice')) {
+    if (lower.includes('what happens after') || lower.includes('after i do the questionnaire')) {
       return res.json({
-        reply: 'Best Hospice connects families with reputable hospice providers fast. Enter a ZIP code, answer a few guided questions, and we match you to providers within ~60 miles. We also notify nearby providers so they can reach out quickly. From the home page, click “Start Questionnaire” and enter your ZIP to begin.',
+        reply: 'After you finish the questionnaire, we show nearby providers on the map and list view. You can contact them directly, and we also alert providers in range so they may reach out to you promptly.',
+        navigateTo: '/index.html'
+      });
+    }
+    if (lower.includes('hospice')) {
+      return res.json({
+        reply: 'Hospice care focuses on comfort, dignity, and support—emphasizing symptom relief and emotional support. From the home page, click “Start Questionnaire,” enter your ZIP, and we’ll show nearby providers.',
         navigateTo: '/index.html'
       });
     }
@@ -1044,6 +1050,13 @@ app.post('/api/ai/chat', async (req, res) => {
 
     // Billing intent: guidance only
     if (text.includes('billing') || text.includes('invoice') || text.includes('paid')) {
+      // if user already mentions seeing invoice/green screen, avoid repeating steps
+      if (text.includes('i see') || text.includes('green') || text.includes('invoice')) {
+        return res.json({
+          reply: 'Great—you’re viewing invoices. Tell me the invoice date or total you’re looking at, and I’ll help interpret it.',
+          navigateTo: '/provider-dashboard-home.html'
+        });
+      }
       return res.json({
         reply: 'To view billing and invoices: open your Provider Dashboard, click “Manage Billing,” then open Invoice History to see paid invoices and totals. Once you’re there, tell me what you see and I can help interpret it.',
         navigateTo: '/provider-dashboard-home.html'
