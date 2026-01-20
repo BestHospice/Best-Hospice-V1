@@ -944,10 +944,16 @@ app.post('/api/ai/chat', async (req, res) => {
         navigateTo: '/provider-dashboard.html'
       });
     }
-    // Basic info replies for clients
+    // Basic info replies for clients (order matters)
     if (lower.includes('best hospice')) {
       return res.json({
         reply: 'Best Hospice connects families with reputable hospice providers fast. Enter a ZIP, answer a few guided questions, and we match you to providers within ~60 miles while notifying them to respond quickly. Want help finding the “Start Questionnaire” button?',
+        navigateTo: '/index.html'
+      });
+    }
+    if (lower.includes('stripe')) {
+      return res.json({
+        reply: 'Stripe is our secure payment provider. Payments and billing are handled through Stripe to protect your information with industry-standard encryption.',
         navigateTo: '/index.html'
       });
     }
@@ -1009,6 +1015,12 @@ app.post('/api/ai/chat', async (req, res) => {
     if (text.includes('best hospice')) {
       return res.json({
         reply: 'Best Hospice connects families to reputable hospice providers quickly. Families enter a ZIP code, answer guided questions, and we match them to providers within ~60 miles while notifying nearby providers promptly.',
+        navigateTo: '/provider-dashboard-home.html'
+      });
+    }
+    if (text.includes('stripe')) {
+      return res.json({
+        reply: 'Stripe is our secure payment provider. Billing and payments are processed through Stripe using industry-standard encryption.',
         navigateTo: '/provider-dashboard-home.html'
       });
     }
@@ -1134,7 +1146,7 @@ app.post('/api/ai/chat', async (req, res) => {
       return res.json({
         reply: `Since ${iso(sinceDate)}, at $${PROVIDER_MONTHLY_RATE}/month, estimated spend is $${spend.totalSpend}.`,
         data: spend,
-        navigateTo: '/provider/billing'
+        navigateTo: '/provider-dashboard-home.html'
       });
     }
 
@@ -1146,7 +1158,7 @@ app.post('/api/ai/chat', async (req, res) => {
       await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', ctx.providerId, { start: iso(start), end: iso(end) }, hashIp(req.ip || ''));
       return res.json({
         reply: `Last 30 days: Impressions ${m.impressions}, Emails sent ${m.emailsSent}, Leads ${m.leadsGenerated}.`,
-        navigateTo: '/provider/leads'
+        navigateTo: '/provider-dashboard-home.html'
       });
     }
 
