@@ -23,10 +23,10 @@
     return div;
   };
 
-    function getMode() {
-      const token = localStorage.getItem('provider_jwt');
-      return token ? 'provider' : 'client';
-    }
+  function getMode() {
+    const token = localStorage.getItem('provider_jwt');
+    return token ? 'provider' : 'client';
+  }
 
   async function chat(message, mode, token) {
     const payload = { message, mode };
@@ -100,6 +100,12 @@
       const msg = input.value.trim();
       if (!msg) return;
       const token = localStorage.getItem('provider_jwt');
+      const onProviderPage = window.location.pathname.includes('provider-dashboard');
+      if (onProviderPage && !token) {
+        body.appendChild(bubble('Please log in on the Provider Dashboard to continue this chat as a provider.', 'agent'));
+        body.scrollTop = body.scrollHeight;
+        return;
+      }
       const mode = token ? 'provider' : 'client';
       body.appendChild(bubble(msg, 'user'));
       input.value = '';

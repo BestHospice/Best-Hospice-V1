@@ -935,31 +935,31 @@ app.post('/api/ai/chat', async (req, res) => {
       if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
     }
     if (maybePhi(message)) {
-      return res.json({ reply: 'For privacy, please avoid sharing medical details here. Start the questionnaire to connect with providers.', navigateTo: '/questionnaire' });
+      return res.json({ reply: 'Please don’t share private medical details here. Best Hospice helps connect you with licensed providers who can collect that information securely.', navigateTo: '/index.html' });
     }
     const lower = String(message || '').toLowerCase();
     if (lower.includes('provider')) {
       return res.json({
         reply: 'If you are a provider, please log in on the Provider Dashboard to continue. Once logged in, I can help with your leads, billing, and ROI.',
-        navigateTo: '/provider/dashboard'
+        navigateTo: '/provider-dashboard.html'
       });
     }
     // Basic info replies for clients
     if (lower.includes('hospice')) {
       return res.json({
-        reply: 'Hospice care focuses on comfort, dignity, and support for patients and families—emphasizing symptom relief and emotional support. To see nearby providers, please start the questionnaire.',
-        navigateTo: '/questionnaire'
+        reply: 'Hospice care focuses on comfort, dignity, and support—emphasizing symptom relief and emotional support. From the home page, click “Start Questionnaire,” enter your ZIP, and we’ll show nearby providers.',
+        navigateTo: '/index.html'
       });
     }
     if (lower.includes('best hospice')) {
       return res.json({
-        reply: 'Best Hospice connects families with reputable hospice providers fast. Enter a ZIP code, answer a few guided questions, and we match you to providers within ~60 miles. We also notify nearby providers so they can reach out quickly. Start the questionnaire to see your matches.',
-        navigateTo: '/questionnaire'
+        reply: 'Best Hospice connects families with reputable hospice providers fast. Enter a ZIP code, answer a few guided questions, and we match you to providers within ~60 miles. We also notify nearby providers so they can reach out quickly. From the home page, click “Start Questionnaire” and enter your ZIP to begin.',
+        navigateTo: '/index.html'
       });
     }
     return res.json({
-      reply: 'Please start with the questionnaire to find nearby providers. I can also answer general questions about hospice care.',
-      navigateTo: '/questionnaire'
+      reply: 'From the home page, click “Start Questionnaire,” enter your ZIP, and answer the guided questions to see nearby providers. I can also answer general questions about hospice care.',
+      navigateTo: '/index.html'
     });
   }
 
@@ -973,7 +973,14 @@ app.post('/api/ai/chat', async (req, res) => {
     const iso = (d) => d.toISOString().split('T')[0];
 
     if (maybePhi(message)) {
-      return res.json({ reply: 'For privacy, please avoid sharing medical details here. Focus on your leads, billing, and account questions.', navigateTo: '/provider/dashboard' });
+      return res.json({ reply: 'For privacy, please avoid sharing medical details here. Focus on your leads, billing, and account questions.', navigateTo: '/provider-dashboard-home.html' });
+    }
+
+    if (text.includes('best hospice')) {
+      return res.json({
+        reply: 'Best Hospice connects families to reputable hospice providers quickly. Families enter a ZIP code, answer guided questions, and we match them to providers within ~60 miles while notifying nearby providers promptly.',
+        navigateTo: '/provider-dashboard-home.html'
+      });
     }
 
     const leadCountSince = async (sinceDate) => {
@@ -1035,9 +1042,12 @@ app.post('/api/ai/chat', async (req, res) => {
       return { monthlyRate: PROVIDER_MONTHLY_RATE, months, totalSpend: months * PROVIDER_MONTHLY_RATE };
     };
 
-    // Billing intent
-    if (text.includes('billing')) {
-      return res.json({ reply: 'Opening billing portal for you.', navigateTo: '/provider/billing' });
+    // Billing intent: guidance only
+    if (text.includes('billing') || text.includes('invoice') || text.includes('paid')) {
+      return res.json({
+        reply: 'To view billing and invoices: open your Provider Dashboard, click “Manage Billing,” then open Invoice History to see paid invoices and totals. Once you’re there, tell me what you see and I can help interpret it.',
+        navigateTo: '/provider-dashboard-home.html'
+      });
     }
 
     const parseDateFromText = (txt) => {
@@ -1057,7 +1067,7 @@ app.post('/api/ai/chat', async (req, res) => {
       await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_COUNT', ctx.providerId, { since: iso(sinceDate) }, hashIp(req.ip || ''));
       return res.json({
         reply: `Leads since ${iso(sinceDate)}: ${countSince}. All-time leads: ${countAll}.`,
-        navigateTo: '/provider/leads'
+        navigateTo: '/provider-dashboard-home.html'
       });
     }
 
@@ -1067,14 +1077,14 @@ app.post('/api/ai/chat', async (req, res) => {
       const sinceDate = parsed || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const leads = await leadListSince(sinceDate, 50);
       await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: iso(sinceDate), returned: leads.length }, hashIp(req.ip || ''));
-      return res.json({ reply: `Here are your leads since ${iso(sinceDate)}.`, data: leads, navigateTo: '/provider/leads' });
+      return res.json({ reply: `Here are your leads since ${iso(sinceDate)}.`, data: leads, navigateTo: '/provider-dashboard-home.html' });
     }
 
-    // Provider says they are a client (but token present). We cannot change mode server-side with token, so instruct logout.
-    if (text.includes('i am a client') || text.includes('client now')) {
+    // Provider says they are a client (but token present). Instruct logout or alternate session.
+    if (text.includes('i am a client') || text.includes('client now') || text.includes('not a provider')) {
       return res.json({
-        reply: 'You are logged in as a provider. To use the client flow, please log out or use a non-provider session, then start the questionnaire.',
-        navigateTo: '/provider/dashboard'
+        reply: 'You are logged in as a provider. To use the client flow, please log out or open a separate session for the client questionnaire.',
+        navigateTo: '/provider-dashboard-home.html'
       });
     }
 
