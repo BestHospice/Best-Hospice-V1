@@ -901,344 +901,397 @@ app.post('/api/provider/billing', requireProviderAuth, async (req, res) => {
   }
 });
 
-// AI chat endpoint (provider/client minimal)
+// AI chat endpoint (rich intents for client and provider)
 app.post('/api/ai/chat', async (req, res) => {
   const { message, turnstileToken } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
-  // Force mode on the server: if provider is authenticated, treat as provider; otherwise client.
-  let ctx = null;
+  const text = String(message || '').trim();
+  const lower = text.toLowerCase();
+
+  const parseDateLoose = (input) => {
+    if (!input) return null;
+    const iso = input.match(/\d{4}-\d{2}-\d{2}/);
+    if (iso) return new Date(iso[0]);
+    const monthWord = /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)/i;
+    if (monthWord.test(input)) {
+      const parsed = Date.parse(input);
+      if (!Number.isNaN(parsed)) return new Date(parsed);
+    }
+    if (input.includes('last week')) return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    if (input.includes('last month')) return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const parsed = Date.parse(input);
+    return Number.isNaN(parsed) ? null : new Date(parsed);
+  };
+
+  const navigation = {
+    home: '/index.html',
+    questionnaire: '/index.html',
+    providerLogin: '/provider-dashboard.html',
+    providerHome: '/provider-dashboard-home.html'
+  };
+
+  const providerHints = /(provider|hospice provider|agency|administrator|admin|i am a provider|we are a provider|run a hospice|agency owner)/i;
+  const clientHints = /(client|family|loved one|patient|looking for care|need hospice)/i;
+
+  let providerCtx = null;
   const auth = req.headers['authorization'];
   if (auth && auth.toLowerCase().startsWith('bearer ')) {
     try {
       const token = auth.slice(7);
       const payload = jwt.verify(token, PROVIDER_JWT_SECRET);
-      ctx = await getProviderContext(payload.sub);
+      providerCtx = await getProviderContext(payload.sub);
     } catch (err) {
-      ctx = null; // fall through to client mode on invalid/expired token
+      providerCtx = null;
     }
   }
 
-  const effectiveMode = ctx ? 'provider' : 'client';
+  let mode = 'client';
+  if (providerCtx) {
+    mode = 'provider_authed';
+  } else if (providerHints.test(lower)) {
+    mode = 'provider_public';
+  }
 
-  const nav = (path) => ({ reply: '', navigateTo: path });
+  if (maybePhi(text)) {
+    return res.json({
+      reply: 'Please don’t share private medical details here. Best Hospice helps connect you with licensed providers who can collect that information securely.',
+      navigateTo: navigation.home
+    });
+  }
 
-  if (effectiveMode === 'client') {
-    // (Temporarily) disable client rate limiting to avoid “Too many submissions” during testing
-    // try {
-    //   await rateLimit(req, res, () => {});
-    // } catch (err) {
-    //   return; // rateLimit already responded
-    // }
-    if (!TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
-      const captcha = await verifyTurnstile(turnstileToken, req.ip);
-      if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
+  if (mode === 'client' && !TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
+    const captcha = await verifyTurnstile(turnstileToken, req.ip);
+    if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
+  }
+
+  const startGreeting = (rolePrompt = true) =>
+    rolePrompt
+      ? 'Hi, I’m Abel. Are you here as a Client/Family member looking for hospice care, or as a Hospice Provider?'
+      : 'Hi, I’m Abel. How can I help today?';
+
+  const leadCountSince = async (sinceDate, providerId) => {
+    const notifs = await prisma.leadNotification.findMany({
+      where: { providerId, createdAt: { gte: sinceDate } },
+      select: { leadId: true }
+    });
+    return new Set(notifs.map((n) => n.leadId)).size;
+  };
+  const leadCountAll = async (providerId) => {
+    const notifs = await prisma.leadNotification.findMany({
+      where: { providerId },
+      select: { leadId: true }
+    });
+    return new Set(notifs.map((n) => n.leadId)).size;
+  };
+  const leadListSince = async (sinceDate, providerId, limit = 50) => {
+    const notifs = await prisma.leadNotification.findMany({
+      where: { providerId, createdAt: { gte: sinceDate } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: { lead: { select: { id: true, createdAt: true, zip: true, submittedBy: true } } }
+    });
+    return notifs
+      .map((n) => n.lead)
+      .filter(Boolean)
+      .map((l) => ({ leadId: l.id, createdAt: l.createdAt, zip: l.zip, submittedBy: l.submittedBy }));
+  };
+  const metricsRange = async (start, end, providerId) => {
+    const [impressions, emailsSent, leadNotifications] = await Promise.all([
+      prisma.providerImpression.count({ where: { providerId, createdAt: { gte: start, lte: end } } }),
+      prisma.leadNotification.count({ where: { providerId, status: 'sent', createdAt: { gte: start, lte: end } } }),
+      prisma.leadNotification.findMany({ where: { providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true } })
+    ]);
+    const leadsGenerated = new Set(leadNotifications.map((n) => n.leadId)).size;
+    return { impressions, emailsSent, leadsGenerated };
+  };
+  const spendSince = async (sinceDate) => {
+    const diffDays = Math.max(0, (Date.now() - sinceDate.getTime()) / (1000 * 60 * 60 * 24));
+    const months = Math.max(1, Math.ceil(diffDays / 30));
+    return { monthlyRate: PROVIDER_MONTHLY_RATE, months, totalSpend: months * PROVIDER_MONTHLY_RATE };
+  };
+  const iso = (d) => d.toISOString().split('T')[0];
+
+  // ---------- CLIENT / FAMILY MODE ----------
+  if (mode === 'client') {
+    if (/^(hi|hello|help|best hospice|i have a question)/i.test(lower)) {
+      return res.json({ reply: startGreeting(), navigateTo: navigation.home });
     }
-    if (maybePhi(message)) {
-      return res.json({ reply: 'Please don’t share private medical details here. Best Hospice helps connect you with licensed providers who can collect that information securely.', navigateTo: '/index.html' });
-    }
-    const lower = String(message || '').toLowerCase();
-    if (lower.includes('provider')) {
+
+    if (lower.includes('cost') || lower.includes('price') || lower.includes('free')) {
       return res.json({
-        reply: 'If you are a provider, please log in on the Provider Dashboard to continue. Once logged in, I can help with your leads, billing, and ROI.',
-        navigateTo: '/provider-dashboard.html'
-      });
-    }
-    // Basic info replies for clients (order matters)
-    if (lower.includes('best hospice')) {
-      return res.json({
-        reply: 'Best Hospice connects families with reputable hospice providers fast. Enter a ZIP, answer a few guided questions, and we match you to providers within ~60 miles while notifying them to respond quickly. Want help finding the “Start Questionnaire” button?',
-        navigateTo: '/index.html'
-      });
-    }
-    if (lower.includes('stripe')) {
-      return res.json({
-        reply: 'Stripe is our secure payment provider. Payments and billing are handled through Stripe to protect your information with industry-standard encryption.',
-        navigateTo: '/index.html'
-      });
-    }
-    if (lower.includes('cost') || lower.includes('price') || lower.includes('charge')) {
-      return res.json({
-        reply: 'Best Hospice is free for families. You can enter your ZIP, answer a few guided questions, and contact providers directly. Providers pay to be listed; families do not pay for using the site.',
-        navigateTo: '/index.html'
+        reply: 'Best Hospice is free for families. Providers pay to participate; families can search, answer a few guided questions, and contact providers at no cost.',
+        navigateTo: navigation.home
       });
     }
     if (lower.includes('sell') && lower.includes('data')) {
       return res.json({
-        reply: 'We do not sell your data. We share your details with nearby providers to connect you with care quickly, but we discourage sharing any sensitive medical information here.',
-        navigateTo: '/index.html'
+        reply: 'We do not sell your data. We only share your details with nearby providers to connect you to care quickly, and we discourage sharing sensitive medical information here.',
+        navigateTo: navigation.home
       });
     }
     if (lower.includes('security') || lower.includes('secure') || lower.includes('captcha')) {
       return res.json({
-        reply: 'We use CAPTCHA/Turnstile to help protect users and their data. Please avoid sharing sensitive medical information here; connect directly with providers for private details.',
-        navigateTo: '/index.html'
+        reply: 'We use CAPTCHA/Turnstile and other safeguards to protect users and their data. Please avoid sharing private medical details here; providers will handle sensitive information securely.',
+        navigateTo: navigation.home
       });
     }
+    if (lower.includes('stripe')) {
+      return res.json({
+        reply: 'Stripe is our secure payment partner for provider billing. It uses industry-standard encryption to help keep payment data safe.',
+        navigateTo: navigation.home
+      });
+    }
+
+    if (lower.includes('best hospice') || lower.includes('what is this website') || lower.includes('who are you')) {
+      return res.json({
+        reply: 'Best Hospice connects families to nearby licensed hospice providers. Enter your ZIP and answer a few guided questions; we match you to providers within about 60 miles and alert them so they can reach out quickly. Families are not charged for using the site.',
+        navigateTo: navigation.home
+      });
+    }
+
     if (lower.includes('palliative')) {
       return res.json({
-        reply: 'Palliative care focuses on quality of life and symptom relief at any stage of a serious illness; hospice is palliative care when treatments are no longer pursued. If you’re ready to see nearby providers, click “Start Questionnaire” on the home page and enter your ZIP.',
-        navigateTo: '/index.html'
-      });
-    }
-    if (lower.includes('what happens after') || lower.includes('after i do the questionnaire')) {
-      return res.json({
-        reply: 'After you finish the questionnaire, we show nearby providers on the map and list view. You can contact them directly, and we also alert providers in range so they may reach out to you promptly.',
-        navigateTo: '/index.html'
+        reply: 'Palliative care focuses on quality of life and symptom relief at any stage of serious illness. Hospice is palliative care when curative treatments are no longer pursued. Want to start finding providers near you?',
+        navigateTo: navigation.home
       });
     }
     if (lower.includes('hospice')) {
       return res.json({
-        reply: 'Hospice care focuses on comfort, dignity, and support—emphasizing symptom relief and emotional support. From the home page, click “Start Questionnaire,” enter your ZIP, and we’ll show nearby providers.',
-        navigateTo: '/index.html'
+        reply: 'Hospice care emphasizes comfort, dignity, and support for patients and families—focusing on symptom relief and emotional support. I can guide you to start the questionnaire to see nearby providers.',
+        navigateTo: navigation.home
       });
     }
+
+    if (lower.includes('start') || lower.includes('find care') || lower.includes('need hospice') || lower.includes('find hospice')) {
+      return res.json({
+        reply: 'To begin, click “Start Questionnaire” on the home page, enter your ZIP code, and answer the guided questions. We’ll show nearby providers and notify them so they can reach out.',
+        navigateTo: navigation.home
+      });
+    }
+
+    if (lower.includes('zip')) {
+      return res.json({
+        reply: 'We use your ZIP code to find providers within roughly 60 miles. If you’re unsure of the ZIP, use the nearest known ZIP and providers can adjust with you later.',
+        navigateTo: navigation.home
+      });
+    }
+
+    if (lower.includes('questionnaire') || lower.includes('type of care') || lower.includes('continuous care') || lower.includes('not sure')) {
+      return res.json({
+        reply: 'Choose options that best match your situation—like nursing/symptom support, home health aide help, equipment coordination, or emotional/spiritual support. If unsure, pick the closest fit; providers can refine details later.',
+        navigateTo: navigation.home
+      });
+    }
+
+    if (lower.includes('after') && lower.includes('questionnaire')) {
+      return res.json({
+        reply: 'After you complete the questionnaire, you’ll see nearby providers on the map and list. You can contact them directly, and notified providers may also reach out to you.',
+        navigateTo: navigation.home
+      });
+    }
+
+    if (lower.includes('legit') || lower.includes('real hospice') || lower.includes('make money') || lower.includes('how do you make money')) {
+      return res.json({
+        reply: 'Providers on Best Hospice are real hospice agencies. Best Hospice is a referral platform—providers pay to participate, and families are not charged.',
+        navigateTo: navigation.home
+      });
+    }
+
     return res.json({
-      reply: 'I can help explain hospice/palliative care or guide you to start the questionnaire. What would you like to learn about (e.g., hospice, palliative, how Best Hospice works)? Or shall we start finding providers?',
-      navigateTo: '/index.html'
+      reply: 'I can explain hospice or palliative care, how Best Hospice works, or guide you to start the questionnaire. Would you like to learn more, or begin finding providers?',
+      navigateTo: navigation.home
     });
   }
 
-  if (effectiveMode !== 'provider') return res.status(400).json({ error: 'Unsupported mode' });
+  // ---------- PROVIDER PUBLIC ----------
+  if (mode === 'provider_public') {
+    if (/^(hi|hello|help|best hospice|i have a question)/i.test(lower)) {
+      return res.json({
+        reply: 'Welcome, hospice provider. You can learn how leads work, view pricing, or create your account. Would you like to sign in or create an account?',
+        navigateTo: navigation.providerLogin
+      });
+    }
 
+    if (lower.includes('best hospice') || lower.includes('how does this help')) {
+      return res.json({
+        reply: 'Best Hospice connects families who submit care requests with providers in their area. We alert providers promptly so you can respond fast, and your dashboard shows your performance.',
+        navigateTo: navigation.providerLogin
+      });
+    }
+
+    if (lower.includes('cost') || lower.includes('pricing') || lower.includes('contract') || lower.includes('price')) {
+      return res.json({
+        reply: 'Best Hospice is subscription-based for providers (no long-term lock-in). You can sign up and manage billing in your Provider Dashboard.',
+        navigateTo: navigation.providerLogin
+      });
+    }
+
+    if (lower.includes('join') || lower.includes('sign up') || lower.includes('onboard')) {
+      return res.json({
+        reply: 'To join, create your Provider account, add your service area, and complete billing. You’ll start receiving leads once you’re live.',
+        navigateTo: navigation.providerLogin
+      });
+    }
+
+    return res.json({
+      reply: 'I can help you sign in, create your account, or explain how leads work. Would you like to sign in or create a Provider account?',
+      navigateTo: navigation.providerLogin
+    });
+  }
+
+  // ---------- PROVIDER AUTHED ----------
   try {
-    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    if (!providerCtx) return res.status(401).json({ error: 'Unauthorized' });
+    const providerId = providerCtx.providerId;
+    const providerName = providerCtx.provider?.name || 'your listing';
 
-    const text = String(message).toLowerCase();
-    const today = new Date();
-    const iso = (d) => d.toISOString().split('T')[0];
-
-    if (maybePhi(message)) {
-      return res.json({ reply: 'For privacy, please avoid sharing medical details here. Focus on your leads, billing, and account questions.', navigateTo: '/provider-dashboard-home.html' });
-    }
-
-    if (text.includes('best hospice')) {
+    if (/^(hi|hello|help|best hospice|i have a question)/i.test(lower)) {
       return res.json({
-        reply: 'Best Hospice connects families to reputable hospice providers quickly. Families enter a ZIP code, answer guided questions, and we match them to providers within ~60 miles while notifying nearby providers promptly.',
-        navigateTo: '/provider-dashboard-home.html'
+        reply: 'Hi! I can help with lead counts, lead lists, performance, billing, spend, estimated revenue, ROI, or navigation. What do you want to do first?',
+        navigateTo: navigation.providerHome
       });
     }
-    if (text.includes('stripe')) {
+
+    if (clientHints.test(lower) && !providerHints.test(lower)) {
       return res.json({
-        reply: 'Stripe is our secure payment provider. Billing and payments are processed through Stripe using industry-standard encryption.',
-        navigateTo: '/provider-dashboard-home.html'
+        reply: 'You’re signed in as a provider. To use the client flow, please log out or open a separate session for the questionnaire.',
+        navigateTo: navigation.providerHome
       });
     }
 
-    const leadCountSince = async (sinceDate) => {
-      const notifs = await prisma.leadNotification.findMany({
-        where: { providerId: ctx.providerId, createdAt: { gte: sinceDate } },
-        select: { leadId: true }
+    if (lower.includes('best hospice')) {
+      return res.json({
+        reply: 'Best Hospice connects families to nearby hospice providers quickly. Families enter a ZIP, answer guided questions, and we alert providers so they can respond fast. Your dashboard shows leads, performance, and billing.',
+        navigateTo: navigation.providerHome
       });
-      return new Set(notifs.map((n) => n.leadId)).size;
-    };
-
-    const leadCountAllTime = async () => {
-      const notifs = await prisma.leadNotification.findMany({
-        where: { providerId: ctx.providerId },
-        select: { leadId: true }
+    }
+    if (lower.includes('stripe')) {
+      return res.json({
+        reply: 'Stripe is our secure payment provider. Billing and subscription payments are processed through Stripe using industry-standard encryption.',
+        navigateTo: navigation.providerHome
       });
-      return new Set(notifs.map((n) => n.leadId)).size;
-    };
-
-    const leadListSince = async (sinceDate, limit = 50) => {
-      const notifs = await prisma.leadNotification.findMany({
-        where: { providerId: ctx.providerId, createdAt: { gte: sinceDate } },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        select: {
-          lead: {
-            select: {
-              id: true,
-              createdAt: true,
-              zip: true,
-              submittedBy: true
-            }
-          }
-        }
+    }
+    if (lower.includes('security') || lower.includes('secure') || lower.includes('captcha')) {
+      return res.json({
+        reply: 'We use safeguards like Turnstile/CAPTCHA and Stripe for billing security. Avoid sharing PHI here—providers should collect sensitive details directly from families.',
+        navigateTo: navigation.providerHome
       });
-      return notifs
-        .map((n) => n.lead)
-        .filter(Boolean)
-        .map((l) => ({
-          leadId: l.id,
-          createdAt: l.createdAt,
-          zip: l.zip,
-          submittedBy: l.submittedBy
-        }));
-    };
+    }
 
-    const metricsRange = async (start, end) => {
-      const [impressions, emailsSent, leadNotifications] = await Promise.all([
-        prisma.providerImpression.count({ where: { providerId: ctx.providerId, createdAt: { gte: start, lte: end } } }),
-        prisma.leadNotification.count({ where: { providerId: ctx.providerId, status: 'sent', createdAt: { gte: start, lte: end } } }),
-        prisma.leadNotification.findMany({ where: { providerId: ctx.providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true } })
-      ]);
-      const leadsGenerated = new Set(leadNotifications.map((n) => n.leadId)).size;
-      return { impressions, emailsSent, leadsGenerated };
-    };
+    if (lower.includes('billing') || lower.includes('invoice') || lower.includes('paid') || lower.includes('subscription')) {
+      return res.json({
+        reply: 'Open your Provider Dashboard, go to Billing/Manage Billing, then open Invoice History to see paid invoices and totals. Tell me what you see and I’ll help interpret it.',
+        navigateTo: navigation.providerHome
+      });
+    }
 
-    const spendSince = async (sinceDate) => {
-      const diffDays = Math.max(0, (today - sinceDate) / (1000 * 60 * 60 * 24));
-      const months = Math.max(1, Math.ceil(diffDays / 30));
-      return { monthlyRate: PROVIDER_MONTHLY_RATE, months, totalSpend: months * PROVIDER_MONTHLY_RATE };
-    };
+    if (lower.includes('how much') && lower.includes('made')) {
+      return res.json({
+        reply: 'Do you want (1) lead counts, (2) how much you’ve paid Best Hospice, or (3) estimated revenue from leads?',
+        navigateTo: navigation.providerHome
+      });
+    }
 
-    // Billing intent: guidance only
-    if (text.includes('billing') || text.includes('invoice') || text.includes('paid')) {
-      // if user already mentions seeing invoice/green screen, avoid repeating steps
-      if (text.includes('i see') || text.includes('green') || text.includes('invoice')) {
+    if (lower.includes('lead count') || (lower.includes('lead') && lower.includes('how many'))) {
+      const sinceDate = parseDateLoose(text);
+      if (!sinceDate) {
         return res.json({
-          reply: 'Great—you’re viewing invoices. Tell me the invoice date or total you’re looking at, and I’ll help interpret it.',
-          navigateTo: '/provider-dashboard-home.html'
+          reply: 'For lead counts, tell me “lead count since YYYY-MM-DD” or a natural date (e.g., “since March 1”).',
+          navigateTo: navigation.providerHome
         });
       }
-      return res.json({
-        reply: 'To view billing and invoices: open your Provider Dashboard, click “Manage Billing,” then open Invoice History to see paid invoices and totals. Once you’re there, tell me what you see and I can help interpret it.',
-        navigateTo: '/provider-dashboard-home.html'
-      });
-    }
-
-    const parseDateFromText = (txt) => {
-      if (!txt) return null;
-      const iso = txt.match(/\d{4}-\d{2}-\d{2}/);
-      if (iso) return new Date(iso[0]);
-      const parsed = Date.parse(txt);
-      return Number.isNaN(parsed) ? null : new Date(parsed);
-    };
-
-    // Lead count intent (optional since)
-    if (text.includes('lead') && (text.includes('since') || !text.includes('show'))) {
-      const parsed = parseDateFromText(text);
-      const sinceDate = parsed || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const countSince = await leadCountSince(sinceDate);
-      const countAll = await leadCountAllTime();
-      await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_COUNT', ctx.providerId, { since: iso(sinceDate) }, hashIp(req.ip || ''));
+      const countSince = await leadCountSince(sinceDate, providerId);
+      const countAll = await leadCountAll(providerId);
+      await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_COUNT', providerId, { since: iso(sinceDate) }, hashIp(req.ip || ''));
       return res.json({
         reply: `Leads since ${iso(sinceDate)}: ${countSince}. All-time leads: ${countAll}.`,
-        navigateTo: '/provider-dashboard-home.html'
+        navigateTo: navigation.providerHome
       });
     }
 
-    // Lead list intent
-    if (text.includes('show') && text.includes('lead')) {
-      const parsed = parseDateFromText(text);
-      const sinceDate = parsed || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const leads = await leadListSince(sinceDate, 50);
-      await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: iso(sinceDate), returned: leads.length }, hashIp(req.ip || ''));
-      return res.json({ reply: `Here are your leads since ${iso(sinceDate)}.`, data: leads, navigateTo: '/provider-dashboard-home.html' });
-    }
-
-    // Provider says they are a client (but token present). Instruct logout or alternate session.
-    if (text.includes('i am a client') || text.includes('client now') || text.includes('not a provider')) {
+    if (lower.includes('show') && lower.includes('lead')) {
+      const sinceDate = parseDateLoose(text) || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const leads = await leadListSince(sinceDate, providerId, 50);
+      await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', providerId, { since: iso(sinceDate), returned: leads.length }, hashIp(req.ip || ''));
       return res.json({
-        reply: 'You are logged in as a provider. To use the client flow, please log out or open a separate session for the client questionnaire.',
-        navigateTo: '/provider-dashboard-home.html'
+        reply: `Here are your leads since ${iso(sinceDate)} (showing up to 50).`,
+        data: leads,
+        navigateTo: navigation.providerHome
       });
     }
 
-    // Spend intent
-    if (text.includes('spend') || text.includes('paid')) {
-      const match = text.match(/\\d{4}-\\d{2}-\\d{2}/);
-      const sinceDate = match ? new Date(match[0]) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const spend = await spendSince(sinceDate);
-      await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', ctx.providerId, { spendSince: iso(sinceDate), totalSpend: spend.totalSpend }, hashIp(req.ip || ''));
-      return res.json({
-        reply: `Since ${iso(sinceDate)}, at $${PROVIDER_MONTHLY_RATE}/month, estimated spend is $${spend.totalSpend}.`,
-        data: spend,
-        navigateTo: '/provider-dashboard-home.html'
-      });
-    }
-
-    // Metrics intent
-    if (text.includes('metric') || text.includes('performance')) {
+    if (lower.includes('metric') || lower.includes('performance') || lower.includes('impression')) {
       const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const end = today;
-      const m = await metricsRange(start, end);
-      await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', ctx.providerId, { start: iso(start), end: iso(end) }, hashIp(req.ip || ''));
+      const end = new Date();
+      const m = await metricsRange(start, end, providerId);
+      await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', providerId, { start: iso(start), end: iso(end) }, hashIp(req.ip || ''));
       return res.json({
-        reply: `Last 30 days: Impressions ${m.impressions}, Emails sent ${m.emailsSent}, Leads ${m.leadsGenerated}.`,
-        navigateTo: '/provider-dashboard-home.html'
+        reply: `Last 30 days — Impressions: ${m.impressions}, Emails sent: ${m.emailsSent}, Leads: ${m.leadsGenerated}.`,
+        navigateTo: navigation.providerHome
       });
     }
 
-    // Best Hospice description (provider asking about the platform)
-    if (text.includes('best hospice')) {
+    if (lower.includes('spend') || lower.includes('paid') || lower.includes('paying')) {
+      const explicitDate = parseDateLoose(text);
+      const sinceDate = explicitDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const spend = await spendSince(sinceDate);
+      await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', providerId, { spendSince: iso(sinceDate), totalSpend: spend.totalSpend }, hashIp(req.ip || ''));
       return res.json({
-        reply: 'Best Hospice connects families to reputable hospice providers fast. Families enter a ZIP code, answer a few guided questions, and we match them to providers within ~60 miles. We also notify nearby providers so they can reach out quickly.',
-        navigateTo: '/provider-dashboard-home.html'
+        reply: `Since ${iso(sinceDate)}, at $${PROVIDER_MONTHLY_RATE}/month, estimated spend is $${spend.totalSpend.toLocaleString()}.`,
+        data: spend,
+        navigateTo: navigation.providerHome
       });
     }
 
-    // Who/intro intent
-    if (text.includes('who are you') || text.includes('what are you') || text.includes('are you')) {
-      return res.json({
-        reply: "I’m Abel, your Best Hospice assistant. I can pull your lead counts (with dates), lead lists, performance metrics, billing/spend, revenue and ROI estimates, and help you navigate the dashboard.",
-        navigateTo: '/provider-dashboard-home.html'
-      });
-    }
-
-    // Revenue intent (estimate)
-    if (text.includes('revenue') || text.includes('made') || text.includes('profit')) {
-      const countAll = await leadCountAllTime();
-      const estimate = countAll * 8000;
-      await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', ctx.providerId, { leads: countAll, estimate }, hashIp(req.ip || ''));
-      return res.json({
-        reply: `You’ve been notified about ${countAll} unique leads. At $8,000 per converted client (industry avg), potential revenue is ~$${estimate.toLocaleString()}. Update your actual conversions in your dashboard to refine this.`,
-        navigateTo: '/provider/leads'
-      });
-    }
-
-    // ROI intent (estimate revenue minus subscription spend)
-    if (text.includes('roi') || text.includes('net') || (text.includes('subtract') && text.includes('cost'))) {
-      const countAll = await leadCountAllTime();
+    if (lower.includes('revenue') || lower.includes('profit') || lower.includes('roi')) {
+      const countAll = await leadCountAll(providerId);
       const estimateRevenue = countAll * 8000;
       const firstNotif = await prisma.leadNotification.findFirst({
-        where: { providerId: ctx.providerId },
+        where: { providerId },
         orderBy: { createdAt: 'asc' },
         select: { createdAt: true }
       });
       const sinceDate = firstNotif?.createdAt ? new Date(firstNotif.createdAt) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      // If user mentions months, override spend calc with that number of months
       const monthMatch = text.match(/(\d+)\s*month/);
       const overrideMonths = monthMatch ? Math.max(1, parseInt(monthMatch[1], 10)) : null;
       const spend = overrideMonths
         ? { monthlyRate: PROVIDER_MONTHLY_RATE, months: overrideMonths, totalSpend: overrideMonths * PROVIDER_MONTHLY_RATE }
         : await spendSince(sinceDate);
       const net = estimateRevenue - spend.totalSpend;
-      await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', ctx.providerId, { leads: countAll, estimateRevenue, spend: spend.totalSpend, net }, hashIp(req.ip || ''));
+      await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', providerId, { leads: countAll, estimateRevenue, spend: spend.totalSpend, net }, hashIp(req.ip || ''));
       return res.json({
-        reply: `Estimated revenue: ~$${estimateRevenue.toLocaleString()}. Estimated spend (at $${PROVIDER_MONTHLY_RATE}/mo): ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}. Refine this in your dashboard by entering actual conversions and months subscribed.`,
-        navigateTo: '/provider/leads'
+        reply: `Estimated revenue: ~$${estimateRevenue.toLocaleString()}. Estimated spend (at $${PROVIDER_MONTHLY_RATE}/mo): ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}. Update conversions and months in your dashboard to refine this.`,
+        navigateTo: navigation.providerHome
       });
     }
 
-    // Basic hospice info (non-medical)
-    if (text.includes('hospice')) {
+    if (lower.includes('account') || lower.includes('profile') || lower.includes('plan')) {
+      await logAdminAction('provider_user', 'PROVIDER_AI_ACCOUNT', providerId, {}, hashIp(req.ip || ''));
       return res.json({
-        reply: 'Hospice care focuses on comfort, dignity, and support for patients with serious or life-limiting illnesses—emphasizing symptom relief, emotional and spiritual support, and help for families. I can also help with your leads, billing, or ROI.',
-        navigateTo: '/provider/dashboard'
+        reply: `Your account is active for ${providerName}. I can help you navigate leads, billing, or performance.`,
+        data: { providerId, providerName, providerEmail: providerCtx.provider?.email || '', planStatus: providerCtx.provider?.planStatus || PROVIDER_PLAN_DEFAULT },
+        navigateTo: navigation.providerHome
       });
     }
 
-    // Account intent
-    if (text.includes('account') || text.includes('plan')) {
-      await logAdminAction('provider_user', 'PROVIDER_AI_ACCOUNT', ctx.providerId, {}, hashIp(req.ip || ''));
+    if (lower.includes('not getting leads') || lower.includes('something wrong') || lower.includes('help')) {
       return res.json({
-        reply: `Your account is active for ${ctx.provider?.name || 'your listing'}.`,
-        data: { providerId: ctx.providerId, providerName: ctx.provider?.name || '', providerEmail: ctx.provider?.email || '', planStatus: ctx.provider?.planStatus || PROVIDER_PLAN_DEFAULT }
+        reply: 'Let’s check your recent impressions and leads in the dashboard. If numbers look low, confirm your service area and that your listing is live. I can also flag support if needed.',
+        navigateTo: navigation.providerHome
       });
     }
 
     return res.json({
-      reply: 'I can get lead counts (date-based), lead lists, metrics, billing/spend, revenue, and ROI. Ask me something like “lead count since 2025-01-16”, “show leads since March 1”, “metrics”, “billing”, or “ROI.”',
-      navigateTo: '/provider/dashboard'
+      reply: 'I can help with lead counts (with dates), lead lists, performance, billing/spend, estimated revenue, ROI, or navigation. What would you like to do?',
+      navigateTo: navigation.providerHome
     });
   } catch (err) {
     console.error('AI chat failed', err);
     res.status(500).json({ error: 'AI chat failed' });
   }
 });
+
 
 app.listen(PORT, () => {
   console.log(`Best Hospice server running on http://localhost:${PORT}`);
