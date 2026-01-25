@@ -931,8 +931,8 @@ app.post('/api/ai/chat', async (req, res) => {
     providerHome: '/provider-dashboard-home.html'
   };
 
-  const providerHints = /(provider|hospice provider|agency|administrator|admin|i am a provider|we are a provider|run a hospice|agency owner)/i;
-  const clientHints = /(client|family|loved one|patient|looking for care|need hospice)/i;
+  const providerHints = /(provider|hospice provider|agency|administrator|admin|i am a provider|we are a provider|run a hospice|agency owner)/i;
+  const clientHints = /(client|family|loved one|patient|looking for care|need hospice)/i;
 
   let providerCtx = null;
   const auth = req.headers['authorization'];
@@ -946,11 +946,16 @@ app.post('/api/ai/chat', async (req, res) => {
     }
   }
 
+  const hintedProvider = providerHints.test(lower) || lower.includes('provider');
+  const hintedClient = clientHints.test(lower);
+
   let mode = 'client';
   if (providerCtx) {
     mode = 'provider_authed';
-  } else if (providerHints.test(lower)) {
+  } else if (hintedProvider) {
     mode = 'provider_public';
+  } else if (hintedClient) {
+    mode = 'client';
   }
 
   if (maybePhi(text)) {
