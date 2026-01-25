@@ -946,7 +946,7 @@ app.post('/api/ai/chat', async (req, res) => {
     }
   }
 
-  const hintedProvider = providerHints.test(lower) || lower.includes('provider');
+  const hintedProvider = providerHints.test(lower) || lower.includes('provider') || lower.includes('sign in') || lower.includes('log in') || lower.includes('login') || lower.includes('create an account');
   const hintedClient = clientHints.test(lower);
 
   let mode = 'client';
