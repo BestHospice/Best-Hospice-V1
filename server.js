@@ -1118,6 +1118,20 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
 
+    if (lower.includes('create') && lower.includes('account')) {
+      return res.json({
+        reply: 'To create a provider account, you must be a registered hospice provider. Please email provider@besthospice.com and we will assist with onboarding.',
+        navigateTo: navigation.providerLogin
+      });
+    }
+
+    if (lower.includes('sign in') || lower.includes('log in')) {
+      return res.json({
+        reply: 'To sign in, open the Provider Dashboard login page. If you don’t have access yet, email provider@besthospice.com for onboarding.',
+        navigateTo: navigation.providerLogin
+      });
+    }
+
     if (lower.includes('best hospice') || lower.includes('how does this help')) {
       return res.json({
         reply: 'Best Hospice connects families who submit care requests with providers in their area. We alert providers promptly so you can respond fast, and your dashboard shows your performance.',
