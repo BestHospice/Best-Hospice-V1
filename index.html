@@ -17,7 +17,10 @@
         <div class="brand">
           <img src="newbesthospicelogo.png" alt="Best Hospice logo" class="brand-logo">
         </div>
-        <div class="top-links">
+        <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="top-links" id="topLinks">
           <a class="pill" href="provider.html">Are you a hospice provider? <u>Click here</u> to join BestHospice.com</a>
           <a class="pill ghost-pill" href="why.html">Who We Are</a>
           <a class="pill ghost-pill" href="provider-dashboard.html">Provider Dashboard</a>
@@ -156,4 +159,15 @@
   </div>
 
 </body>
+<script>
+  (() => {
+    const toggle = document.querySelector('.menu-toggle');
+    const links = document.getElementById('topLinks');
+    if (!toggle || !links) return;
+    toggle.addEventListener('click', () => {
+      const open = links.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  })();
+</script>
 </html>
