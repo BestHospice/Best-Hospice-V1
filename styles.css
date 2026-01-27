@@ -102,6 +102,8 @@ a {
   flex-wrap: wrap;
   justify-content: flex-end;
   width: 100%;
+  flex-direction: column;
+  margin-top: 6px;
 }
 .top-links.open {
   display: flex;
@@ -546,10 +548,6 @@ a {
     flex-wrap: wrap;
     gap: 10px;
   }
-  .top-links {
-    flex-direction: column;
-    margin-top: 6px;
-  }
   .pill {
     width: 100%;
     text-align: center;
@@ -560,13 +558,14 @@ a {
 }
 
 @media (min-width: 901px) {
-  .menu-toggle {
-    display: none;
-  }
   .top-links {
-    display: flex;
+    flex-direction: row;
     width: auto;
     margin-top: 0;
+    align-items: center;
+  }
+  .top-links.open {
+    display: flex;
   }
   .pill {
     width: auto;
