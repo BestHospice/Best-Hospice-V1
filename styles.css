@@ -54,7 +54,7 @@ a {
 }
 
 .menu-toggle {
-  display: inline-flex;
+  display: none;
   flex-direction: column;
   gap: 4px;
   padding: 10px;
@@ -97,16 +97,10 @@ a {
 }
 
 .top-links {
-  display: none;
+  display: flex;
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-.top-links.open {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  margin-top: 6px;
 }
 
 .hero-body {
@@ -548,6 +542,15 @@ a {
     flex-wrap: wrap;
     gap: 10px;
   }
+  .top-links {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    margin-top: 6px;
+  }
+  .top-links.open {
+    display: flex;
+  }
   .pill {
     width: 100%;
     text-align: center;
@@ -560,12 +563,6 @@ a {
 @media (min-width: 901px) {
   .menu-toggle {
     display: none;
-  }
-  .top-links {
-    display: flex !important;
-    flex-direction: row;
-    width: auto;
-    margin-top: 0;
   }
   .pill {
     width: auto;
