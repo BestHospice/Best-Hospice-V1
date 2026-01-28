@@ -987,7 +987,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
   const startGreeting = (rolePrompt = true) =>
     rolePrompt
-      ? 'Hi, I’m Abel. Are you here as a Client/Family member looking for hospice care, or as a Hospice Provider?'
+      ? 'Hi, I’m Abel. Are you here as a Client/Family member looking for hospice, palliative, or home care, or as a Hospice Provider?'
       : 'Hi, I’m Abel. How can I help today?';
 
   const leadCountSince = async (sinceDate, providerId) => {
@@ -1119,7 +1119,7 @@ app.post('/api/ai/chat', async (req, res) => {
     }
 
     return res.json({
-      reply: 'I can explain hospice or palliative care, how Best Hospice works, or guide you to start the questionnaire. Would you like to learn more, or begin finding providers?',
+      reply: 'I can explain hospice, palliative, or home care, how Best Hospice works, or guide you to start the questionnaire. Would you like to learn more, or begin finding providers?',
       navigateTo: navigation.home
     });
   }
