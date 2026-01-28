@@ -15,6 +15,7 @@
     .admin-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
     .admin-grid label { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
     .admin-grid input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .admin-grid select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
     .admin-actions { display: flex; justify-content: flex-end; gap: 10px; }
     .note { color: #4b5563; font-size: 14px; }
   </style>
@@ -112,6 +113,18 @@
           <label for="zip">ZIP Code *</label>
           <input id="zip" placeholder="12345" />
         </div>
+        <div>
+          <label for="radius">Service radius (miles)</label>
+          <select id="radius">
+            <option value="60" selected>60 miles (default)</option>
+            <option value="50">50 miles</option>
+            <option value="40">40 miles</option>
+            <option value="30">30 miles</option>
+            <option value="20">20 miles</option>
+            <option value="10">10 miles</option>
+            <option value="5">5 miles</option>
+          </select>
+        </div>
         <input id="featured" type="hidden" value="true" />
         <div>
           <label for="token-add">Provider Add Token</label>
@@ -142,7 +155,7 @@
         city: document.getElementById('city').value.trim(),
         state: document.getElementById('state').value.trim(),
         zip: document.getElementById('zip').value.trim(),
-        serviceRadiusMiles: 60,
+        serviceRadiusMiles: Number(document.getElementById('radius').value) || 60,
         featured: true
       };
       statusEl.textContent = 'Submitting...';
