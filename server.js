@@ -965,6 +965,21 @@ app.post('/api/ai/chat', async (req, res) => {
     });
   }
 
+  const careIntentPattern = /(hospice vs|palliative vs|difference between hospice|hospice and palliative|hospice or palliative|home care|homecare|what is hospice care|what is palliative care|what is home care|what kind of care do i need|which care do i need)/i;
+  if (careIntentPattern.test(lower)) {
+    let reply =
+      'Here’s a quick, plain-language breakdown:\n' +
+      '• Hospice care: Focuses on comfort, dignity, and quality of life when curative treatment is no longer the focus. Can be at home, assisted living, or in a facility. Often includes nursing visits, comfort support, emotional/spiritual support, and family/caregiver support.\n' +
+      '• Palliative care: Focuses on comfort and quality of life at any stage of a serious illness, and can be provided alongside curative treatments. Often includes comfort support, care coordination, and emotional support.\n' +
+      '• Home care (non-hospice): Focuses on help with daily living at home (bathing/dressing help, meals, light household tasks, companionship) rather than medical end-of-life care.\n' +
+      'In simple terms: Hospice focuses on comfort near end of life; palliative care focuses on comfort at any stage; home care focuses on daily living support.';
+    if (lower.includes('which') || lower.includes('do i need')) {
+      reply += '\nChoosing the right type of care is something a licensed provider should help with. Best Hospice can connect you with providers who can guide that decision.';
+    }
+    reply += '\nIf you’d like, I can help you start finding providers near you.';
+    return res.json({ reply, navigateTo: null });
+  }
+
   if (mode === 'client' && !TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
     const captcha = await verifyTurnstile(turnstileToken, req.ip);
     if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
