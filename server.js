@@ -444,9 +444,13 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     const careTimes = answers.frequency?.times?.length ? answers.frequency.times.join(', ') : 'Not specified';
     const careDaysAndTimes = `Days: ${careDays}; Times: ${careTimes}`;
     const services = Array.isArray(answers.services) && answers.services.length ? answers.services : ['Not specified'];
+    const funding = answers.funding || 'Not specified';
+    const otherDetails = answers.moreDetails || 'Not provided';
     const clientEmail = answers.contactEmail || 'Not provided';
     const clientPhone = answers.contactPhone || 'Not provided';
-    const clientName = [answers.firstName, answers.lastName].filter(Boolean).join(' ').trim() || 'Not provided';
+    const clientFirst = answers.fullName?.first || '';
+    const clientLast = answers.fullName?.last || '';
+    const clientName = [clientFirst, clientLast].filter(Boolean).join(' ').trim() || 'Not provided';
 
     const lead = await prisma.lead.create({
       data: {
@@ -458,8 +462,8 @@ app.post('/api/notify', rateLimit, async (req, res) => {
         services: Array.isArray(services) ? services.join('; ') : `${services}`,
         clientEmail,
         clientPhone,
-        firstName: answers.firstName || null,
-        lastName: answers.lastName || null
+        firstName: clientFirst || null,
+        lastName: clientLast || null
       }
     });
 
@@ -479,6 +483,8 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       requestSubmittedBy,
       careDaysAndTimes,
       services,
+      funding,
+      otherDetails,
       clientEmail,
       clientPhone,
       clientName,

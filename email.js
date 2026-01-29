@@ -10,18 +10,17 @@ function initSendGrid() {
   return true;
 }
 
-function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, services, clientEmail, clientPhone, clientName, nearbyProviders }) {
+function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, services, funding, otherDetails, clientEmail, clientPhone, clientName }) {
   const servicesList = Array.isArray(services) && services.length
     ? services.map((s) => `<li>${s}</li>`).join('')
     : '<li>Not specified</li>';
-  const nearbyList = Array.isArray(nearbyProviders) && nearbyProviders.length
-    ? nearbyProviders.map((p) => `<li>${p.name}${p.address ? ` — ${p.address}` : ''}</li>`).join('')
-    : '<li>No other providers listed</li>';
   const emailLine = clientEmail && clientEmail !== 'Not provided'
     ? `<a href="mailto:${clientEmail}">${clientEmail}</a>`
     : 'Not provided';
   const phoneLine = clientPhone && clientPhone !== 'Not provided' ? clientPhone : 'Not provided';
   const nameLine = clientName && clientName !== 'Not provided' ? clientName : 'Not provided';
+  const fundingLine = funding && funding !== 'Not specified' ? funding : 'Not specified';
+  const detailsLine = otherDetails && otherDetails !== 'Not provided' ? otherDetails : 'Not provided';
 
   return `
 <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #222;">
@@ -43,6 +42,12 @@ function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, servi
     ${servicesList}
   </ul>
   <p>
+    <strong>Funding:</strong> ${fundingLine}
+  </p>
+  <p>
+    <strong>Other notes:</strong> ${detailsLine}
+  </p>
+  <p>
     <strong>Client Contact Information:</strong><br />
     Name: ${nameLine}<br />
     Email: ${emailLine}<br />
@@ -51,11 +56,8 @@ function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, servi
   <hr />
   <p>
     We support care that acts quickly at <strong>Best Hospice</strong>.  
-    We encourage you to reach out promptly, as other hospice providers in your area have also been notified:
+    We encourage you to reach out promptly!
   </p>
-  <ul>
-    ${nearbyList}
-  </ul>
   <p>
     Thank you for being a valued member of <strong>Best Hospice</strong> and for providing compassionate care during life’s most difficult moments.
   </p>
@@ -77,7 +79,7 @@ function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, servi
 `;
 }
 
-async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDaysAndTimes, services, clientEmail, clientPhone, clientName, providers, nearbyProviders }) {
+async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDaysAndTimes, services, funding, otherDetails, clientEmail, clientPhone, clientName, providers }) {
   if (!initSendGrid()) {
     throw new Error('SendGrid not configured');
   }
@@ -88,16 +90,16 @@ async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDa
   const results = [];
   for (const provider of providers) {
     if (!provider.email) continue;
-    const others = (nearbyProviders || []).filter((p) => p.email !== provider.email);
     const html = buildEmailHtml({
       clientZip,
       requestSubmittedBy,
       careDaysAndTimes,
       services,
+      funding,
+      otherDetails,
       clientEmail,
       clientPhone,
-      clientName,
-      nearbyProviders: others
+      clientName
     });
 
     const msg = {
