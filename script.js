@@ -684,7 +684,8 @@ function renderSummary(centers, label, nearbyProviders) {
   addItem('Care days', freqDays);
   addItem('Care times', freqTimes);
   addItem('Selected services', answers.services?.join('; ') || 'Not specified');
-  addItem('More details', answers.moreDetails || 'Not provided');
+  addItem('Other services or notes', answers.moreDetails || 'Not provided');
+  addItem('Funding', prettyFunding(answers.funding));
   addItem('Contact email', answers.contactEmail || 'Not provided');
   addItem('Contact phone', answers.contactPhone || 'Not provided');
 
@@ -718,29 +719,20 @@ function renderSummary(centers, label, nearbyProviders) {
     `Care days: ${freqDays}`,
     `Care times: ${freqTimes}`,
     `Services: ${answers.services?.join('; ') || 'Not specified'}`,
+    `Funding: ${prettyFunding(answers.funding)}`,
     `Client contact email: ${answers.contactEmail || 'Not provided'}`,
     `Client phone: ${answers.contactPhone || 'Not provided'}`,
-    `More details: ${answers.moreDetails || 'Not provided'}`,
+    `Other services or notes: ${answers.moreDetails || 'Not provided'}`,
     '',
-    'Nearby hospice providers:',
-    ...centers.slice(0, 5).map((c) => `- ${c.name}${c.address ? ' — ' + c.address : ''}`),
-    '',
-    'Providers to notify:',
-    ...(nearbyProviders.length
-      ? nearbyProviders.map((p) => `- ${p.name} (${p.email})`)
-      : ['- None within range'])
+    'We support care that acts quickly at Best Hospice. We encourage you to reach out promptly!',
+    'Thank you for being a valued member of Best Hospice and for providing compassionate care during life’s most difficult moments.'
   ];
-  if (nearbyProviders.length) {
-    const toList = nearbyProviders.map((p) => p.email).join(',');
-    const mailto = `mailto:${encodeURIComponent(toList)}?subject=${subject}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
-    summaryEmail.href = mailto;
-    summaryEmail.textContent = 'Email this summary';
-    summaryEmail.classList.remove('disabled');
-  } else {
-    summaryEmail.href = '#';
-    summaryEmail.textContent = 'No providers in range to email';
-    summaryEmail.classList.add('disabled');
-  }
+
+  const toList = nearbyProviders.length ? nearbyProviders.map((p) => p.email).join(',') : '';
+  const mailto = `mailto:${encodeURIComponent(toList || 'providers@besthospice.com')}?subject=${subject}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
+  summaryEmail.href = mailto;
+  summaryEmail.textContent = 'Email this summary';
+  summaryEmail.classList.remove('disabled');
 }
 
 function prettyRelationship(value) {
@@ -748,6 +740,27 @@ function prettyRelationship(value) {
   if (value === 'loved-one') return 'Loved one';
   if (value === 'other') return 'Other';
   return 'Not specified';
+}
+
+function prettyFunding(value) {
+  switch (value) {
+    case 'medicare':
+      return 'Medicare';
+    case 'va':
+      return 'Veterans (VA)';
+    case 'medicaid':
+      return 'Medicaid';
+    case 'private':
+      return 'Private';
+    case 'commercial':
+      return 'Commercial Insurer';
+    case 'medicare-advantage':
+      return 'Medicare Advantage';
+    case 'other':
+      return 'Other / Not specified';
+    default:
+      return 'Not specified';
+  }
 }
 
 function labelBlock(labelText, node) {
