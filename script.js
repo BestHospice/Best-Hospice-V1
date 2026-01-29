@@ -57,7 +57,7 @@ const questions = [
   {
     id: 'services',
     title: 'What do you need help with?',
-    desc: 'Select all that apply — this helps match you with the right hospice',
+    desc: 'Select all that apply — this helps match you with the right hospice, palliative, or home care support',
     type: 'checklist',
     groups: [
       {
@@ -168,6 +168,21 @@ const questions = [
           'Grief support groups'
         ]
       }
+    ]
+  },
+  {
+    id: 'funding',
+    title: 'How do you plan to fund care?',
+    desc: 'Choose one',
+    type: 'select',
+    options: [
+      { value: 'medicare', label: 'Medicare' },
+      { value: 'va', label: 'Veterans (VA)' },
+      { value: 'medicaid', label: 'Medicaid' },
+      { value: 'private', label: 'Private' },
+      { value: 'commercial', label: 'Commercial Insurer' },
+      { value: 'medicare-advantage', label: 'Medicare Advantage' },
+      { value: 'other', label: 'Other' }
     ]
   },
   {
@@ -747,35 +762,7 @@ async function geocodeZip(zip) {
 }
 
 async function fetchHospiceCenters(lat, lon, radiusKm) {
-  const radiusMeters = radiusKm * 1000;
-  const query = `
-    [out:json][timeout:25];
-    (
-      nwr["healthcare"="hospice"](around:${radiusMeters},${lat},${lon});
-      nwr["amenity"="hospice"](around:${radiusMeters},${lat},${lon});
-    );
-    out center tags;
-  `;
-
-  const response = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: query
-  });
-
-  if (!response.ok) throw new Error('Overpass query failed');
-  const data = await response.json();
-
   const centers = [];
-  for (const el of data.elements || []) {
-    const coords = el.lat && el.lon ? { lat: el.lat, lon: el.lon } : el.center;
-    if (!coords) continue;
-    const name = el.tags?.name || 'Unnamed hospice center';
-    const address = formatAddress(el.tags || {});
-    const distance = haversineKm(lat, lon, coords.lat, coords.lon);
-    centers.push({ name, address, lat: coords.lat, lon: coords.lon, distance, source: 'osm' });
-  }
-
   const featured = featuredProviders
     .map((provider) => {
       const distance = haversineKm(lat, lon, provider.lat, provider.lon);
