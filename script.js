@@ -24,16 +24,10 @@ const featuredProviders = [
 
 const questions = [
   {
-    id: 'firstName',
-    title: 'What is your first name?',
+    id: 'fullName',
+    title: 'What is your first and last name?',
     desc: 'So providers know who to address',
-    type: 'text'
-  },
-  {
-    id: 'lastName',
-    title: 'What is your last name?',
-    desc: 'Helps providers personalize their outreach',
-    type: 'text'
+    type: 'name'
   },
   {
     id: 'relationship',
@@ -600,6 +594,24 @@ function renderQuestion() {
     area.value = userResponses.answers[q.id] || '';
     questionContent.appendChild(area);
   }
+  if (q.type === 'name') {
+    const grid = document.createElement('div');
+    grid.className = 'option-grid';
+    const first = document.createElement('input');
+    first.type = 'text';
+    first.placeholder = 'First name';
+    first.className = 'input-text';
+    const last = document.createElement('input');
+    last.type = 'text';
+    last.placeholder = 'Last name';
+    last.className = 'input-text';
+    const prior = userResponses.answers[q.id];
+    if (prior?.first) first.value = prior.first;
+    if (prior?.last) last.value = prior.last;
+    grid.appendChild(first);
+    grid.appendChild(last);
+    questionContent.appendChild(grid);
+  }
   if (q.type === 'text') {
     const input = document.createElement('input');
     input.type = 'text';
@@ -642,6 +654,13 @@ function collectAnswer(question) {
     const input = questionContent.querySelector('input[type="text"]');
     return input?.value.trim();
   }
+  if (question.type === 'name') {
+    const inputs = questionContent.querySelectorAll('input[type="text"]');
+    const first = inputs[0]?.value.trim();
+    const last = inputs[1]?.value.trim();
+    if (!first && !last) return null;
+    return { first, last };
+  }
   return null;
 }
 
@@ -658,8 +677,7 @@ function renderSummary(centers, label, nearbyProviders) {
   };
 
   addItem('ZIP code', userResponses.zip);
-  addItem('First name', answers.firstName || 'Not provided');
-  addItem('Last name', answers.lastName || 'Not provided');
+  addItem('Name', answers.fullName ? `${answers.fullName.first || ''} ${answers.fullName.last || ''}`.trim() || 'Not provided' : 'Not provided');
   addItem('Who needs care', prettyRelationship(answers.relationship));
   const freqDays = answers.frequency?.days?.join(', ') || 'Not specified';
   const freqTimes = answers.frequency?.times?.join(', ') || 'Not specified';
@@ -695,7 +713,7 @@ function renderSummary(centers, label, nearbyProviders) {
   const subject = encodeURIComponent(`Hospice inquiry near ${userResponses.zip}`);
   const bodyLines = [
     `ZIP code: ${userResponses.zip}`,
-    `Client name: ${(answers.firstName || '') + ' ' + (answers.lastName || '')}`.trim(),
+    `Client name: ${answers.fullName ? `${answers.fullName.first || ''} ${answers.fullName.last || ''}`.trim() : ''}`,
     `Who needs care: ${prettyRelationship(answers.relationship)}`,
     `Care days: ${freqDays}`,
     `Care times: ${freqTimes}`,
