@@ -16,6 +16,8 @@
     .login-card input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
     .hidden { display: none; }
     .list { margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px solid #e5e7eb; background: #f8fafc; }
+    .search-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .search-row input { flex: 1 1 220px; padding: 10px; border-radius: 10px; border: 1px solid #d1d5db; }
     .provider-item { padding: 6px 0; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .provider-item:last-child { border-bottom: none; }
     .muted { color: #6b7280; font-size: 13px; }
@@ -34,6 +36,10 @@
     <div id="admin-card" class="admin-card hidden">
       <div class="list">
         <h3>All Providers (alphabetical)</h3>
+        <div class="search-row">
+          <input id="search" type="text" placeholder="Search providers by name, email, or address..." />
+          <button class="button button-small" id="clear-search" type="button">Clear</button>
+        </div>
         <div id="list"></div>
       </div>
       <p id="status" class="note"></p>
@@ -43,11 +49,14 @@
   <script>
     let adminToken = '';
     let allProviders = [];
+    let filteredProviders = [];
     const statusEl = document.getElementById('status');
     const listEl = document.getElementById('list');
     const loginCard = document.getElementById('login-card');
     const adminCard = document.getElementById('admin-card');
     const loginStatus = document.getElementById('login-status');
+    const searchInput = document.getElementById('search');
+    const clearSearch = document.getElementById('clear-search');
 
     async function verifyToken(token) {
       loginStatus.textContent = 'Verifying...';
@@ -79,10 +88,23 @@
         const res = await fetch('/api/providers', { headers: { 'x-admin-token': adminToken } });
         const data = await res.json();
         allProviders = Array.isArray(data) ? data : [];
-        renderProvidersList();
+        applyFilter();
       } catch (err) {
         statusEl.textContent = 'Failed to load providers.';
       }
+    }
+
+    function applyFilter() {
+      const term = (searchInput.value || '').toLowerCase().trim();
+      if (!term) {
+        filteredProviders = [...allProviders];
+      } else {
+        filteredProviders = allProviders.filter((p) => {
+          const bucket = `${p.name || ''} ${p.email || ''} ${p.address || ''}`.toLowerCase();
+          return bucket.includes(term);
+        });
+      }
+      renderProvidersList();
     }
 
     function renderProvidersList() {
@@ -94,7 +116,14 @@
         listEl.appendChild(none);
         return;
       }
-      const sorted = [...allProviders].sort((a, b) => a.name.localeCompare(b.name));
+      if (!filteredProviders.length) {
+        const none = document.createElement('p');
+        none.className = 'muted';
+        none.textContent = 'No providers match that search.';
+        listEl.appendChild(none);
+        return;
+      }
+      const sorted = [...filteredProviders].sort((a, b) => a.name.localeCompare(b.name));
       sorted.forEach((p) => {
         const div = document.createElement('div');
         div.className = 'provider-item';
@@ -141,6 +170,12 @@
         return;
       }
       verifyToken(token);
+    });
+
+    searchInput.addEventListener('input', applyFilter);
+    clearSearch.addEventListener('click', () => {
+      searchInput.value = '';
+      applyFilter();
     });
   </script>
 </body>
