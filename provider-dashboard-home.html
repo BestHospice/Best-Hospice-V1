@@ -98,6 +98,33 @@
                 <option value="500">$500</option>
               </select>
             </label>
+            <label style="font-weight:700;">Revenue per client per month:
+              <select id="roi-revenue-per-client" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
+                <option value="1000">$1,000</option>
+                <option value="1500">$1,500</option>
+                <option value="2000">$2,000</option>
+                <option value="2500">$2,500</option>
+                <option value="3000">$3,000</option>
+                <option value="3500">$3,500</option>
+                <option value="4000">$4,000</option>
+                <option value="4500">$4,500</option>
+                <option value="5000">$5,000</option>
+                <option value="5500">$5,500</option>
+                <option value="6000">$6,000</option>
+                <option value="6500">$6,500</option>
+                <option value="7000">$7,000</option>
+                <option value="7500">$7,500</option>
+                <option value="8000">$8,000</option>
+                <option value="8500">$8,500</option>
+                <option value="9000">$9,000</option>
+                <option value="9500">$9,500</option>
+                <option value="10000">$10,000</option>
+                <option value="10500">$10,500</option>
+                <option value="11000">$11,000</option>
+                <option value="11500">$11,500</option>
+                <option value="12000">$12,000</option>
+              </select>
+            </label>
             <button class="dash-btn secondary" id="calc-converted">Calculate ROI</button>
           </div>
         </div>
@@ -204,7 +231,8 @@
     }
 
     function updateBillingCards() {
-      const revenue = totalNotificationsCache * 8000;
+      const revenuePerClient = Math.max(0, parseInt(document.getElementById('roi-revenue-per-client').value || '8000', 10));
+      const revenue = totalNotificationsCache * revenuePerClient;
       document.getElementById('bill-revenue').textContent = revenue ? `$${revenue.toLocaleString()}` : '$0';
       const monthly = parseInt(document.getElementById('roi-monthly').value || '250', 10);
       document.getElementById('bill-monthly').textContent = `$${monthly}`;
@@ -247,7 +275,8 @@
       const num = Math.max(0, parseInt(document.getElementById('converted-leads').value || '0', 10));
       const months = Math.max(1, parseInt(document.getElementById('roi-months').value || '1', 10));
       const monthly = Math.max(0, parseInt(document.getElementById('roi-monthly').value || '250', 10));
-      const est = num * 8000;
+      const revenuePerClient = Math.max(0, parseInt(document.getElementById('roi-revenue-per-client').value || '8000', 10));
+      const est = num * revenuePerClient;
       const spend = months * monthly;
       const net = est - spend;
       document.getElementById('converted-revenue').textContent = `$${est.toLocaleString()}`;
@@ -255,6 +284,9 @@
     });
 
     document.getElementById('roi-monthly').addEventListener('change', () => {
+      updateBillingCards();
+    });
+    document.getElementById('roi-revenue-per-client').addEventListener('change', () => {
       updateBillingCards();
     });
 
