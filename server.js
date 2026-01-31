@@ -6,6 +6,7 @@ const { v4: uuid } = require('uuid');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { PrismaClient } = require('@prisma/client');
 const { sendProviderNotifications, sendTestEmail, sendGenericEmail, emailEnabled } = require('./email');
+const { sendProviderSms, smsEnabled } = require('./sms');
 const Stripe = require('stripe');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -491,6 +492,24 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       providers: toList,
       nearbyProviders: toList
     });
+
+    // Best-effort SMS notifications (PHI-free, short)
+    if (smsEnabled()) {
+      const smsBody = [
+        `Best Hospice lead (ZIP ${zip})`,
+        `Submitted by: ${requestSubmittedBy}`,
+        `Care: ${careDaysAndTimes}`,
+        `Funding: ${funding || 'Not specified'}`,
+        `Contact: ${clientName}, ${clientEmail}, ${clientPhone}`,
+        `Please reach out promptly.`
+      ].join('\n');
+
+      for (const p of toList) {
+        if (!p.phone) continue;
+        // Assume phone is provided in a dialable format; Twilio will validate.
+        await sendProviderSms(p.phone, smsBody);
+      }
+    }
 
     // Log notifications
     const notificationsData = results.map((r) => ({

@@ -21,6 +21,7 @@
     "jsonwebtoken": "^9.0.2",
     "node-fetch": "^3.3.2",
     "stripe": "^20.1.2",
+    "twilio": "^4.23.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
