@@ -763,6 +763,35 @@ function prettyFunding(value) {
   }
 }
 
+// Global "Main Menu" button on pages loading this script
+function injectMainMenuButton() {
+  try {
+    if (document.getElementById('main-menu-btn')) return;
+    const btn = document.createElement('a');
+    btn.id = 'main-menu-btn';
+    btn.href = 'index.html';
+    btn.textContent = 'Main Menu';
+    Object.assign(btn.style, {
+      position: 'fixed',
+      right: '16px',
+      bottom: '16px',
+      padding: '10px 14px',
+      background: '#1d4ed8',
+      color: '#fff',
+      borderRadius: '999px',
+      fontWeight: '700',
+      boxShadow: '0 10px 18px rgba(0,0,0,0.12)',
+      textDecoration: 'none',
+      zIndex: '9999'
+    });
+    document.body.appendChild(btn);
+  } catch (e) {
+    // ignore if it fails; not critical
+  }
+}
+
+window.addEventListener('load', injectMainMenuButton);
+
 function labelBlock(labelText, node) {
   const wrapper = document.createElement('div');
   const label = document.createElement('div');
