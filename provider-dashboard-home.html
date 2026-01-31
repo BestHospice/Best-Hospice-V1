@@ -98,6 +98,16 @@
             <label style="font-weight:700;">Months on BestHospice.com:
               <input id="roi-months" type="number" min="1" value="1" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px; width:120px;">
             </label>
+            <label style="font-weight:700;">Monthly subscription:
+              <select id="roi-monthly" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
+                <option value="250">$250</option>
+                <option value="300">$300</option>
+                <option value="350">$350</option>
+                <option value="400">$400</option>
+                <option value="450">$450</option>
+                <option value="500">$500</option>
+              </select>
+            </label>
             <button class="dash-btn secondary" id="calc-converted">Calculate ROI</button>
           </div>
         </div>
@@ -212,6 +222,8 @@
     function updateBillingCards() {
       const revenue = totalNotificationsCache * 8000;
       document.getElementById('bill-revenue').textContent = revenue ? `$${revenue.toLocaleString()}` : '$0';
+      const monthly = parseInt(document.getElementById('roi-monthly').value || '250', 10);
+      document.getElementById('bill-monthly').textContent = `$${monthly}`;
     }
 
     document.getElementById('logout').addEventListener('click', ()=>{
@@ -246,11 +258,16 @@
     document.getElementById('calc-converted').addEventListener('click', () => {
       const num = Math.max(0, parseInt(document.getElementById('converted-leads').value || '0', 10));
       const months = Math.max(1, parseInt(document.getElementById('roi-months').value || '1', 10));
+      const monthly = Math.max(0, parseInt(document.getElementById('roi-monthly').value || '250', 10));
       const est = num * 8000;
-      const spend = months * 250;
+      const spend = months * monthly;
       const net = est - spend;
       document.getElementById('converted-revenue').textContent = `$${est.toLocaleString()}`;
       document.getElementById('roi-net').textContent = `$${net.toLocaleString()}`;
+    });
+
+    document.getElementById('roi-monthly').addEventListener('change', () => {
+      updateBillingCards();
     });
 
     loadMetrics();
