@@ -31,7 +31,7 @@
       btn.href = 'index.html';
       btn.textContent = 'Main Menu';
       btn.style.cssText = `
-        position:fixed; right:18px; bottom:18px; z-index:9998;
+        position:fixed; right:170px; bottom:18px; z-index:9998;
         background:#1d4ed8; color:#fff; padding:10px 14px;
         border-radius:999px; font-weight:700; text-decoration:none;
         box-shadow:0 10px 20px rgba(0,0,0,0.12);
