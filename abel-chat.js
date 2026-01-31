@@ -23,6 +23,25 @@
     return div;
   };
 
+  function addMainMenuButton() {
+    try {
+      if (document.getElementById('main-menu-btn')) return;
+      const btn = document.createElement('a');
+      btn.id = 'main-menu-btn';
+      btn.href = 'index.html';
+      btn.textContent = 'Main Menu';
+      btn.style.cssText = `
+        position:fixed; right:18px; bottom:18px; z-index:9998;
+        background:#1d4ed8; color:#fff; padding:10px 14px;
+        border-radius:999px; font-weight:700; text-decoration:none;
+        box-shadow:0 10px 20px rgba(0,0,0,0.12);
+      `;
+      document.body.appendChild(btn);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   function getMode() {
     const token = localStorage.getItem('provider_jwt');
     return token ? 'provider' : 'client';
@@ -45,6 +64,7 @@
   }
 
   function init() {
+    addMainMenuButton();
     if (document.getElementById('abel-chat-btn')) return;
     const btn = document.createElement('button');
     btn.id = 'abel-chat-btn';
