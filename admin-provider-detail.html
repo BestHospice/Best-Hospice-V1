@@ -16,13 +16,16 @@
     .login-card input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
     .hidden { display: none; }
     .meta { display: grid; gap: 6px; color: #4b5563; }
+    .form-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
+    .form-grid label { display:block; font-weight:700; font-size:14px; margin-bottom:4px; }
+    .form-grid input { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; }
   </style>
 </head>
 <body>
   <div class="shell">
     <div id="login-card" class="login-card">
       <h2>Provider Detail</h2>
-      <p class="note">Enter the Provider Dashboard Token to view details.</p>
+      <p class="note">Enter the Provider Dashboard Token to view and update details.</p>
       <input id="token" type="password" placeholder="Type token here" />
       <button class="button" id="login-btn">Unlock</button>
       <p id="login-status" class="note"></p>
@@ -40,6 +43,24 @@
         <span><strong>Leads Best Hospice has provided:</strong> <span id="prov-leads"></span></span>
         <span><strong>Added:</strong> <span id="prov-added"></span></span>
       </div>
+      <div style="border-top:1px solid #e5e7eb; padding-top:10px;">
+        <h3>Edit Provider</h3>
+        <div class="form-grid">
+          <div><label for="f-name">Name</label><input id="f-name" type="text"></div>
+          <div><label for="f-email">Email</label><input id="f-email" type="email"></div>
+          <div><label for="f-phone">Phone</label><input id="f-phone" type="text"></div>
+          <div><label for="f-website">Website</label><input id="f-website" type="text"></div>
+          <div><label for="f-address">Address</label><input id="f-address" type="text"></div>
+          <div><label for="f-city">City</label><input id="f-city" type="text"></div>
+          <div><label for="f-state">State</label><input id="f-state" type="text"></div>
+          <div><label for="f-zip">Zip</label><input id="f-zip" type="text"></div>
+          <div><label for="f-lat">Latitude</label><input id="f-lat" type="text"></div>
+          <div><label for="f-lon">Longitude</label><input id="f-lon" type="text"></div>
+          <div><label for="f-radius">Service radius (miles)</label><input id="f-radius" type="number" step="0.1" min="0"></div>
+        </div>
+        <button class="button" id="save-btn" style="margin-top:10px;">Save changes</button>
+        <p id="save-status" class="note"></p>
+      </div>
       <a class="button" href="admin-dashboard.html">Back to Dashboard</a>
     </div>
   </div>
@@ -51,6 +72,8 @@
     const loginStatus = document.getElementById('login-status');
     const loginCard = document.getElementById('login-card');
     const detailCard = document.getElementById('detail-card');
+    const saveStatus = document.getElementById('save-status');
+    let currentProvider = null;
 
     async function fetchProviders(token) {
       const res = await fetch('/api/providers/secure', { headers: { 'x-admin-token': token } });
@@ -59,6 +82,7 @@
     }
 
     function renderProvider(p) {
+      currentProvider = p;
       document.getElementById('prov-name').textContent = p.name || 'Unnamed';
       document.getElementById('prov-email').textContent = p.email || '—';
       document.getElementById('prov-phone').textContent = p.phone || '—';
@@ -69,6 +93,19 @@
       document.getElementById('prov-radius').textContent = p.serviceRadiusKm ? `${(p.serviceRadiusKm / 1.60934).toFixed(1)} mi` : '—';
       document.getElementById('prov-leads').textContent = p.leadCount ?? 0;
       document.getElementById('prov-added').textContent = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
+
+      // Prefill form
+      document.getElementById('f-name').value = p.name || '';
+      document.getElementById('f-email').value = p.email || '';
+      document.getElementById('f-phone').value = p.phone || '';
+      document.getElementById('f-website').value = p.website || '';
+      document.getElementById('f-address').value = p.address || '';
+      document.getElementById('f-city').value = p.city || '';
+      document.getElementById('f-state').value = p.state || '';
+      document.getElementById('f-zip').value = p.zip || '';
+      document.getElementById('f-lat').value = p.lat ?? '';
+      document.getElementById('f-lon').value = p.lon ?? '';
+      document.getElementById('f-radius').value = p.serviceRadiusKm ? (p.serviceRadiusKm / 1.60934).toFixed(1) : '';
     }
 
     async function unlock() {
@@ -95,6 +132,45 @@
     }
 
     document.getElementById('login-btn').addEventListener('click', unlock);
+
+    async function saveChanges() {
+      if (!dashToken || !currentProvider) return;
+      saveStatus.textContent = 'Saving...';
+      const body = {
+        name: document.getElementById('f-name').value.trim(),
+        email: document.getElementById('f-email').value.trim(),
+        phone: document.getElementById('f-phone').value.trim(),
+        website: document.getElementById('f-website').value.trim(),
+        address: document.getElementById('f-address').value.trim(),
+        city: document.getElementById('f-city').value.trim(),
+        state: document.getElementById('f-state').value.trim(),
+        zip: document.getElementById('f-zip').value.trim(),
+        lat: document.getElementById('f-lat').value.trim(),
+        lon: document.getElementById('f-lon').value.trim(),
+        serviceRadiusMiles: document.getElementById('f-radius').value.trim()
+      };
+      try {
+        const res = await fetch(`/api/providers/${encodeURIComponent(currentProvider.id)}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-token': dashToken
+          },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          saveStatus.textContent = data.error || 'Failed to save.';
+          return;
+        }
+        saveStatus.textContent = 'Saved.';
+        renderProvider(data.provider);
+      } catch (err) {
+        saveStatus.textContent = 'Error saving changes.';
+      }
+    }
+
+    document.getElementById('save-btn').addEventListener('click', saveChanges);
   </script>
 </body>
 </html>

@@ -420,6 +420,72 @@ app.post('/api/providers', async (req, res) => {
   }
 });
 
+// Update provider (admin)
+app.put('/api/providers/:id', async (req, res) => {
+  const token = req.headers['x-admin-token'];
+  if (token !== ADMIN_TOKEN_REMOVE) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const id = req.params.id;
+  const {
+    name,
+    address,
+    city,
+    state,
+    zip,
+    lat,
+    lon,
+    serviceRadiusKm,
+    serviceRadiusMiles,
+    email,
+    phone,
+    website,
+    featured
+  } = req.body || {};
+  const data = {};
+  if (name !== undefined) data.name = String(name).trim();
+  if (email !== undefined) data.email = String(email).trim();
+  if (phone !== undefined) data.phone = String(phone).trim();
+  if (website !== undefined) data.website = String(website).trim();
+  if (address !== undefined || city !== undefined || state !== undefined || zip !== undefined) {
+    const a = address !== undefined ? String(address).trim() : undefined;
+    const c = city !== undefined ? String(city).trim() : undefined;
+    const s = state !== undefined ? String(state).trim() : undefined;
+    const z = zip !== undefined ? String(zip).trim() : undefined;
+    if (a !== undefined && c !== undefined && s !== undefined && z !== undefined) {
+      data.address = `${a}, ${c}, ${s} ${z}`;
+      data.city = c;
+      data.state = s;
+      data.zip = z;
+    }
+  }
+  if (lat !== undefined && lat !== '') {
+    const n = Number(lat);
+    if (!Number.isNaN(n)) data.lat = n;
+  }
+  if (lon !== undefined && lon !== '') {
+    const n = Number(lon);
+    if (!Number.isNaN(n)) data.lon = n;
+  }
+  if (serviceRadiusMiles !== undefined && serviceRadiusMiles !== '') {
+    const n = Number(serviceRadiusMiles);
+    if (!Number.isNaN(n) && n >= 0) data.serviceRadiusKm = n * 1.60934;
+  } else if (serviceRadiusKm !== undefined && serviceRadiusKm !== '') {
+    const n = Number(serviceRadiusKm);
+    if (!Number.isNaN(n) && n >= 0) data.serviceRadiusKm = n;
+  }
+  if (featured !== undefined) data.featured = Boolean(featured);
+
+  if (!Object.keys(data).length) return res.status(400).json({ error: 'No changes provided' });
+  try {
+    const provider = await prisma.provider.update({ where: { id }, data });
+    res.json({ ok: true, provider });
+  } catch (err) {
+    console.error('Update provider failed', err);
+    res.status(500).json({ error: 'Update provider failed' });
+  }
+});
+
 app.delete('/api/providers/:id', async (req, res) => {
   const token = req.headers['x-admin-token'];
   if (token !== ADMIN_TOKEN_REMOVE) {
