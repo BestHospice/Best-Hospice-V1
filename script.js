@@ -55,111 +55,44 @@ const questions = [
     type: 'checklist',
     groups: [
       {
-        title: 'Pain & Symptom Management',
-        subtitle: 'Core hospice nursing services',
+        title: 'Care & Comfort',
         items: [
-          'Pain control and medication management',
-          'Shortness of breath / breathing support',
-          'Anxiety or agitation management',
-          'Nausea or vomiting control',
-          'Terminal restlessness or confusion',
-          'Fatigue and weakness management',
-          'Difficulty swallowing'
+          'Pain or symptom relief (breathing, nausea, anxiety)',
+          'Medication help or management',
+          'Emotional or mental health support'
         ]
       },
       {
-        title: 'Medication Support',
-        subtitle: 'Common reasons families seek hospice',
+        title: 'Personal & Daily Care',
         items: [
-          'Medication administration',
-          'Medication education for caregivers',
-          'Comfort medication kit (home hospice)',
-          'Medication delivery coordination',
-          'Reducing or stopping non-essential medications'
-        ]
-      },
-      {
-        title: 'Personal & Daily Care Support',
-        subtitle: 'Often coordinated with hospice aides',
-        items: [
-          'Bathing and hygiene assistance',
-          'Repositioning / pressure sore prevention',
-          'Incontinence care',
-          'Catheter care',
-          'Feeding assistance',
-          'Wound or skin care'
+          'Bathing, hygiene, or mobility help',
+          'Feeding, toileting, or wound care'
         ]
       },
       {
         title: 'Medical Equipment & Supplies',
-        subtitle: 'Logistics matter to families',
         items: [
-          'Hospital bed delivery',
-          'Oxygen support',
-          'Wheelchair or walker',
-          'Bedside commode',
-          'Medical supplies provided (dressings, gloves, etc.)'
+          'Hospital bed, oxygen, wheelchair, or supplies'
         ]
       },
       {
-        title: 'Emotional & Psychological Support',
-        subtitle: 'High trust-building category',
+        title: 'Family & Caregiver Support',
         items: [
-          'Emotional support for patient',
-          'Emotional support for family',
-          'Anxiety or fear counseling',
-          'End-of-life emotional guidance'
+          'Education on caregiving or what to expect',
+          'Help during advanced illness or end-of-life'
         ]
       },
       {
-        title: 'Family & Caregiver Education',
-        subtitle: 'Critical for at-home hospice',
+        title: 'Care Coordination',
         items: [
-          'How to give medications safely',
-          'What to expect as illness progresses',
-          'Signs of active dying',
-          'How to care for patient at home',
-          'What to do at time of death'
-        ]
-      },
-      {
-        title: 'End-of-Life & Active Dying Support',
-        subtitle: 'Often searched late in the decision process',
-        items: [
-          'Intensive symptom management near end of life',
-          'Bedside support during active dying',
-          'Guidance through final hours or days',
-          'Death pronouncement coordination'
-        ]
-      },
-      {
-        title: 'Care Coordination & Advocacy',
-        subtitle: 'Differentiates high-quality hospices',
-        items: [
-          'Coordination with physician',
-          'Coordination with pharmacy',
-          'Coordination with social worker',
-          'Care plan management',
-          'Advance directive support'
+          'Support coordinating doctors, medications, or care plans',
+          'Help with advance directives or planning'
         ]
       },
       {
         title: 'Spiritual & Cultural Support',
-        subtitle: 'Important for many families',
         items: [
-          'Chaplain or spiritual care available',
-          'Faith-based hospice program',
-          'Cultural or language-specific support'
-        ]
-      },
-      {
-        title: 'Bereavement & After-Death Support',
-        subtitle: 'Often overlooked but highly valued',
-        items: [
-          'Immediate family support after death',
-          'Funeral home coordination',
-          'Bereavement counseling',
-          'Grief support groups'
+          'Chaplain, faith-based, or cultural support'
         ]
       }
     ]
