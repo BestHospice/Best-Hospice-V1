@@ -32,6 +32,75 @@ const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.be
 const PROVIDER_PLAN_DEFAULT = 'active';
 const PROVIDER_MONTHLY_RATE = 250;
 
+// --- SEO / programmatic helpers ---
+const slugify = (str) =>
+  String(str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
+const serviceConfig = {
+  'hospice-care': {
+    name: 'Hospice Care',
+    direct:
+      'Hospice care in {cityState} focuses on comfort, dignity, and quality of life when curative treatment is no longer the focus. Families want fast access to compassionate teams, clear communication, and dependable support at home or in a facility.',
+    cost: 'Most hospice care in {stateName} is covered by Medicare and many private insurers. Out-of-pocket costs are often limited to supplies or room-and-board in certain facilities. Providers typically handle eligibility and coverage checks for you.',
+    eligibility:
+      'Hospice is chosen when comfort is the priority. Families look for relief from pain, breathlessness, anxiety, and a clear plan for the final stages. A licensed provider confirms eligibility and coordinates services.',
+    faq: [
+      ['What does hospice mean?', 'Hospice centers on comfort, dignity, and family support near the end of life.'],
+      ['Is hospice only at home?', 'Hospice can be provided at home, in assisted living, or in inpatient facilities.'],
+      ['How fast can care start?', 'Many providers can begin services within 24–48 hours after eligibility is confirmed.'],
+      ['Does Medicare cover hospice?', 'Yes, Medicare typically covers hospice services; many private plans do as well.'],
+      ['Who is on the hospice team?', 'Nurses, aides, social workers, chaplains, and physicians collaborate to support the family.']
+    ]
+  },
+  'palliative-care': {
+    name: 'Palliative Care',
+    direct:
+      'Palliative care in {cityState} supports comfort and quality of life at any stage of serious illness, alongside curative treatments. Families want symptom relief, care coordination, and emotional support without stopping ongoing care.',
+    cost: 'Coverage for palliative care in {stateName} varies by insurer and plan. Many services are covered under standard medical benefits; providers can verify your specific benefits.',
+    eligibility:
+      'Palliative care is appropriate at any stage of serious illness when extra support for symptoms, stress, or decision-making is needed. A licensed provider confirms eligibility.',
+    faq: [
+      ['How is palliative different from hospice?', 'Palliative can be provided at any stage alongside treatments; hospice is for when comfort is the primary goal.'],
+      ['Can I keep my current doctors?', 'Yes. Palliative teams coordinate with your existing doctors to support you.'],
+      ['What symptoms can palliative help with?', 'Pain, breathlessness, nausea, fatigue, anxiety, and more.'],
+      ['Is palliative covered by insurance?', 'Many plans cover palliative visits; providers can check your benefits.'],
+      ['Does palliative require stopping treatment?', 'No. You can continue treatments while receiving palliative support.']
+    ]
+  },
+  'home-care': {
+    name: 'Home Care',
+    direct:
+      'Home care in {cityState} focuses on daily living support so people can remain at home. Families seek help with bathing, mobility, meals, companionship, and basic health oversight.',
+    cost: 'Home care coverage in {stateName} depends on insurance and service type. Some services are private-pay; others may be covered under long-term care or specific medical benefits.',
+    eligibility:
+      'Home care is chosen when daily living help is needed. A provider will clarify which services are available and how they are funded.',
+    faq: [
+      ['What does home care include?', 'Help with bathing, dressing, meals, light housekeeping, mobility, and companionship.'],
+      ['Is home care medical?', 'Non-medical home care focuses on daily living support; some agencies also offer skilled services.'],
+      ['How often can visits occur?', 'Visits can range from a few hours to live-in support, depending on your needs and agency.'],
+      ['Is home care covered?', 'Some policies cover parts of home care; many services are private-pay. Agencies can verify benefits.'],
+      ['Can I combine home care with hospice or palliative?', 'Yes, daily living support can complement hospice or palliative teams.']
+    ]
+  }
+};
+
+const stateNameMap = {
+  al: 'Alabama', ak: 'Alaska', az: 'Arizona', ar: 'Arkansas', ca: 'California', co: 'Colorado', ct: 'Connecticut',
+  de: 'Delaware', fl: 'Florida', ga: 'Georgia', hi: 'Hawaii', id: 'Idaho', il: 'Illinois', in: 'Indiana', ia: 'Iowa',
+  ks: 'Kansas', ky: 'Kentucky', la: 'Louisiana', me: 'Maine', md: 'Maryland', ma: 'Massachusetts', mi: 'Michigan',
+  mn: 'Minnesota', ms: 'Mississippi', mo: 'Missouri', mt: 'Montana', ne: 'Nebraska', nv: 'Nevada', nh: 'New Hampshire',
+  nj: 'New Jersey', nm: 'New Mexico', ny: 'New York', nc: 'North Carolina', nd: 'North Dakota', oh: 'Ohio', ok: 'Oklahoma',
+  or: 'Oregon', pa: 'Pennsylvania', ri: 'Rhode Island', sc: 'South Carolina', sd: 'South Dakota', tn: 'Tennessee', tx: 'Texas',
+  ut: 'Utah', vt: 'Vermont', va: 'Virginia', wa: 'Washington', wv: 'West Virginia', wi: 'Wisconsin', wy: 'Wyoming'
+};
+
+function formatDateISO(dt = new Date()) {
+  return dt.toISOString().split('T')[0];
+}
 // Basic PHI keyword detector (lightweight guardrail)
 function maybePhi(text) {
   if (!text) return false;
@@ -228,6 +297,338 @@ async function logAdminAction(adminIdentifier, action, targetId, metadata, ipHas
   }
 }
 
+// ---------- SEO helper functions ----------
+const CANONICAL_DOMAIN = process.env.DOMAIN || 'https://www.besthospice.com';
+
+function providerSlug(provider) {
+  return `${slugify(provider.name || 'provider')}-${(provider.id || '').slice(0, 8)}`;
+}
+
+function cityStateString(city, state) {
+  const stateName = stateNameMap[(state || '').toLowerCase()] || (state || '').toUpperCase();
+  return [city, stateName].filter(Boolean).join(', ');
+}
+
+async function fetchAllProviders() {
+  return prisma.provider.findMany({
+    select: {
+      id: true,
+      name: true,
+      address: true,
+      city: true,
+      state: true,
+      zip: true,
+      phone: true,
+      website: true,
+      email: true,
+      featured: true,
+      createdAt: true
+    }
+  });
+}
+
+async function providersByLocation(city, state) {
+  return prisma.provider.findMany({
+    where: {
+      city: { equals: city, mode: 'insensitive' },
+      state: { equals: state, mode: 'insensitive' }
+    },
+    orderBy: { featured: 'desc' }
+  });
+}
+
+function renderBreadcrumbList(items) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      name: item.name,
+      item: item.url
+    }))
+  };
+}
+
+function renderFAQSchema(faqs) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(([q, a]) => ({
+      '@type': 'Question',
+      name: q,
+      acceptedAnswer: { '@type': 'Answer', text: a }
+    }))
+  };
+}
+
+function renderProviderSchema(provider) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'MedicalOrganization',
+    name: provider.name,
+    url: `${CANONICAL_DOMAIN}/provider/${providerSlug(provider)}`,
+    address: provider.address,
+    telephone: provider.phone || undefined,
+    areaServed: provider.state || undefined
+  };
+}
+
+function nearbyCityLinks(city, state) {
+  if (!city || !state) return [];
+  return [
+    { name: `More providers in ${state.toUpperCase()}`, url: `${CANONICAL_DOMAIN}/hospice-care/${state.toLowerCase()}` },
+    { name: `Palliative care in ${city}, ${state.toUpperCase()}`, url: `${CANONICAL_DOMAIN}/palliative-care/${slugify(city)}-${state.toLowerCase()}` },
+    { name: `Home care in ${city}, ${state.toUpperCase()}`, url: `${CANONICAL_DOMAIN}/home-care/${slugify(city)}-${state.toLowerCase()}` }
+  ];
+}
+
+function renderProviderList(providers) {
+  if (!providers?.length) {
+    return '<p>No providers listed yet for this area. We are expanding our network—check back soon.</p>';
+  }
+  return providers
+    .map(
+      (p) => `
+      <div class="provider-card">
+        <h3>${p.name}</h3>
+        <p>${p.address}</p>
+        <p>${p.phone ? `Phone: ${p.phone}` : ''}</p>
+        ${p.website ? `<p><a href="${p.website}" rel="nofollow">Website</a></p>` : ''}
+      </div>`
+    )
+    .join('\n');
+}
+
+function renderComparisonTable() {
+  return `
+    <table class="compare">
+      <thead><tr><th></th><th>Hospice</th><th>Palliative</th><th>Home Care</th></tr></thead>
+      <tbody>
+        <tr><td>When used</td><td>Comfort near end of life</td><td>Any stage of serious illness</td><td>Daily living support</td></tr>
+        <tr><td>Can include medical team</td><td>Yes</td><td>Yes</td><td>Sometimes (skilled visits)</td></tr>
+        <tr><td>Works with curative treatment</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function renderTrustBlock(dateStr) {
+  return `
+    <section class="trust">
+      <h2>Reviewed for clarity</h2>
+      <p>Reviewed by the Best Hospice Clinical Review Team.</p>
+      <p>Last updated: ${dateStr}</p>
+      <p>Sources: Medicare.gov, CMS, NIH.</p>
+    </section>
+  `;
+}
+
+function renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas = [] }) {
+  const jsonLd = [];
+  if (breadcrumbItems?.length) jsonLd.push(renderBreadcrumbList(breadcrumbItems));
+  if (faqSchema) jsonLd.push(faqSchema);
+  if (providerSchemas?.length) {
+    providerSchemas.forEach((p) => jsonLd.push(renderProviderSchema(p)));
+  }
+  return `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+    <meta name="description" content="${description}" />
+    <link rel="canonical" href="${canonical}" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+  </head>
+  <body class="seo-page">
+    <header><a href="/index.html">Best Hospice</a></header>
+    <main>${body}</main>
+    <footer><p>Best Hospice — connecting families to trusted hospice, palliative, and home care providers.</p></footer>
+  </body>
+  </html>`;
+}
+
+function renderCityPage({ serviceKey, city, state, providers = [] }) {
+  const service = serviceConfig[serviceKey];
+  const cityState = cityStateString(city, state);
+  const stateName = stateNameMap[(state || '').toLowerCase()] || (state || '').toUpperCase();
+  const title = `${service.name} in ${cityState} | Providers, Cost & Eligibility`;
+  const description = `${service.name} options in ${cityState}. Providers, costs, and what to expect.`;
+  const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${slugify(city)}-${(state || '').toLowerCase()}`;
+  const breadcrumbItems = [
+    { name: 'Home', url: `${CANONICAL_DOMAIN}/index.html` },
+    { name: service.name, url: `${CANONICAL_DOMAIN}/${serviceKey}` },
+    { name: stateName, url: `${CANONICAL_DOMAIN}/${serviceKey}/${(state || '').toLowerCase()}` },
+    { name: cityState, url: canonical }
+  ];
+  const faqSchema = renderFAQSchema(service.faq || []);
+  const providerSchemas = providers.slice(0, 10);
+
+  const body = `
+    <section>
+      <h1>${service.name} in ${cityState}: Providers, Cost & Eligibility</h1>
+      <p>${service.direct.replace('{cityState}', cityState)}</p>
+      <div class="direct-answer">
+        <strong>Direct answer:</strong> ${service.direct.replace('{cityState}', cityState)}
+      </div>
+    </section>
+    <section>
+      <h2>${service.name} Providers in ${cityState}</h2>
+      ${renderProviderList(providers)}
+    </section>
+    <section>
+      <h2>Cost & Coverage</h2>
+      <p>${service.cost.replace('{stateName}', stateName)}</p>
+    </section>
+    <section>
+      <h2>When to Choose ${service.name}</h2>
+      <p>${service.eligibility}</p>
+    </section>
+    <section>
+      <h2>Compare Hospice, Palliative, and Home Care</h2>
+      ${renderComparisonTable()}
+    </section>
+    <section>
+      <h2>FAQs</h2>
+      <ul>${(service.faq || [])
+        .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
+        .join('')}</ul>
+    </section>
+    ${renderTrustBlock(formatDateISO())}
+    <section>
+      <h3>Explore more</h3>
+      <ul>
+        ${nearbyCityLinks(city, state)
+          .map((l) => `<li><a href="${l.url}">${l.name}</a></li>`)
+          .join('')}
+      </ul>
+    </section>
+  `;
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas });
+}
+
+function renderStatePage({ serviceKey, state, providers = [] }) {
+  const service = serviceConfig[serviceKey];
+  const stateName = stateNameMap[(state || '').toLowerCase()] || (state || '').toUpperCase();
+  const title = `${service.name} in ${stateName} | Providers, Cost & Eligibility`;
+  const description = `${service.name} options across ${stateName}. Providers, costs, and what to expect.`;
+  const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${(state || '').toLowerCase()}`;
+  const breadcrumbItems = [
+    { name: 'Home', url: `${CANONICAL_DOMAIN}/index.html` },
+    { name: service.name, url: `${CANONICAL_DOMAIN}/${serviceKey}` },
+    { name: stateName, url: canonical }
+  ];
+  const faqSchema = renderFAQSchema(service.faq || []);
+  const providerSchemas = providers.slice(0, 10);
+  const cities = Array.from(new Set(providers.map((p) => p.city))).filter(Boolean).slice(0, 20);
+  const body = `
+    <section>
+      <h1>${service.name} in ${stateName}</h1>
+      <p>${service.direct.replace('{cityState}', stateName)}</p>
+    </section>
+    <section>
+      <h2>Top Providers in ${stateName}</h2>
+      ${renderProviderList(providers.slice(0, 20))}
+    </section>
+    <section>
+      <h2>Browse cities in ${stateName}</h2>
+      <ul>${cities
+        .map((c) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${slugify(c)}-${(state || '').toLowerCase()}">${c}, ${state.toUpperCase()}</a></li>`)
+        .join('')}</ul>
+    </section>
+    <section>
+      <h2>Cost & Coverage</h2>
+      <p>${service.cost.replace('{stateName}', stateName)}</p>
+    </section>
+    <section>
+      <h2>When to Choose ${service.name}</h2>
+      <p>${service.eligibility}</p>
+    </section>
+    <section>
+      <h2>Compare Hospice, Palliative, and Home Care</h2>
+      ${renderComparisonTable()}
+    </section>
+    <section>
+      <h2>FAQs</h2>
+      <ul>${(service.faq || [])
+        .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
+        .join('')}</ul>
+    </section>
+    ${renderTrustBlock(formatDateISO())}
+  `;
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas });
+}
+
+function renderHubPage({ serviceKey }) {
+  const service = serviceConfig[serviceKey];
+  const title = `${service.name} | How It Works, Eligibility, Costs`;
+  const description = `${service.name} basics, costs, and eligibility. Find providers near you.`;
+  const canonical = `${CANONICAL_DOMAIN}/${serviceKey}`;
+  const breadcrumbItems = [
+    { name: 'Home', url: `${CANONICAL_DOMAIN}/index.html` },
+    { name: service.name, url: canonical }
+  ];
+  const faqSchema = renderFAQSchema(service.faq || []);
+  const body = `
+    <section>
+      <h1>${service.name}</h1>
+      <p>${service.direct.replace('{cityState}', 'your area')}</p>
+    </section>
+    <section>
+      <h2>Find providers by state</h2>
+      <ul>${Object.keys(stateNameMap)
+        .map((s) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${s}">${stateNameMap[s]}</a></li>`)
+        .join('')}</ul>
+    </section>
+    <section>
+      <h2>Cost & Coverage</h2>
+      <p>${service.cost.replace('{stateName}', 'your state')}</p>
+    </section>
+    <section>
+      <h2>When to Choose ${service.name}</h2>
+      <p>${service.eligibility}</p>
+    </section>
+    <section>
+      <h2>FAQs</h2>
+      <ul>${(service.faq || [])
+        .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
+        .join('')}</ul>
+    </section>
+    ${renderComparisonTable()}
+    ${renderTrustBlock(formatDateISO())}
+  `;
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [] });
+}
+
+function renderProviderPage(provider) {
+  const slug = providerSlug(provider);
+  const cityState = cityStateString(provider.city, provider.state);
+  const title = `${provider.name} | Hospice, Palliative, Home Care in ${cityState}`;
+  const description = `${provider.name} serves ${cityState}. Contact info, address, and services.`;
+  const canonical = `${CANONICAL_DOMAIN}/provider/${slug}`;
+  const breadcrumbItems = [
+    { name: 'Home', url: `${CANONICAL_DOMAIN}/index.html` },
+    { name: cityState, url: `${CANONICAL_DOMAIN}/hospice-care/${slugify(provider.city)}-${(provider.state || '').toLowerCase()}` },
+    { name: provider.name, url: canonical }
+  ];
+  const faqSchema = renderFAQSchema([
+    ['How do I contact this provider?', `Phone: ${provider.phone || 'Not provided'}. Website: ${provider.website || 'Not provided'}.`],
+    ['Where are they located?', provider.address || `${cityState}`]
+  ]);
+  const body = `
+    <section>
+      <h1>${provider.name}</h1>
+      <p>${provider.address || cityState}</p>
+      ${provider.phone ? `<p>Phone: ${provider.phone}</p>` : ''}
+      ${provider.website ? `<p><a href="${provider.website}" rel="nofollow">Website</a></p>` : ''}
+      <p>Serving hospice, palliative, and home care needs in ${cityState}.</p>
+    </section>
+    ${renderTrustBlock(formatDateISO())}
+  `;
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [provider] });
+}
 function toSubmittedBy(relationship) {
   if (relationship === 'me') return 'TheClient';
   if (relationship === 'loved-one') return 'A_Loved_One';
@@ -1494,6 +1895,117 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 });
 
+
+// ---------- Programmatic SEO pages ----------
+const SERVICE_KEYS = Object.keys(serviceConfig);
+
+app.get('/:service(hospice-care|palliative-care|home-care)/:city-:state', async (req, res) => {
+  try {
+    const { service, city, state } = req.params;
+    const cityName = (city || '').replace(/-/g, ' ');
+    const stateCode = (state || '').toLowerCase();
+    const providers = await providersByLocation(cityName, stateCode);
+    const html = renderCityPage({ serviceKey: service, city: cityName, state: stateCode, providers });
+    res.send(html);
+  } catch (err) {
+    console.error('City page failed', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get('/:service(hospice-care|palliative-care|home-care)/:state([a-z]{2})', async (req, res) => {
+  try {
+    const { service, state } = req.params;
+    const providers = await prisma.provider.findMany({
+      where: { state: { equals: state, mode: 'insensitive' } },
+      orderBy: { featured: 'desc' }
+    });
+    const html = renderStatePage({ serviceKey: service, state, providers });
+    res.send(html);
+  } catch (err) {
+    console.error('State page failed', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get('/:service(hospice-care|palliative-care|home-care)', async (req, res) => {
+  try {
+    const { service } = req.params;
+    if (!SERVICE_KEYS.includes(service)) return res.status(404).send('Not found');
+    const html = renderHubPage({ serviceKey: service });
+    res.send(html);
+  } catch (err) {
+    console.error('Hub page failed', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get('/provider/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const frag = (slug || '').split('-').pop();
+    const provider = await prisma.provider.findFirst({
+      where: { id: { startsWith: frag } }
+    });
+    if (!provider) return res.status(404).send('Provider not found');
+    const html = renderProviderPage(provider);
+    res.send(html);
+  } catch (err) {
+    console.error('Provider page failed', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get('/sitemap.xml', async (_req, res) => {
+  const serviceUrls = SERVICE_KEYS.map((s) => `${CANONICAL_DOMAIN}/${s}`);
+  const locSitemap = `${CANONICAL_DOMAIN}/sitemap-locations.xml`;
+  const provSitemap = `${CANONICAL_DOMAIN}/sitemap-providers.xml`;
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${[locSitemap, provSitemap].map((u) => `<sitemap><loc>${u}</loc></sitemap>`).join('\n')}
+${serviceUrls.map((u) => `<sitemap><loc>${u}</loc></sitemap>`).join('\n')}
+</sitemapindex>`;
+  res.type('text/xml').send(body);
+});
+
+app.get('/sitemap-locations.xml', async (_req, res) => {
+  const providers = await fetchAllProviders();
+  const seen = new Set();
+  const urls = [];
+  for (const p of providers) {
+    if (!p.city || !p.state) continue;
+    const key = `${p.city.toLowerCase()}-${p.state.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    SERVICE_KEYS.forEach((s) => {
+      urls.push(`${CANONICAL_DOMAIN}/${s}/${slugify(p.city)}-${p.state.toLowerCase()}`);
+    });
+  }
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
+</urlset>`;
+  res.type('text/xml').send(body);
+});
+
+app.get('/sitemap-providers.xml', async (_req, res) => {
+  const providers = await fetchAllProviders();
+  const urls = providers.map((p) => `${CANONICAL_DOMAIN}/provider/${providerSlug(p)}`);
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
+</urlset>`;
+  res.type('text/xml').send(body);
+});
+
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').send(`User-agent: *
+Disallow: /api
+Disallow: /admin
+Disallow: /provider-dashboard
+Sitemap: ${CANONICAL_DOMAIN}/sitemap.xml
+`);
+});
 
 app.listen(PORT, () => {
   console.log(`Best Hospice server running on http://localhost:${PORT}`);
