@@ -27,7 +27,8 @@ model Provider {
 
   notifications   LeadNotification[]
   impressions     ProviderImpression[]
-  users           ProviderUser[]
+  users           ProviderUserProvider[]
+  activeUsers     ProviderUser[] @relation("ActiveProvider")
 }
 
 model Lead {
@@ -88,13 +89,25 @@ model RateLimitEvent {
 }
 
 model ProviderUser {
-  id              String    @id @default(uuid())
-  email           String    @unique
-  passwordHash    String
-  emailVerifiedAt DateTime?
-  verifyCode      String?
-  verifyCodeExpiresAt DateTime?
-  provider        Provider? @relation(fields: [providerId], references: [id])
-  providerId      String?
-  createdAt       DateTime  @default(now())
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  passwordHash         String
+  emailVerifiedAt      DateTime?
+  verifyCode           String?
+  verifyCodeExpiresAt  DateTime?
+  activeProvider       Provider? @relation("ActiveProvider", fields: [activeProviderId], references: [id])
+  activeProviderId     String?
+  links                ProviderUserProvider[]
+  createdAt            DateTime  @default(now())
+}
+
+model ProviderUserProvider {
+  id             String   @id @default(uuid())
+  providerUser   ProviderUser @relation(fields: [providerUserId], references: [id])
+  providerUserId String
+  provider       Provider @relation(fields: [providerId], references: [id])
+  providerId     String
+  createdAt      DateTime @default(now())
+
+  @@unique([providerUserId, providerId])
 }

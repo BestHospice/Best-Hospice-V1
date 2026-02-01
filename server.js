@@ -95,10 +95,27 @@ async function getProviderContext(providerUserId) {
   if (!providerUserId) return null;
   const user = await prisma.providerUser.findUnique({
     where: { id: providerUserId },
-    include: { provider: true }
+    include: {
+      activeProvider: true,
+      links: {
+        include: { provider: true }
+      }
+    }
   });
-  if (!user || !user.providerId) return null;
-  return { providerId: user.providerId, provider: user.provider, providerUserId: user.id };
+  if (!user || !user.links || !user.links.length) return null;
+  let providerId = user.activeProviderId;
+  if (!providerId) {
+    providerId = user.links[0].providerId;
+    await prisma.providerUser.update({ where: { id: user.id }, data: { activeProviderId: providerId } });
+  }
+  const provider = user.links.find((l) => l.providerId === providerId)?.provider;
+  if (!provider) return null;
+  return {
+    providerId,
+    provider,
+    providerUserId: user.id,
+    providers: user.links.map((l) => l.provider)
+  };
 }
 
 function hashIp(ip) {
@@ -598,10 +615,21 @@ app.post('/api/provider-auth/signup-start', async (req, res) => {
     let user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
     if (!user) {
       user = await prisma.providerUser.create({
-        data: { id: uuid(), email: normEmail, providerId: provider.id, passwordHash: '' }
+        data: { id: uuid(), email: normEmail, passwordHash: '', activeProviderId: provider.id }
       });
-    } else if (!user.providerId) {
-      await prisma.providerUser.update({ where: { id: user.id }, data: { providerId: provider.id } });
+    }
+
+    // Ensure link exists
+    const existingLink = await prisma.providerUserProvider.findFirst({
+      where: { providerUserId: user.id, providerId: provider.id }
+    });
+    if (!existingLink) {
+      await prisma.providerUserProvider.create({
+        data: { id: uuid(), providerUserId: user.id, providerId: provider.id }
+      });
+    }
+    if (!user.activeProviderId) {
+      await prisma.providerUser.update({ where: { id: user.id }, data: { activeProviderId: provider.id } });
     }
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -664,7 +692,7 @@ app.post('/api/provider-auth/complete', async (req, res) => {
       }
     });
     const authToken = jwt.sign({ sub: updated.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
-    res.json({ ok: true, token: authToken, providerId: updated.providerId });
+    res.json({ ok: true, token: authToken });
   } catch (err) {
     console.error('Complete signup failed', err);
     res.status(400).json({ error: 'Invalid or expired code' });
@@ -677,16 +705,51 @@ app.post('/api/provider-auth/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   const normEmail = String(email).trim().toLowerCase();
   try {
-    const user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
+    const user = await prisma.providerUser.findUnique({
+      where: { email: normEmail },
+      include: { links: { include: { provider: true } } }
+    });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(String(password), user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
     const token = jwt.sign({ sub: user.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
-    res.json({ ok: true, token, providerId: user.providerId });
+    // pick an active provider if none set
+    if (!user.activeProviderId && user.links && user.links.length) {
+      await prisma.providerUser.update({ where: { id: user.id }, data: { activeProviderId: user.links[0].providerId } });
+    }
+    res.json({ ok: true, token });
   } catch (err) {
     console.error('Login failed', err);
     res.status(500).json({ error: 'Login failed' });
   }
+});
+
+// List provider locations for logged-in user
+app.get('/api/provider/locations', requireProviderAuth, async (req, res) => {
+  const user = await prisma.providerUser.findUnique({
+    where: { id: req.providerUserId },
+    include: { links: { include: { provider: true } } }
+  });
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  const providers = (user.links || []).map((l) => ({
+    id: l.provider.id,
+    name: l.provider.name,
+    address: l.provider.address,
+    email: l.provider.email
+  }));
+  res.json({ providers, activeProviderId: user.activeProviderId });
+});
+
+// Select active provider for logged-in user
+app.post('/api/provider/select', requireProviderAuth, async (req, res) => {
+  const { providerId } = req.body || {};
+  if (!providerId) return res.status(400).json({ error: 'providerId required' });
+  const link = await prisma.providerUserProvider.findFirst({
+    where: { providerUserId: req.providerUserId, providerId }
+  });
+  if (!link) return res.status(403).json({ error: 'Not linked to that provider' });
+  await prisma.providerUser.update({ where: { id: req.providerUserId }, data: { activeProviderId: providerId } });
+  res.json({ ok: true });
 });
 
 // Provider leads count since date
