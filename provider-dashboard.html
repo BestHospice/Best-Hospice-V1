@@ -33,6 +33,7 @@
 
       <div style="margin-top:8px;">
         <label class="dash-label" for="provider-select">Select your provider</label>
+        <input id="provider-search" class="dash-input" type="text" placeholder="Search provider name" style="margin-bottom:6px;">
         <select id="provider-select" class="dash-input"></select>
         <p style="margin:4px 0; color:#4b5563; font-size:13px;">Choose the provider you represent. Your email must match the provider’s listing email to receive a code.</p>
       </div>
@@ -120,17 +121,24 @@
       try {
         const data = await callApi('/api/public/providers');
         providers = data.providers || [];
-        const sel = document.getElementById('provider-select');
-        sel.innerHTML = '';
-        providers.forEach((p) => {
-          const opt = document.createElement('option');
-          opt.value = p.id;
-          opt.textContent = `${p.name} (${p.email})`;
-          sel.appendChild(opt);
-        });
+        renderProviderOptions();
       } catch (err) {
         setStatus(err.message);
       }
+    }
+
+    function renderProviderOptions() {
+      const sel = document.getElementById('provider-select');
+      const term = (document.getElementById('provider-search').value || '').toLowerCase();
+      sel.innerHTML = '';
+      providers
+        .filter(p => !term || p.name.toLowerCase().includes(term))
+        .forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name;
+          sel.appendChild(opt);
+        });
     }
 
     function getSelectedProviderId() {
@@ -217,6 +225,8 @@
     const field = document.getElementById('login-password');
     field.type = field.type === 'password' ? 'text' : 'password';
   });
+
+  document.getElementById('provider-search').addEventListener('input', renderProviderOptions);
   </script>
 </body>
 </html>
