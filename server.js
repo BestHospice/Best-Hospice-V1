@@ -423,7 +423,7 @@ app.post('/api/providers', async (req, res) => {
 // Update provider (admin)
 app.put('/api/providers/:id', async (req, res) => {
   const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_REMOVE) {
+  if (token !== ADMIN_TOKEN_REMOVE && token !== ADMIN_TOKEN_DASH) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const id = req.params.id;
