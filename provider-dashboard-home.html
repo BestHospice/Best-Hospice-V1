@@ -24,6 +24,13 @@
         <div>
           <p id="welcome" style="margin:0; font-size:22px; font-weight:800;">Welcome to your Dashboard</p>
           <p id="provider-label" style="margin:0; color:#4b5563;"></p>
+          <div id="provider-switcher" class="hidden" style="margin-top:8px;">
+            <label style="font-weight:700; font-size:14px; color:#111827;">
+              Choose a location:
+              <select id="provider-selector" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
+              </select>
+            </label>
+          </div>
         </div>
         <button class="dash-btn" id="logout">Log out</button>
       </div>
@@ -159,6 +166,8 @@
     const tokenKey = 'provider_jwt';
     const statusEl = document.getElementById('status');
     let totalNotificationsCache = 0;
+    let providersList = [];
+    let activeProviderId = null;
 
     function setStatus(msg){ statusEl.textContent = msg || ''; }
 
@@ -299,8 +308,47 @@
       updateBillingCards();
     });
 
-    loadMetrics();
-    loadLeadKPIs();
+    async function loadLocations(){
+      try{
+        const data = await callApi('/api/provider/locations');
+        providersList = data.providers || [];
+        activeProviderId = data.activeProviderId || null;
+        const selWrap = document.getElementById('provider-switcher');
+        const sel = document.getElementById('provider-selector');
+        if(providersList.length > 1){
+          sel.innerHTML = '';
+          providersList.forEach(p=>{
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name;
+            if(p.id === activeProviderId) opt.selected = true;
+            sel.appendChild(opt);
+          });
+          selWrap.classList.remove('hidden');
+        } else {
+          selWrap.classList.add('hidden');
+        }
+        await loadMetrics();
+        await loadLeadKPIs();
+      }catch(err){
+        setStatus(err.message);
+      }
+    }
+
+    document.getElementById('provider-selector').addEventListener('change', async (e)=>{
+      const newId = e.target.value;
+      if(!newId) return;
+      try{
+        await callApi('/api/provider/select','POST',{ providerId:newId });
+        activeProviderId = newId;
+        await loadMetrics();
+        await loadLeadKPIs();
+      }catch(err){
+        setStatus(err.message);
+      }
+    });
+
+    loadLocations();
   </script>
 </body>
 </html>

@@ -603,14 +603,15 @@ app.post('/api/test-email', async (_req, res) => {
 
 // Provider auth: signup start via provider public email
 app.post('/api/provider-auth/signup-start', async (req, res) => {
-  const { providerEmail } = req.body || {};
-  if (!providerEmail) return res.status(400).json({ error: 'Provider email required' });
+  const { providerEmail, providerId } = req.body || {};
+  if (!providerEmail || !providerId) return res.status(400).json({ error: 'Provider and email required' });
   const normEmail = String(providerEmail).trim().toLowerCase();
   try {
-    const provider = await prisma.provider.findFirst({
-      where: { email: { equals: normEmail, mode: 'insensitive' } }
-    });
-    if (!provider) return res.status(404).json({ error: 'Provider with that email not found' });
+    const provider = await prisma.provider.findUnique({ where: { id: providerId } });
+    if (!provider) return res.status(404).json({ error: 'Provider not found' });
+    if (provider.email.toLowerCase() !== normEmail) {
+      return res.status(400).json({ error: 'Email must match the provider listing email' });
+    }
 
     let user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
     if (!user) {
@@ -619,7 +620,7 @@ app.post('/api/provider-auth/signup-start', async (req, res) => {
       });
     }
 
-    // Ensure link exists
+    // Ensure link to the chosen provider
     const existingLink = await prisma.providerUserProvider.findFirst({
       where: { providerUserId: user.id, providerId: provider.id }
     });
@@ -701,8 +702,8 @@ app.post('/api/provider-auth/complete', async (req, res) => {
 
 // Provider auth: login
 app.post('/api/provider-auth/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const { email, password, providerId } = req.body || {};
+  if (!email || !password || !providerId) return res.status(400).json({ error: 'Provider, email and password required' });
   const normEmail = String(email).trim().toLowerCase();
   try {
     const user = await prisma.providerUser.findUnique({
@@ -712,16 +713,29 @@ app.post('/api/provider-auth/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(String(password), user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    const linked = user.links.find((l) => l.providerId === providerId);
+    if (!linked) return res.status(403).json({ error: 'Email is not linked to that provider' });
     const token = jwt.sign({ sub: user.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
     // pick an active provider if none set
-    if (!user.activeProviderId && user.links && user.links.length) {
-      await prisma.providerUser.update({ where: { id: user.id }, data: { activeProviderId: user.links[0].providerId } });
+    if (!user.activeProviderId) {
+      await prisma.providerUser.update({ where: { id: user.id }, data: { activeProviderId: providerId } });
+    } else if (user.activeProviderId !== providerId) {
+      await prisma.providerUser.update({ where: { id: user.id }, data: { activeProviderId: providerId } });
     }
     res.json({ ok: true, token });
   } catch (err) {
     console.error('Login failed', err);
     res.status(500).json({ error: 'Login failed' });
   }
+});
+
+// Public list of providers for signup/login dropdown
+app.get('/api/public/providers', async (_req, res) => {
+  const providers = await prisma.provider.findMany({
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, email: true }
+  });
+  res.json({ providers });
 });
 
 // List provider locations for logged-in user

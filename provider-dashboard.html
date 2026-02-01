@@ -31,6 +31,12 @@
         <button class="dash-btn secondary" id="show-login">Log in</button>
       </div>
 
+      <div style="margin-top:8px;">
+        <label class="dash-label" for="provider-select">Select your provider</label>
+        <select id="provider-select" class="dash-input"></select>
+        <p style="margin:4px 0; color:#4b5563; font-size:13px;">Choose the provider you represent. Your email must match the provider’s listing email to receive a code.</p>
+      </div>
+
       <div id="signup-section" class="hidden">
         <div id="signup-step1">
           <div class="dash-row">
@@ -90,6 +96,7 @@
     const statusEl = document.getElementById('auth-status');
     const completeStatusEl = document.getElementById('complete-status');
     const loginStatusEl = document.getElementById('login-status');
+    let providers = [];
 
     function setStatus(msg) { statusEl.textContent = msg || ''; }
     function setCompleteStatus(msg) { completeStatusEl.textContent = msg || ''; }
@@ -109,11 +116,34 @@
       return data;
     }
 
+    async function loadProviders() {
+      try {
+        const data = await callApi('/api/public/providers');
+        providers = data.providers || [];
+        const sel = document.getElementById('provider-select');
+        sel.innerHTML = '';
+        providers.forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = `${p.name} (${p.email})`;
+          sel.appendChild(opt);
+        });
+      } catch (err) {
+        setStatus(err.message);
+      }
+    }
+
+    function getSelectedProviderId() {
+      return document.getElementById('provider-select').value || '';
+    }
+
     document.getElementById('signup-start').addEventListener('click', async () => {
       setStatus('Sending code...');
       try {
         const providerEmail = document.getElementById('signup-email').value.trim();
-        const data = await callApi('/api/provider-auth/signup-start', 'POST', { providerEmail });
+        const providerId = getSelectedProviderId();
+        if (!providerId) throw new Error('Please select a provider');
+        const data = await callApi('/api/provider-auth/signup-start', 'POST', { providerEmail, providerId });
         setStatus(data.message || 'Check your email for the signup code.');
         document.getElementById('signup-step1').classList.add('hidden');
         document.getElementById('signup-step2').classList.remove('hidden');
@@ -143,7 +173,9 @@
       try {
         const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value.trim();
-        const data = await callApi('/api/provider-auth/login', 'POST', { email, password });
+        const providerId = getSelectedProviderId();
+        if (!providerId) throw new Error('Please select a provider');
+        const data = await callApi('/api/provider-auth/login', 'POST', { email, password, providerId });
         localStorage.setItem(tokenKey, data.token);
         setLoginStatus('Logged in.');
         window.location.href = 'provider-dashboard-home.html';
@@ -158,6 +190,7 @@
       document.getElementById('login-section').classList.add('hidden');
       document.getElementById('signup-step1').classList.remove('hidden');
       document.getElementById('signup-step2').classList.add('hidden');
+      await loadProviders();
       if (localStorage.getItem(tokenKey)) {
         window.location.href = 'provider-dashboard-home.html';
       }
