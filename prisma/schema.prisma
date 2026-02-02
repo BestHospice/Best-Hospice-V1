@@ -12,6 +12,7 @@ model Provider {
   id              String   @id @default(uuid())
   name            String
   email           String
+  providerLoginEmail String?
   phone           String?
   website         String?
   address         String

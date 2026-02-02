@@ -953,6 +953,7 @@ app.post('/api/providers', async (req, res) => {
     serviceRadiusKm,
     serviceRadiusMiles,
     email,
+    providerLoginEmail,
     phone,
     website,
     featured = false,
@@ -978,11 +979,14 @@ app.post('/api/providers', async (req, res) => {
     }
   }
   try {
+    const normalizedEmail = String(email).trim();
+    const normalizedLoginEmail = String(providerLoginEmail || '').trim() || normalizedEmail;
     const provider = await prisma.provider.create({
       data: {
         id: uuid(),
         name,
-        email,
+        email: normalizedEmail,
+        providerLoginEmail: normalizedLoginEmail,
         phone: phone || '',
         website: website || '',
         address: fullAddress,
@@ -1022,6 +1026,7 @@ app.put('/api/providers/:id', async (req, res) => {
     serviceRadiusKm,
     serviceRadiusMiles,
     email,
+    providerLoginEmail,
     phone,
     website,
     featured,
@@ -1030,6 +1035,12 @@ app.put('/api/providers/:id', async (req, res) => {
   const data = {};
   if (name !== undefined) data.name = String(name).trim();
   if (email !== undefined) data.email = String(email).trim();
+  if (providerLoginEmail !== undefined) {
+    const normalizedLoginEmail = String(providerLoginEmail).trim();
+    if (normalizedLoginEmail) {
+      data.providerLoginEmail = normalizedLoginEmail;
+    }
+  }
   if (phone !== undefined) data.phone = String(phone).trim();
   if (website !== undefined) data.website = String(website).trim();
   if (address !== undefined || city !== undefined || state !== undefined || zip !== undefined) {
@@ -1227,7 +1238,7 @@ app.post('/api/test-email', async (_req, res) => {
   }
 });
 
-// Provider auth: signup start via provider public email
+// Provider auth: signup start via provider login email
 app.post('/api/provider-auth/signup-start', async (req, res) => {
   const { providerEmail, providerId } = req.body || {};
   if (!providerEmail || !providerId) return res.status(400).json({ error: 'Provider and email required' });
@@ -1235,8 +1246,9 @@ app.post('/api/provider-auth/signup-start', async (req, res) => {
   try {
     const provider = await prisma.provider.findUnique({ where: { id: providerId } });
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
-    if (provider.email.toLowerCase() !== normEmail) {
-      return res.status(400).json({ error: 'Email must match the provider listing email' });
+    const loginEmail = String(provider.providerLoginEmail || provider.email || '').trim().toLowerCase();
+    if (!loginEmail || loginEmail !== normEmail) {
+      return res.status(400).json({ error: 'Email must match the provider login email' });
     }
 
     let user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
@@ -1540,7 +1552,7 @@ app.get('/api/provider/spend', requireProviderAuth, async (req, res) => {
   }
 });
 
-// Provider auth: link account to a provider via public email
+// Provider auth: link account to a provider via login email
 app.post('/api/provider-auth/link', requireProviderAuth, async (req, res) => {
   const { providerEmail } = req.body || {};
   if (!providerEmail) return res.status(400).json({ error: 'providerEmail required' });
@@ -1548,7 +1560,12 @@ app.post('/api/provider-auth/link', requireProviderAuth, async (req, res) => {
     const user = await prisma.providerUser.findUnique({ where: { id: req.providerUserId } });
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     const provider = await prisma.provider.findFirst({
-      where: { email: { equals: providerEmail.trim(), mode: 'insensitive' } }
+      where: {
+        OR: [
+          { providerLoginEmail: { equals: providerEmail.trim(), mode: 'insensitive' } },
+          { email: { equals: providerEmail.trim(), mode: 'insensitive' } }
+        ]
+      }
     });
     if (!provider) return res.status(404).json({ error: 'Provider with that email not found' });
     // prevent linking to a different provider if already linked

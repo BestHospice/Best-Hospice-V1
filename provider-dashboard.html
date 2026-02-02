@@ -26,7 +26,7 @@
       <p><strong>First-time sign in (create your account):</strong></p>
       <ol style="margin:0 0 6px 18px; color:#4b5563;">
         <li>Select your provider in the dropdown below.</li>
-        <li>Click “Sign up” and enter the customer contact email from your listing.</li>
+        <li>Click “Sign up” and enter the provider login email for your listing.</li>
         <li>We’ll email you a one-time code. Paste it here and create your password.</li>
       </ol>
       <p><strong>Already have an account?</strong> Click “Log in” and enter your email + password.</p>
@@ -41,15 +41,15 @@
         <label class="dash-label" for="provider-select">Select your provider</label>
         <input id="provider-search" class="dash-input" type="text" placeholder="Search provider name" style="margin-bottom:6px;">
         <select id="provider-select" class="dash-input"></select>
-        <p style="margin:4px 0; color:#4b5563; font-size:13px;">Choose the provider you represent. Your email must match the provider’s listing email to receive a code.</p>
+        <p style="margin:4px 0; color:#4b5563; font-size:13px;">Choose the provider you represent. Your email must match the provider’s login email to receive a code.</p>
       </div>
 
       <div id="signup-section" class="hidden">
         <div id="signup-step1">
           <div class="dash-row">
             <div>
-              <label class="dash-label" for="signup-email">Provider customer contact email</label>
-              <input id="signup-email" class="dash-input" type="email" placeholder="email shown on your listing">
+              <label class="dash-label" for="signup-email">Provider login email</label>
+              <input id="signup-email" class="dash-input" type="email" placeholder="login email for your listing">
             </div>
             <button class="dash-btn" id="signup-start">Send signup code</button>
           </div>
@@ -59,7 +59,7 @@
           <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
             <div>
               <label class="dash-label" for="complete-email">Email (same as above)</label>
-              <input id="complete-email" class="dash-input" type="email" placeholder="email on your listing">
+              <input id="complete-email" class="dash-input" type="email" placeholder="login email for your listing">
             </div>
             <div>
               <label class="dash-label" for="token">Signup code (from email)</label>

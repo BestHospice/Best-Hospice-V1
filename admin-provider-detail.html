@@ -35,7 +35,8 @@
     <div id="detail-card" class="card hidden">
       <h1 id="prov-name"></h1>
       <div class="meta">
-        <span><strong>Email:</strong> <span id="prov-email"></span></span>
+        <span><strong>Client Contact Email:</strong> <span id="prov-email"></span></span>
+        <span><strong>Provider Log-in Email:</strong> <span id="prov-login-email"></span></span>
         <span><strong>Phone:</strong> <span id="prov-phone"></span></span>
         <span><strong>Website:</strong> <span id="prov-website"></span></span>
         <span><strong>Address:</strong> <span id="prov-address"></span></span>
@@ -49,7 +50,8 @@
         <h3>Edit Provider</h3>
         <div class="form-grid">
           <div><label for="f-name">Name</label><input id="f-name" type="text"></div>
-          <div><label for="f-email">Email</label><input id="f-email" type="email"></div>
+          <div><label for="f-email">Client Contact Email</label><input id="f-email" type="email"></div>
+          <div><label for="f-login-email">Provider Log-in Email</label><input id="f-login-email" type="email" placeholder="Defaults to client contact email"></div>
           <div><label for="f-phone">Phone</label><input id="f-phone" type="text"></div>
           <div><label for="f-website">Website</label><input id="f-website" type="text"></div>
           <div><label for="f-address">Address</label><input id="f-address" type="text"></div>
@@ -95,6 +97,7 @@
       currentProvider = p;
       document.getElementById('prov-name').textContent = p.name || 'Unnamed';
       document.getElementById('prov-email').textContent = p.email || '—';
+      document.getElementById('prov-login-email').textContent = p.providerLoginEmail || p.email || '—';
       document.getElementById('prov-phone').textContent = p.phone || '—';
       document.getElementById('prov-website').innerHTML = p.website ? `<a href="${p.website}" target="_blank" rel="noopener">${p.website}</a>` : '—';
       document.getElementById('prov-address').textContent = p.address || '—';
@@ -114,6 +117,7 @@
       // Prefill form
       document.getElementById('f-name').value = p.name || '';
       document.getElementById('f-email').value = p.email || '';
+      document.getElementById('f-login-email').value = p.providerLoginEmail || p.email || '';
       document.getElementById('f-phone').value = p.phone || '';
       document.getElementById('f-website').value = p.website || '';
       document.getElementById('f-address').value = addressLine;
@@ -154,9 +158,12 @@
     async function saveChanges() {
       if (!dashToken || !currentProvider) return;
       saveStatus.textContent = 'Saving...';
+      const clientEmail = document.getElementById('f-email').value.trim();
+      const loginEmail = document.getElementById('f-login-email').value.trim() || clientEmail;
       const body = {
         name: document.getElementById('f-name').value.trim(),
-        email: document.getElementById('f-email').value.trim(),
+        email: clientEmail,
+        providerLoginEmail: loginEmail,
         phone: document.getElementById('f-phone').value.trim(),
         website: document.getElementById('f-website').value.trim(),
         address: document.getElementById('f-address').value.trim(),

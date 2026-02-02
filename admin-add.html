@@ -34,8 +34,12 @@
           <input id="name" />
         </div>
         <div>
-          <label for="email">Customer Contact Email *</label>
+          <label for="email">Client Contact Email *</label>
           <input id="email" />
+        </div>
+        <div>
+          <label for="login-email">Provider Log-in Email</label>
+          <input id="login-email" placeholder="Defaults to client contact email" />
         </div>
         <div>
           <label for="phone">Customer Contact Phone</label>
@@ -154,9 +158,12 @@
         statusEl.textContent = 'Enter the Provider Add Token.';
         return;
       }
+      const clientEmail = document.getElementById('email').value.trim();
+      const loginEmail = document.getElementById('login-email').value.trim() || clientEmail;
       const payload = {
         name: document.getElementById('name').value.trim(),
-        email: document.getElementById('email').value.trim(),
+        email: clientEmail,
+        providerLoginEmail: loginEmail,
         phone: document.getElementById('phone').value.trim(),
         website: document.getElementById('website').value.trim(),
         address: document.getElementById('address').value.trim(),
