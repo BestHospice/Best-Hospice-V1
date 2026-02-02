@@ -1131,3 +1131,54 @@ a {
   margin-top: 16px;
   display: inline-flex;
 }
+
+.plan-card-stack {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  margin: 10px 0 12px;
+}
+
+.plan-card-heading {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.plan-option {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(47, 125, 186, 0.15);
+  border-radius: 10px;
+  background: rgba(47, 125, 186, 0.06);
+  font-weight: 600;
+}
+
+.plan-name {
+  font-size: 14px;
+}
+
+.plan-price-inline {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.plan-flag {
+  grid-column: 2 / 4;
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 24px;
+}
+
+.plan-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
