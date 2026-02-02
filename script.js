@@ -351,7 +351,11 @@ async function finishQuestions() {
         const key = `${p.name}-${p.lat}-${p.lon}`;
         if (!existing.has(key)) centers.push(p);
       });
-      centers.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      centers.sort((a, b) => {
+        const rankDiff = getPlanRank(b.planTier) - getPlanRank(a.planTier);
+        if (rankDiff !== 0) return rankDiff;
+        return (a.distance || 0) - (b.distance || 0);
+      });
     }
 
     if (!centers.length) {
@@ -781,7 +785,11 @@ async function fetchHospiceCenters(lat, lon, radiusKm) {
     planTier: p.planTier
   }));
   centers.push(...directoryHits);
-  centers.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+  centers.sort((a, b) => {
+    const rankDiff = getPlanRank(b.planTier) - getPlanRank(a.planTier);
+    if (rankDiff !== 0) return rankDiff;
+    return (a.distance || 0) - (b.distance || 0);
+  });
   return centers;
 }
 
@@ -799,6 +807,16 @@ function getPlanBadge(planTier) {
   if (tier === 'advanced') return '<span class="badge">★★★★ Featured</span>';
   if (tier === 'market_leader') return '<span class="badge">★★★★★ Priority</span>';
   return '';
+}
+
+function getPlanRank(planTier) {
+  const tier = String(planTier || '').toLowerCase();
+  if (tier === 'market_leader') return 5;
+  if (tier === 'advanced') return 4;
+  if (tier === 'growth_plus') return 3;
+  if (tier === 'growth') return 2;
+  if (tier === 'starter') return 1;
+  return 0;
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
