@@ -62,11 +62,9 @@
           <div>
             <label for="f-plan-tier">Plan tier</label>
             <select id="f-plan-tier">
-              <option value="starter">Starter — $250/mo ★</option>
-              <option value="growth">Growth — $300/mo ★★</option>
-              <option value="growth_plus">Growth+ — $350/mo ★★★ Verified</option>
-              <option value="advanced">Advanced — $400/mo ★★★★ Verified + Featured</option>
-              <option value="market_leader">Market Leader — $500/mo ★★★★★ Priority Placement</option>
+              <option value="verified">Verified — $300/mo ⭐</option>
+              <option value="featured">Featured — $400/mo ⭐⭐</option>
+              <option value="priority">Priority — $500/mo ⭐⭐⭐</option>
             </select>
           </div>
         </div>
@@ -103,7 +101,7 @@
       document.getElementById('prov-lat').textContent = p.lat ?? '—';
       document.getElementById('prov-lon').textContent = p.lon ?? '—';
       document.getElementById('prov-radius').textContent = p.serviceRadiusKm ? `${(p.serviceRadiusKm / 1.60934).toFixed(1)} mi` : '—';
-      document.getElementById('prov-plan-tier').textContent = p.planTier || 'starter';
+      document.getElementById('prov-plan-tier').textContent = p.planTier || 'verified';
       document.getElementById('prov-leads').textContent = p.leadCount ?? 0;
       document.getElementById('prov-added').textContent = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
 
@@ -125,7 +123,7 @@
       document.getElementById('f-lat').value = p.lat ?? '';
       document.getElementById('f-lon').value = p.lon ?? '';
       document.getElementById('f-radius').value = p.serviceRadiusKm ? (p.serviceRadiusKm / 1.60934).toFixed(1) : '';
-      document.getElementById('f-plan-tier').value = p.planTier || 'starter';
+      document.getElementById('f-plan-tier').value = p.planTier || 'verified';
     }
 
     async function unlock() {

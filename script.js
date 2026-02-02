@@ -801,22 +801,18 @@ function formatAddress(tags) {
 
 function getPlanBadge(planTier) {
   const tier = String(planTier || '').toLowerCase();
-  if (tier === 'starter') return '<span class="badge">★ Starter</span>';
-  if (tier === 'growth') return '<span class="badge">★★ Growth</span>';
-  if (tier === 'growth_plus') return '<span class="badge">★★★ Verified</span>';
-  if (tier === 'advanced') return '<span class="badge">★★★★ Featured</span>';
-  if (tier === 'market_leader') return '<span class="badge">★★★★★ Priority</span>';
+  if (tier === 'priority' || tier === 'market_leader' || tier === 'advanced') return '<span class="badge">⭐⭐⭐ Priority</span>';
+  if (tier === 'featured' || tier === 'growth_plus') return '<span class="badge">⭐⭐ Featured</span>';
+  if (tier === 'verified' || tier === 'growth' || tier === 'starter') return '<span class="badge">⭐ Verified</span>';
   return '';
 }
 
 function getPlanRank(planTier) {
   const tier = String(planTier || '').toLowerCase();
-  if (tier === 'market_leader') return 5;
-  if (tier === 'advanced') return 4;
-  if (tier === 'growth_plus') return 3;
-  if (tier === 'growth') return 2;
-  if (tier === 'starter') return 1;
-  return 0;
+  if (tier === 'priority' || tier === 'market_leader' || tier === 'advanced') return 3;
+  if (tier === 'featured' || tier === 'growth_plus') return 2;
+  if (tier === 'verified' || tier === 'growth' || tier === 'starter') return 1;
+  return 1;
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {

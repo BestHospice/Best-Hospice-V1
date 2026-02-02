@@ -30,6 +30,14 @@ const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = process.env.PROVIDER_JWT_SECRET || 'change-this-provider-secret';
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
 const PROVIDER_PLAN_DEFAULT = 'active';
+const normalizePlanTier = (value) => {
+  const tier = String(value || '').trim().toLowerCase();
+  if (tier === 'verified' || tier === 'featured' || tier === 'priority') return tier;
+  if (tier === 'market_leader' || tier === 'advanced') return 'priority';
+  if (tier === 'growth_plus') return 'featured';
+  if (tier === 'growth' || tier === 'starter') return 'verified';
+  return 'verified';
+};
 const PROVIDER_MONTHLY_RATE = 250;
 
 // --- SEO / programmatic helpers ---
@@ -674,13 +682,12 @@ app.post('/api/providers/email/checkout', async (req, res) => {
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
 
     const planPrices = {
-      starter: process.env.STRIPE_PRICE_ID_STARTER,
-      growth: process.env.STRIPE_PRICE_ID_GROWTH,
-      growth_plus: process.env.STRIPE_PRICE_ID_GROWTH_PLUS,
-      advanced: process.env.STRIPE_PRICE_ID_ADVANCED,
-      market_leader: process.env.STRIPE_PRICE_ID_MARKET_LEADER
+      verified: process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
+      featured: process.env.STRIPE_PRICE_ID_FEATURED || process.env.STRIPE_PRICE_ID_ADVANCED,
+      priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER
     };
-    const priceId = planPrices[plan] || process.env.STRIPE_PRICE_ID;
+    const normalizedPlan = normalizePlanTier(plan);
+    const priceId = planPrices[normalizedPlan] || process.env.STRIPE_PRICE_ID;
     if (!priceId) {
       return res.status(500).json({ error: 'Stripe price is not configured.' });
     }
@@ -696,7 +703,7 @@ app.post('/api/providers/email/checkout', async (req, res) => {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: process.env.STRIPE_SUCCESS_URL,
       cancel_url: process.env.STRIPE_CANCEL_URL,
-      metadata: { providerId: provider.id, plan: plan || 'default' }
+      metadata: { providerId: provider.id, plan: normalizedPlan || 'verified' }
     });
     res.json({ url: session.url });
   } catch (err) {
@@ -750,13 +757,12 @@ app.post('/api/providers/:id/checkout', async (req, res) => {
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
 
     const planPrices = {
-      starter: process.env.STRIPE_PRICE_ID_STARTER,
-      growth: process.env.STRIPE_PRICE_ID_GROWTH,
-      growth_plus: process.env.STRIPE_PRICE_ID_GROWTH_PLUS,
-      advanced: process.env.STRIPE_PRICE_ID_ADVANCED,
-      market_leader: process.env.STRIPE_PRICE_ID_MARKET_LEADER
+      verified: process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
+      featured: process.env.STRIPE_PRICE_ID_FEATURED || process.env.STRIPE_PRICE_ID_ADVANCED,
+      priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER
     };
-    const priceId = planPrices[plan] || process.env.STRIPE_PRICE_ID;
+    const normalizedPlan = normalizePlanTier(plan);
+    const priceId = planPrices[normalizedPlan] || process.env.STRIPE_PRICE_ID;
     if (!priceId) {
       return res.status(500).json({ error: 'Stripe price is not configured.' });
     }
@@ -772,7 +778,7 @@ app.post('/api/providers/:id/checkout', async (req, res) => {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: process.env.STRIPE_SUCCESS_URL,
       cancel_url: process.env.STRIPE_CANCEL_URL,
-      metadata: { providerId: provider.id, plan: plan || 'default' }
+      metadata: { providerId: provider.id, plan: normalizedPlan || 'verified' }
     });
     res.json({ url: session.url });
   } catch (err) {
@@ -838,7 +844,7 @@ app.post('/api/providers', async (req, res) => {
         lon: lonVal,
         serviceRadiusKm: radiusKmFromMiles !== undefined ? radiusKmFromMiles : Number(serviceRadiusKm) || 96.6,
         featured: Boolean(featured),
-        planTier: planTier ? String(planTier).trim() : 'starter'
+        planTier: normalizePlanTier(planTier)
       }
     });
     await logAdminAction(adminIdentifier, 'PROVIDER_ADD', provider.id, { name: provider.name, email: provider.email }, hashIp(req.ip || ''));
@@ -906,7 +912,7 @@ app.put('/api/providers/:id', async (req, res) => {
     if (!Number.isNaN(n) && n >= 0) data.serviceRadiusKm = n;
   }
   if (featured !== undefined) data.featured = Boolean(featured);
-  if (planTier !== undefined && planTier !== '') data.planTier = String(planTier).trim();
+  if (planTier !== undefined && planTier !== '') data.planTier = normalizePlanTier(planTier);
 
   if (!Object.keys(data).length) return res.status(400).json({ error: 'No changes provided' });
   try {
