@@ -19,6 +19,7 @@
     .form-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
     .form-grid label { display:block; font-weight:700; font-size:14px; margin-bottom:4px; }
     .form-grid input { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; }
+    .form-grid select { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; background:#fff; }
   </style>
 </head>
 <body>
@@ -40,6 +41,7 @@
         <span><strong>Address:</strong> <span id="prov-address"></span></span>
         <span><strong>Latitude:</strong> <span id="prov-lat"></span> | <strong>Longitude:</strong> <span id="prov-lon"></span></span>
         <span><strong>Service Radius:</strong> <span id="prov-radius"></span></span>
+        <span><strong>Plan Tier:</strong> <span id="prov-plan-tier"></span></span>
         <span><strong>Leads Best Hospice has provided:</strong> <span id="prov-leads"></span></span>
         <span><strong>Added:</strong> <span id="prov-added"></span></span>
       </div>
@@ -57,6 +59,16 @@
           <div><label for="f-lat">Latitude</label><input id="f-lat" type="text"></div>
           <div><label for="f-lon">Longitude</label><input id="f-lon" type="text"></div>
           <div><label for="f-radius">Service radius (miles)</label><input id="f-radius" type="number" step="0.1" min="0"></div>
+          <div>
+            <label for="f-plan-tier">Plan tier</label>
+            <select id="f-plan-tier">
+              <option value="starter">Starter — $250/mo</option>
+              <option value="growth">Growth — $300/mo</option>
+              <option value="growth_plus">Growth+ — $350/mo ⭐ Verified</option>
+              <option value="advanced">Advanced — $400/mo ⭐⭐ Verified + Featured</option>
+              <option value="market_leader">Market Leader — $500/mo ⭐⭐⭐ Priority Placement</option>
+            </select>
+          </div>
         </div>
         <button class="button" id="save-btn" style="margin-top:10px;">Save changes</button>
         <p id="save-status" class="note"></p>
@@ -91,6 +103,7 @@
       document.getElementById('prov-lat').textContent = p.lat ?? '—';
       document.getElementById('prov-lon').textContent = p.lon ?? '—';
       document.getElementById('prov-radius').textContent = p.serviceRadiusKm ? `${(p.serviceRadiusKm / 1.60934).toFixed(1)} mi` : '—';
+      document.getElementById('prov-plan-tier').textContent = p.planTier || 'starter';
       document.getElementById('prov-leads').textContent = p.leadCount ?? 0;
       document.getElementById('prov-added').textContent = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
 
@@ -106,6 +119,7 @@
       document.getElementById('f-lat').value = p.lat ?? '';
       document.getElementById('f-lon').value = p.lon ?? '';
       document.getElementById('f-radius').value = p.serviceRadiusKm ? (p.serviceRadiusKm / 1.60934).toFixed(1) : '';
+      document.getElementById('f-plan-tier').value = p.planTier || 'starter';
     }
 
     async function unlock() {
@@ -147,7 +161,8 @@
         zip: document.getElementById('f-zip').value.trim(),
         lat: document.getElementById('f-lat').value.trim(),
         lon: document.getElementById('f-lon').value.trim(),
-        serviceRadiusMiles: document.getElementById('f-radius').value.trim()
+        serviceRadiusMiles: document.getElementById('f-radius').value.trim(),
+        planTier: document.getElementById('f-plan-tier').value
       };
       try {
         const res = await fetch(`/api/providers/${encodeURIComponent(currentProvider.id)}`, {

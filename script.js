@@ -339,7 +339,8 @@ async function finishQuestions() {
       source: 'directory',
       email: p.email,
       phone: p.phone,
-      website: p.website
+      website: p.website,
+      planTier: p.planTier
     }));
     if (!centers.length) {
       centers = directoryFallback;
@@ -358,7 +359,7 @@ async function finishQuestions() {
     } else {
     centers.forEach((center, index) => {
       const marker = L.marker([center.lat, center.lon]).addTo(markers);
-      const badge = center.source === 'featured' ? '<span class="badge">Verified ★</span>' : '';
+      const badge = getPlanBadge(center.planTier);
       const contactLines = [];
       if (center.phone) contactLines.push(center.phone);
       if (center.website) contactLines.push(`Website: ${websiteAnchor(center.website)}`);
@@ -776,7 +777,8 @@ async function fetchHospiceCenters(lat, lon, radiusKm) {
     source: 'directory',
     email: p.email,
     phone: p.phone,
-    website: p.website
+    website: p.website,
+    planTier: p.planTier
   }));
   centers.push(...directoryHits);
   centers.sort((a, b) => (a.distance || 0) - (b.distance || 0));
@@ -787,6 +789,14 @@ function formatAddress(tags) {
   const parts = [tags['addr:housenumber'], tags['addr:street'], tags['addr:city'], tags['addr:state'], tags['addr:postcode']];
   const address = parts.filter(Boolean).join(', ');
   return address || tags['addr:full'] || tags['addr:place'];
+}
+
+function getPlanBadge(planTier) {
+  const tier = String(planTier || '').toLowerCase();
+  if (tier === 'growth_plus') return '<span class="badge">Verified ⭐</span>';
+  if (tier === 'advanced') return '<span class="badge">Verified ⭐⭐</span>';
+  if (tier === 'market_leader') return '<span class="badge">Verified ⭐⭐⭐</span>';
+  return '';
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
