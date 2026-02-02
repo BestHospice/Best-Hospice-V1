@@ -358,7 +358,7 @@ async function finishQuestions() {
     } else {
     centers.forEach((center, index) => {
       const marker = L.marker([center.lat, center.lon]).addTo(markers);
-      const badge = center.source === 'featured' ? '<span class="badge">Featured</span>' : '';
+      const badge = center.source === 'featured' ? '<span class="badge">Verified ★</span>' : '';
       const contactLines = [];
       if (center.phone) contactLines.push(center.phone);
       if (center.website) contactLines.push(`Website: ${websiteAnchor(center.website)}`);
