@@ -125,6 +125,16 @@
             <option value="5">5 miles</option>
           </select>
         </div>
+        <div>
+          <label for="planTier">Plan tier</label>
+          <select id="planTier">
+            <option value="starter" selected>Starter — $250/mo ★</option>
+            <option value="growth">Growth — $300/mo ★★</option>
+            <option value="growth_plus">Growth+ — $350/mo ★★★ Verified</option>
+            <option value="advanced">Advanced — $400/mo ★★★★ Verified + Featured</option>
+            <option value="market_leader">Market Leader — $500/mo ★★★★★ Priority Placement</option>
+          </select>
+        </div>
         <input id="featured" type="hidden" value="true" />
         <div>
           <label for="token-add">Provider Add Token</label>
@@ -156,7 +166,8 @@
         state: document.getElementById('state').value.trim(),
         zip: document.getElementById('zip').value.trim(),
         serviceRadiusMiles: Number(document.getElementById('radius').value) || 60,
-        featured: true
+        featured: true,
+        planTier: document.getElementById('planTier').value
       };
       statusEl.textContent = 'Submitting...';
       try {

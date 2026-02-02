@@ -793,9 +793,11 @@ function formatAddress(tags) {
 
 function getPlanBadge(planTier) {
   const tier = String(planTier || '').toLowerCase();
-  if (tier === 'growth_plus') return '<span class="badge">Verified ⭐</span>';
-  if (tier === 'advanced') return '<span class="badge">Verified ⭐⭐</span>';
-  if (tier === 'market_leader') return '<span class="badge">Verified ⭐⭐⭐</span>';
+  if (tier === 'starter') return '<span class="badge">★ Starter</span>';
+  if (tier === 'growth') return '<span class="badge">★★ Growth</span>';
+  if (tier === 'growth_plus') return '<span class="badge">★★★ Verified</span>';
+  if (tier === 'advanced') return '<span class="badge">★★★★ Featured</span>';
+  if (tier === 'market_leader') return '<span class="badge">★★★★★ Priority</span>';
   return '';
 }
 
