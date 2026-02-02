@@ -651,6 +651,7 @@ app.get('/api/providers', async (_req, res) => {
       lon: true,
       serviceRadiusKm: true,
       featured: true,
+      planTier: true,
       leadCount: true,
       createdAt: true,
       updatedAt: true
@@ -799,7 +800,8 @@ app.post('/api/providers', async (req, res) => {
     email,
     phone,
     website,
-    featured = false
+    featured = false,
+    planTier
     ,
   } = req.body || {};
   if (!name || !address || !city || !state || !zip || !email) {
@@ -835,7 +837,8 @@ app.post('/api/providers', async (req, res) => {
         lat: latVal,
         lon: lonVal,
         serviceRadiusKm: radiusKmFromMiles !== undefined ? radiusKmFromMiles : Number(serviceRadiusKm) || 96.6,
-        featured: Boolean(featured)
+        featured: Boolean(featured),
+        planTier: planTier ? String(planTier).trim() : 'starter'
       }
     });
     await logAdminAction(adminIdentifier, 'PROVIDER_ADD', provider.id, { name: provider.name, email: provider.email }, hashIp(req.ip || ''));
@@ -866,7 +869,8 @@ app.put('/api/providers/:id', async (req, res) => {
     email,
     phone,
     website,
-    featured
+    featured,
+    planTier
   } = req.body || {};
   const data = {};
   if (name !== undefined) data.name = String(name).trim();
@@ -879,7 +883,8 @@ app.put('/api/providers/:id', async (req, res) => {
     const s = state !== undefined ? String(state).trim() : undefined;
     const z = zip !== undefined ? String(zip).trim() : undefined;
     if (a !== undefined && c !== undefined && s !== undefined && z !== undefined) {
-      data.address = `${a}, ${c}, ${s} ${z}`;
+      const suffix = `, ${c}, ${s} ${z}`;
+      data.address = a.endsWith(suffix) ? a : `${a}${suffix}`;
       data.city = c;
       data.state = s;
       data.zip = z;
@@ -901,6 +906,7 @@ app.put('/api/providers/:id', async (req, res) => {
     if (!Number.isNaN(n) && n >= 0) data.serviceRadiusKm = n;
   }
   if (featured !== undefined) data.featured = Boolean(featured);
+  if (planTier !== undefined && planTier !== '') data.planTier = String(planTier).trim();
 
   if (!Object.keys(data).length) return res.status(400).json({ error: 'No changes provided' });
   try {

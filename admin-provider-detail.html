@@ -107,12 +107,18 @@
       document.getElementById('prov-leads').textContent = p.leadCount ?? 0;
       document.getElementById('prov-added').textContent = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
 
+      const fullSuffix = p.city && p.state && p.zip ? `, ${p.city}, ${p.state} ${p.zip}` : '';
+      let addressLine = p.address || '';
+      if (fullSuffix && addressLine.endsWith(fullSuffix)) {
+        addressLine = addressLine.slice(0, -fullSuffix.length);
+      }
+
       // Prefill form
       document.getElementById('f-name').value = p.name || '';
       document.getElementById('f-email').value = p.email || '';
       document.getElementById('f-phone').value = p.phone || '';
       document.getElementById('f-website').value = p.website || '';
-      document.getElementById('f-address').value = p.address || '';
+      document.getElementById('f-address').value = addressLine;
       document.getElementById('f-city').value = p.city || '';
       document.getElementById('f-state').value = p.state || '';
       document.getElementById('f-zip').value = p.zip || '';
