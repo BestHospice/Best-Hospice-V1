@@ -39,6 +39,11 @@ const normalizePlanTier = (value) => {
   return 'verified';
 };
 const PROVIDER_MONTHLY_RATE = 250;
+const PLAN_NOTIFY_DELAY_MS = { priority: 0, featured: 60 * 1000, verified: 120 * 1000 };
+const JOB_POLL_MS = 5000;
+const JOB_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+const JOB_MAX_ATTEMPTS = 3;
+const JOB_RETRY_DELAY_MS = 5 * 60 * 1000;
 
 // --- SEO / programmatic helpers ---
 const slugify = (str) =>
@@ -198,6 +203,150 @@ async function getProviderContext(providerUserId) {
 function hashIp(ip) {
   return crypto.createHash('sha256').update(`${IP_SALT}:${ip || ''}`).digest('hex');
 }
+
+function buildClientName(first, last) {
+  return [first || '', last || ''].filter(Boolean).join(' ').trim() || 'Not provided';
+}
+
+async function claimNotificationJobs(limit = 10) {
+  const now = new Date();
+  const expiredLock = new Date(now.getTime() - JOB_LOCK_TIMEOUT_MS);
+  const candidates = await prisma.notificationJob.findMany({
+    where: {
+      status: 'pending',
+      runAt: { lte: now },
+      OR: [{ lockedAt: null }, { lockedAt: { lt: expiredLock } }]
+    },
+    orderBy: { runAt: 'asc' },
+    take: limit
+  });
+  if (!candidates.length) return [];
+  const ids = candidates.map((c) => c.id);
+  await prisma.notificationJob.updateMany({
+    where: { id: { in: ids }, status: 'pending' },
+    data: { status: 'processing', lockedAt: now }
+  });
+  return prisma.notificationJob.findMany({
+    where: { id: { in: ids }, status: 'processing', lockedAt: now }
+  });
+}
+
+async function processNotificationJob(job) {
+  const payload = job.payload || {};
+  const providerEmail = payload.providerEmail;
+  const providerPhone = payload.providerPhone;
+  let emailResult = { status: 'failed', error: 'Missing provider email' };
+
+  if (providerEmail) {
+    try {
+      const results = await sendProviderNotifications({
+        clientZip: payload.clientZip,
+        requestSubmittedBy: payload.requestSubmittedBy,
+        careDaysAndTimes: payload.careDaysAndTimes,
+        services: payload.services,
+        funding: payload.funding,
+        otherDetails: payload.otherDetails,
+        clientEmail: payload.clientEmail,
+        clientPhone: payload.clientPhone,
+        clientName: payload.clientName,
+        providers: [{ id: job.providerId, email: providerEmail }],
+        nearbyProviders: [{ id: job.providerId, email: providerEmail }]
+      });
+      emailResult = results?.[0] || { status: 'failed', error: 'SendGrid returned no result' };
+    } catch (err) {
+      console.error('Email notification failed', err);
+      emailResult = { status: 'failed', error: err.message || 'send failed' };
+    }
+  }
+
+  if (smsEnabled() && providerPhone) {
+    const smsBody = [
+      `Best Hospice lead (ZIP ${payload.clientZip})`,
+      `Submitted by: ${payload.requestSubmittedBy}`,
+      `Care: ${payload.careDaysAndTimes}`,
+      `Funding: ${payload.funding || 'Not specified'}`,
+      `Contact: ${payload.clientName}, ${payload.clientEmail}, ${payload.clientPhone}`,
+      `Please reach out promptly.`
+    ].join('\n');
+    try {
+      await sendProviderSms(providerPhone, smsBody);
+    } catch (err) {
+      console.error('SMS send failed for', providerPhone, err);
+    }
+  }
+
+  if (emailResult && emailResult.email) {
+    const status = emailResult.status === 'sent' ? 'sent' : 'failed';
+    await prisma.leadNotification.create({
+      data: {
+        id: uuid(),
+        leadId: job.leadId,
+        providerId: job.providerId,
+        status,
+        sendgridMessageId: emailResult.messageId || null,
+        errorMessage: emailResult.error || null,
+        sentAt: status === 'sent' ? new Date() : null
+      }
+    });
+    if (status === 'sent') {
+      await prisma.provider.update({
+        where: { id: job.providerId },
+        data: { leadCount: { increment: 1 } }
+      });
+    }
+  }
+
+  if (emailResult.status === 'sent') {
+    await prisma.notificationJob.update({
+      where: { id: job.id },
+      data: { status: 'sent', lastError: null }
+    });
+    return;
+  }
+
+  const nextAttempts = (job.attempts || 0) + 1;
+  if (nextAttempts < JOB_MAX_ATTEMPTS) {
+    await prisma.notificationJob.update({
+      where: { id: job.id },
+      data: {
+        status: 'pending',
+        attempts: nextAttempts,
+        lastError: emailResult.error || 'send failed',
+        lockedAt: null,
+        runAt: new Date(Date.now() + JOB_RETRY_DELAY_MS)
+      }
+    });
+  } else {
+    await prisma.notificationJob.update({
+      where: { id: job.id },
+      data: {
+        status: 'failed',
+        attempts: nextAttempts,
+        lastError: emailResult.error || 'send failed'
+      }
+    });
+  }
+}
+
+let jobWorkerRunning = false;
+async function runNotificationWorker() {
+  if (jobWorkerRunning) return;
+  jobWorkerRunning = true;
+  try {
+    const jobs = await claimNotificationJobs(25);
+    for (const job of jobs) {
+      await processNotificationJob(job);
+    }
+  } catch (err) {
+    console.error('Notification worker error', err);
+  } finally {
+    jobWorkerRunning = false;
+  }
+}
+
+setInterval(() => {
+  runNotificationWorker().catch(() => {});
+}, JOB_POLL_MS);
 
 async function rateLimit(req, res, next) {
   try {
@@ -958,7 +1107,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       return res.status(403).json({ error: 'Captcha verification failed.', details: captchaResult['error-codes'] || captchaResult.error });
     }
 
-    const toList = providers.filter((p) => !!p.email);
+    const toList = providers.filter((p) => !!p.email && !!p.id);
     if (!toList.length) return res.status(400).json({ error: 'No provider emails to notify' });
 
     const requestSubmittedBy = toSubmittedBy(answers.relationship);
@@ -972,7 +1121,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     const clientPhone = answers.contactPhone || 'Not provided';
     const clientFirst = answers.fullName?.first || '';
     const clientLast = answers.fullName?.last || '';
-    const clientName = [clientFirst, clientLast].filter(Boolean).join(' ').trim() || 'Not provided';
+    const clientName = buildClientName(clientFirst, clientLast);
 
     const lead = await prisma.lead.create({
       data: {
@@ -1000,74 +1149,47 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       }));
     if (impressionData.length) await prisma.providerImpression.createMany({ data: impressionData });
 
-    const results = await sendProviderNotifications({
-      clientZip: zip,
-      requestSubmittedBy,
-      careDaysAndTimes,
-      services,
-      funding,
-      otherDetails,
-      clientEmail,
-      clientPhone,
-      clientName,
-      providers: toList,
-      nearbyProviders: toList
+    const providerIds = toList.map((p) => p.id).filter(Boolean);
+    let tierMap = new Map();
+    if (providerIds.length) {
+      const tiers = await prisma.provider.findMany({
+        where: { id: { in: providerIds } },
+        select: { id: true, planTier: true }
+      });
+      tierMap = new Map(tiers.map((t) => [t.id, t.planTier]));
+    }
+
+    const jobs = toList.map((p) => {
+      const planTier = normalizePlanTier(p.planTier || tierMap.get(p.id));
+      const delayMs = PLAN_NOTIFY_DELAY_MS[planTier] ?? PLAN_NOTIFY_DELAY_MS.verified;
+      return {
+        id: uuid(),
+        leadId: lead.id,
+        providerId: p.id,
+        runAt: new Date(Date.now() + delayMs),
+        status: 'pending',
+        payload: {
+          clientZip: zip,
+          requestSubmittedBy,
+          careDaysAndTimes,
+          services,
+          funding,
+          otherDetails,
+          clientEmail,
+          clientPhone,
+          clientName,
+          providerEmail: p.email,
+          providerPhone: p.phone || '',
+          planTier
+        }
+      };
     });
 
-    // Best-effort SMS notifications (PHI-free, short)
-    if (smsEnabled()) {
-      const smsBody = [
-        `Best Hospice lead (ZIP ${zip})`,
-        `Submitted by: ${requestSubmittedBy}`,
-        `Care: ${careDaysAndTimes}`,
-        `Funding: ${funding || 'Not specified'}`,
-        `Contact: ${clientName}, ${clientEmail}, ${clientPhone}`,
-        `Please reach out promptly.`
-      ].join('\n');
-
-      for (const p of toList) {
-        if (!p.phone) continue;
-        // Assume phone is provided in a dialable format; Twilio will validate.
-        await sendProviderSms(p.phone, smsBody);
-      }
+    if (jobs.length) {
+      await prisma.notificationJob.createMany({ data: jobs });
     }
 
-    // Log notifications
-    const notificationsData = results.map((r) => ({
-      id: uuid(),
-      leadId: lead.id,
-      providerId:
-        r.providerId ||
-        toList.find(
-          (p) =>
-            p.id && p.email && r.email && p.email.trim().toLowerCase() === r.email.trim().toLowerCase()
-        )?.id ||
-        '',
-      status: r.status === 'sent' ? 'sent' : 'failed',
-      sendgridMessageId: r.messageId || null,
-      errorMessage: r.error || null,
-      sentAt: r.status === 'sent' ? new Date() : null
-    })).filter((n) => n.providerId);
-
-    if (notificationsData.length) {
-      await prisma.leadNotification.createMany({ data: notificationsData });
-      // Increment provider lead counts for successful sends
-      const sentCounts = notificationsData
-        .filter((n) => n.status === 'sent')
-        .reduce((acc, n) => {
-          acc[n.providerId] = (acc[n.providerId] || 0) + 1;
-          return acc;
-        }, {});
-      const updates = Object.entries(sentCounts).map(([providerId, count]) =>
-        prisma.provider.update({
-          where: { id: providerId },
-          data: { leadCount: { increment: count } }
-        })
-      );
-      if (updates.length) await prisma.$transaction(updates);
-    }
-
-    res.json({ ok: true, sent: results.filter((r) => r.status === 'sent').length, results });
+    res.json({ ok: true, queued: true, sent: jobs.length });
   } catch (err) {
     console.error('Notify failed', err);
     res.status(500).json({ error: 'Notify failed' });

@@ -62,6 +62,25 @@ model LeadNotification {
   createdAt          DateTime               @default(now())
 }
 
+model NotificationJob {
+  id         String   @id @default(uuid())
+  leadId     String
+  providerId String
+  runAt      DateTime
+  status     String   @default("pending")
+  attempts   Int      @default(0)
+  lastError  String?
+  lockedAt   DateTime?
+  payload    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([status, runAt])
+  @@index([lockedAt])
+  @@index([providerId])
+  @@index([leadId])
+}
+
 model ProviderImpression {
   id         String   @id @default(uuid())
   provider   Provider @relation(fields: [providerId], references: [id])
