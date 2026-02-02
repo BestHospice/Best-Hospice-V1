@@ -40,7 +40,28 @@
         </div>
         <div class="search">
           <p class="eyebrow">List your hospice</p>
-          <p class="tagline">Provide your email to open a secure Stripe checkout for your listing.</p>
+          <p class="tagline">Select a plan and provide your email to open a secure Stripe checkout for your listing.</p>
+          <div class="card" style="padding:12px; margin:10px 0;">
+            <p style="margin:0 0 6px; font-weight:700;">Plans (billed monthly · auto-renewing)</p>
+            <label style="display:flex; gap:8px; align-items:center; margin:6px 0;">
+              <input type="radio" name="plan" value="starter" checked> Starter – $250/mo
+            </label>
+            <label style="display:flex; gap:8px; align-items:center; margin:6px 0;">
+              <input type="radio" name="plan" value="growth"> Growth – $300/mo
+            </label>
+            <label style="display:flex; gap:8px; align-items:center; margin:6px 0;">
+              <input type="radio" name="plan" value="growth_plus"> Growth+ – $350/mo ★ (Verified/Featured)
+            </label>
+            <label style="display:flex; gap:8px; align-items:center; margin:6px 0;">
+              <input type="radio" name="plan" value="advanced"> Advanced – $400/mo ★ (Verified/Featured)
+            </label>
+            <label style="display:flex; gap:8px; align-items:center; margin:6px 0;">
+              <input type="radio" name="plan" value="market_leader"> Market Leader – $500/mo ★ (Verified/Featured)
+            </label>
+            <p class="note" style="margin:8px 0 0;">
+              Payments are processed securely by Stripe. <a href="refund-policy.html">Refund & Cancellation Policy</a>.
+            </p>
+          </div>
           <input id="provider-email" type="email" placeholder="you@example.com" class="input-text" style="margin-bottom: 8px; width: 100%;" />
           <button class="button" id="start-checkout">Start secure checkout</button>
           <p id="checkout-status" class="note"></p>
@@ -79,6 +100,7 @@
     const checkoutBtn = document.getElementById('start-checkout');
     const emailInput = document.getElementById('provider-email');
     const statusEl = document.getElementById('checkout-status');
+    const planInputs = Array.from(document.querySelectorAll('input[name="plan"]'));
 
     // Show message on return from Stripe
     const params = new URLSearchParams(window.location.search);
@@ -89,9 +111,16 @@
       statusEl.textContent = 'Checkout was canceled. You can start again below.';
     }
 
+    const presetPlan = params.get('plan');
+    if (presetPlan) {
+      const match = planInputs.find((input) => input.value === presetPlan);
+      if (match) match.checked = true;
+    }
+
     checkoutBtn?.addEventListener('click', async () => {
       statusEl.textContent = '';
       const email = emailInput.value.trim();
+      const plan = (planInputs.find((input) => input.checked) || {}).value;
       if (!email) {
         statusEl.textContent = 'Please enter your provider email.';
         return;
@@ -102,7 +131,7 @@
         const res = await fetch('/api/providers/email/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
+          body: JSON.stringify({ email, plan })
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));

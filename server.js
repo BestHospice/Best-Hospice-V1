@@ -661,16 +661,28 @@ app.get('/api/providers', async (_req, res) => {
 
 // Create a checkout session using provider email (case-insensitive)
 app.post('/api/providers/email/checkout', async (req, res) => {
-  if (!stripe || !process.env.STRIPE_PRICE_ID || !process.env.STRIPE_SUCCESS_URL || !process.env.STRIPE_CANCEL_URL) {
+  if (!stripe || !process.env.STRIPE_SUCCESS_URL || !process.env.STRIPE_CANCEL_URL) {
     return res.status(500).json({ error: 'Stripe is not fully configured.' });
   }
-  const { email } = req.body || {};
+  const { email, plan } = req.body || {};
   if (!email) return res.status(400).json({ error: 'Email is required' });
   try {
     const provider = await prisma.provider.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } }
     });
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+    const planPrices = {
+      starter: process.env.STRIPE_PRICE_ID_STARTER,
+      growth: process.env.STRIPE_PRICE_ID_GROWTH,
+      growth_plus: process.env.STRIPE_PRICE_ID_GROWTH_PLUS,
+      advanced: process.env.STRIPE_PRICE_ID_ADVANCED,
+      market_leader: process.env.STRIPE_PRICE_ID_MARKET_LEADER
+    };
+    const priceId = planPrices[plan] || process.env.STRIPE_PRICE_ID;
+    if (!priceId) {
+      return res.status(500).json({ error: 'Stripe price is not configured.' });
+    }
 
     const customer = await stripe.customers.create({
       email: provider.email,
@@ -680,10 +692,10 @@ app.post('/api/providers/email/checkout', async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customer.id,
-      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: process.env.STRIPE_SUCCESS_URL,
       cancel_url: process.env.STRIPE_CANCEL_URL,
-      metadata: { providerId: provider.id }
+      metadata: { providerId: provider.id, plan: plan || 'default' }
     });
     res.json({ url: session.url });
   } catch (err) {
@@ -727,13 +739,26 @@ app.get('/api/providers/secure', async (req, res) => {
 });
 
 app.post('/api/providers/:id/checkout', async (req, res) => {
-  if (!stripe || !process.env.STRIPE_PRICE_ID || !process.env.STRIPE_SUCCESS_URL || !process.env.STRIPE_CANCEL_URL) {
+  if (!stripe || !process.env.STRIPE_SUCCESS_URL || !process.env.STRIPE_CANCEL_URL) {
     return res.status(500).json({ error: 'Stripe is not fully configured.' });
   }
   const providerId = req.params.id;
+  const { plan } = req.body || {};
   try {
     const provider = await prisma.provider.findUnique({ where: { id: providerId } });
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+    const planPrices = {
+      starter: process.env.STRIPE_PRICE_ID_STARTER,
+      growth: process.env.STRIPE_PRICE_ID_GROWTH,
+      growth_plus: process.env.STRIPE_PRICE_ID_GROWTH_PLUS,
+      advanced: process.env.STRIPE_PRICE_ID_ADVANCED,
+      market_leader: process.env.STRIPE_PRICE_ID_MARKET_LEADER
+    };
+    const priceId = planPrices[plan] || process.env.STRIPE_PRICE_ID;
+    if (!priceId) {
+      return res.status(500).json({ error: 'Stripe price is not configured.' });
+    }
 
     const customer = await stripe.customers.create({
       email: provider.email,
@@ -743,10 +768,10 @@ app.post('/api/providers/:id/checkout', async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customer.id,
-      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: process.env.STRIPE_SUCCESS_URL,
       cancel_url: process.env.STRIPE_CANCEL_URL,
-      metadata: { providerId: provider.id }
+      metadata: { providerId: provider.id, plan: plan || 'default' }
     });
     res.json({ url: session.url });
   } catch (err) {
