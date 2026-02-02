@@ -21,6 +21,7 @@ model Provider {
   lon             Float
   serviceRadiusKm Float
   featured        Boolean  @default(false)
+  planTier        String   @default("starter")
   leadCount       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
