@@ -1622,7 +1622,7 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
   }
 });
 
-// Provider billing portal (Stripe portal session)
+// Provider billing portal (Stripe checkout for selected plan)
 app.post('/api/provider/billing', requireProviderAuth, async (req, res) => {
   if (!stripe || !process.env.STRIPE_SECRET_KEY) {
     return res.status(500).json({ error: 'Billing is not configured yet.' });
@@ -1630,14 +1630,31 @@ app.post('/api/provider/billing', requireProviderAuth, async (req, res) => {
   try {
     const ctx = await getProviderContext(req.providerUserId);
     if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const planTier = normalizePlanTier(ctx.provider?.planTier || 'verified');
+    const priceMap = {
+      verified: process.env.STRIPE_PRICE_ID_VERIFIED,
+      featured: process.env.STRIPE_PRICE_ID_FEATURED,
+      priority: process.env.STRIPE_PRICE_ID_PRIORITY
+    };
+    const priceId = priceMap[planTier];
+    if (!priceId || !process.env.STRIPE_SUCCESS_URL || !process.env.STRIPE_CANCEL_URL) {
+      return res.status(500).json({ error: 'Stripe is not fully configured.' });
+    }
+
+    const customerEmail = ctx.provider?.providerLoginEmail || ctx.provider?.email || undefined;
     const customer = await stripe.customers.create({
-      email: ctx.provider?.email || undefined,
+      email: customerEmail,
       name: ctx.provider?.name || undefined,
-      metadata: { providerId: ctx.providerId }
+      metadata: { providerId: ctx.providerId, planTier }
     });
-    const session = await stripe.billingPortal.sessions.create({
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
       customer: customer.id,
-      return_url: 'https://www.besthospice.com/provider-dashboard-home.html'
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: process.env.STRIPE_SUCCESS_URL,
+      cancel_url: process.env.STRIPE_CANCEL_URL,
+      metadata: { providerId: ctx.providerId, planTier }
     });
     res.json({ ok: true, url: session.url });
   } catch (err) {
