@@ -596,7 +596,7 @@ function renderPageHTML({ title, description, canonical, breadcrumbItems, body, 
     <title>${title}</title>
     <meta name="description" content="${description}" />
     <link rel="canonical" href="${canonical}" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles-modern.css" />
     <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   </head>
   <body class="seo-page">
