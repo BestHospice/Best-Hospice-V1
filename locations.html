@@ -50,8 +50,14 @@
 
     <main>
       <section class="card" style="padding:18px;">
-        <div id="locations-status" class="note" style="margin-bottom:10px;">Loading locations…</div>
-        <ul id="locations-list" class="summary-list bullets" style="margin:0; padding:0;"></ul>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+          <div>
+            <h2 style="margin:0 0 4px;">States with active providers</h2>
+            <div id="locations-status" class="note">Loading locations…</div>
+          </div>
+          <a class="pill ghost-pill" href="provider.html">Join as a provider</a>
+        </div>
+        <div id="locations-grid" class="locations-grid"></div>
       </section>
     </main>
 
@@ -92,7 +98,7 @@
 
     async function loadStates() {
       const statusEl = document.getElementById('locations-status');
-      const listEl = document.getElementById('locations-list');
+      const gridEl = document.getElementById('locations-grid');
       try {
         const res = await fetch('/api/providers');
         if (!res.ok) throw new Error('Unable to load providers');
@@ -105,10 +111,13 @@
         const sorted = Array.from(states).sort((a, b) => a.localeCompare(b));
         if (!sorted.length) {
           statusEl.textContent = 'No active provider locations yet.';
+          gridEl.innerHTML = '';
           return;
         }
         statusEl.textContent = `${sorted.length} state${sorted.length === 1 ? '' : 's'} currently served.`;
-        listEl.innerHTML = sorted.map((s) => `<li>${s}</li>`).join('');
+        gridEl.innerHTML = sorted
+          .map((s) => `<div class="state-chip">${s}</div>`)
+          .join('');
       } catch (err) {
         statusEl.textContent = 'Unable to load locations right now.';
       }

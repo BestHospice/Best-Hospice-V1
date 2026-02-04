@@ -802,6 +802,23 @@ a {
   transform: translateY(-1px);
 }
 
+.locations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.state-chip {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 26px rgba(2, 6, 23, 0.08);
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
 .option-card.active {
   border-color: var(--accent-2);
   box-shadow: 0 8px 16px rgba(29, 78, 216, 0.15);
