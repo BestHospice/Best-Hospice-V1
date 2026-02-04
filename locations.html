@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Locations We Currently Serve | Best Hospice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles-modern.css" />
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1447731666875537');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
+  /></noscript>
+  <!-- End Meta Pixel Code -->
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="brand">
+          <img src="BestHospiceandBestHomeHealth.png" alt="Best Hospice and Best Home Health logo" class="brand-logo">
+        </div>
+        <div class="top-links">
+          <a class="pill ghost-pill" href="index.html">Back to search</a>
+          <a class="pill ghost-pill" href="provider-billing.html">Provider Billing</a>
+          <a class="pill ghost-pill" href="provider.html">Provider Signup</a>
+          <a class="pill ghost-pill" href="contact.html">Contact Us</a>
+        </div>
+      </div>
+      <div class="hero-body" style="grid-template-columns: 1fr;">
+        <div class="hero-text">
+          <h1>Locations We Currently Serve</h1>
+          <p class="tagline">These states have active Best Hospice provider listings.</p>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="card" style="padding:18px;">
+        <div id="locations-status" class="note" style="margin-bottom:10px;">Loading locations…</div>
+        <ul id="locations-list" class="summary-list bullets" style="margin:0; padding:0;"></ul>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">Best Hospice</div>
+        <div class="footer-meta">Contact: support@besthospice.com • United States</div>
+        <div class="footer-links">
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+          <a href="refund-policy.html">Refund & Cancellation Policy</a>
+          <a href="provider-billing.html">Provider Billing</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const stateNameMap = {
+      al: 'Alabama', ak: 'Alaska', az: 'Arizona', ar: 'Arkansas', ca: 'California', co: 'Colorado', ct: 'Connecticut',
+      de: 'Delaware', fl: 'Florida', ga: 'Georgia', hi: 'Hawaii', id: 'Idaho', il: 'Illinois', in: 'Indiana', ia: 'Iowa',
+      ks: 'Kansas', ky: 'Kentucky', la: 'Louisiana', me: 'Maine', md: 'Maryland', ma: 'Massachusetts', mi: 'Michigan',
+      mn: 'Minnesota', ms: 'Mississippi', mo: 'Missouri', mt: 'Montana', ne: 'Nebraska', nv: 'Nevada', nh: 'New Hampshire',
+      nj: 'New Jersey', nm: 'New Mexico', ny: 'New York', nc: 'North Carolina', nd: 'North Dakota', oh: 'Ohio', ok: 'Oklahoma',
+      or: 'Oregon', pa: 'Pennsylvania', ri: 'Rhode Island', sc: 'South Carolina', sd: 'South Dakota', tn: 'Tennessee', tx: 'Texas',
+      ut: 'Utah', vt: 'Vermont', va: 'Virginia', wa: 'Washington', wv: 'West Virginia', wi: 'Wisconsin', wy: 'Wyoming'
+    };
+
+    function normalizeState(state) {
+      if (!state) return null;
+      const raw = String(state).trim();
+      if (!raw) return null;
+      const key = raw.toLowerCase();
+      if (stateNameMap[key]) return stateNameMap[key];
+      if (key.length === 2) return key.toUpperCase();
+      return raw.replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    async function loadStates() {
+      const statusEl = document.getElementById('locations-status');
+      const listEl = document.getElementById('locations-list');
+      try {
+        const res = await fetch('/api/providers');
+        if (!res.ok) throw new Error('Unable to load providers');
+        const providers = await res.json();
+        const states = new Set();
+        (providers || []).forEach((p) => {
+          const name = normalizeState(p.state);
+          if (name) states.add(name);
+        });
+        const sorted = Array.from(states).sort((a, b) => a.localeCompare(b));
+        if (!sorted.length) {
+          statusEl.textContent = 'No active provider locations yet.';
+          return;
+        }
+        statusEl.textContent = `${sorted.length} state${sorted.length === 1 ? '' : 's'} currently served.`;
+        listEl.innerHTML = sorted.map((s) => `<li>${s}</li>`).join('');
+      } catch (err) {
+        statusEl.textContent = 'Unable to load locations right now.';
+      }
+    }
+
+    loadStates();
+  </script>
+</body>
+</html>
