@@ -1,9 +1,9 @@
 (() => {
   const btnStyles = `
     position:fixed; right:18px; bottom:18px; z-index:9999;
-    background:linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff;
     border:none; border-radius:999px; padding:10px 14px; font-weight:700;
-    box-shadow:0 10px 20px rgba(37,99,235,0.35); cursor:pointer;
+    box-shadow:0 12px 28px rgba(15,118,110,0.28); cursor:pointer;
   `;
     const panelStyles = `
     position:fixed; right:18px; bottom:70px; z-index:9999; width:320px;
@@ -32,9 +32,9 @@
       btn.textContent = 'Main Menu';
       btn.style.cssText = `
         position:fixed; right:170px; bottom:18px; z-index:9998;
-        background:#1d4ed8; color:#fff; padding:10px 14px;
+        background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; padding:10px 14px;
         border-radius:999px; font-weight:700; text-decoration:none;
-        box-shadow:0 10px 20px rgba(0,0,0,0.12);
+        box-shadow:0 12px 28px rgba(15,118,110,0.22);
       `;
       document.body.appendChild(btn);
     } catch (e) {
@@ -81,7 +81,7 @@
     header.innerHTML = `
       <span>Abel (AI)</span>
       <div style="display:flex; gap:6px; align-items:center;">
-        <button id="abel-send-top" style="background:#38bdf8; color:#0f172a; border:none; padding:6px 10px; border-radius:8px; font-weight:700; cursor:pointer;">Send</button>
+        <button id="abel-send-top" style="background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border:none; padding:6px 10px; border-radius:8px; font-weight:700; cursor:pointer;">Send</button>
         <button id="abel-close" style="background:transparent; color:#fff; border:none; font-size:16px; cursor:pointer;">×</button>
       </div>
     `;
