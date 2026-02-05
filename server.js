@@ -1244,6 +1244,51 @@ app.get('/api/admin/audit', async (req, res) => {
   res.json(logs);
 });
 
+// Admin: provider lead details
+app.get('/api/admin/providers/:id/leads', async (req, res) => {
+  const token = req.headers['x-admin-token'];
+  if (token !== ADMIN_TOKEN_DASH && token !== ADMIN_TOKEN_AUDIT) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const providerId = req.params.id;
+  const limit = Math.min(parseInt(req.query.limit || '25', 10), 200);
+  try {
+    const notifs = await prisma.leadNotification.findMany({
+      where: { providerId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        createdAt: true,
+        lead: {
+          select: {
+            id: true,
+            createdAt: true,
+            zip: true,
+            submittedBy: true,
+            clientEmail: true,
+            clientPhone: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      }
+    });
+    const leads = notifs.map((n) => ({
+      leadId: n.lead?.id || '',
+      createdAt: n.lead?.createdAt || n.createdAt,
+      zip: n.lead?.zip || '',
+      submittedBy: n.lead?.submittedBy || '',
+      clientEmail: n.lead?.clientEmail || '',
+      clientPhone: n.lead?.clientPhone || '',
+      clientName: buildClientName(n.lead?.firstName, n.lead?.lastName)
+    }));
+    res.json({ ok: true, leads });
+  } catch (err) {
+    console.error('Admin provider leads failed', err);
+    res.status(500).json({ error: 'Failed to load provider leads' });
+  }
+});
+
 app.post('/api/test-email', async (_req, res) => {
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {

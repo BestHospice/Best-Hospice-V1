@@ -20,6 +20,10 @@
     .form-grid label { display:block; font-weight:700; font-size:14px; margin-bottom:4px; }
     .form-grid input { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; }
     .form-grid select { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; background:#fff; }
+    .lead-list { display:grid; gap:10px; margin-top:10px; }
+    .lead-item { border:1px solid #e5e7eb; border-radius:12px; padding:10px; background:#f8fafc; }
+    .lead-item h4 { margin:0 0 6px; font-size:15px; }
+    .lead-meta { color:#475569; font-size:13px; display:grid; gap:4px; }
   </style>
   <!-- Meta Pixel Code -->
 <script>
@@ -90,6 +94,14 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         <button class="button" id="save-btn" style="margin-top:10px;">Save changes</button>
         <p id="save-status" class="note"></p>
       </div>
+
+      <div style="border-top:1px solid #e5e7eb; padding-top:10px;">
+        <h3>Leads received</h3>
+        <p class="note">Latest leads sent to this provider.</p>
+        <button class="button" id="load-leads-btn">Load leads</button>
+        <p id="leads-status" class="note"></p>
+        <div id="leads-list" class="lead-list"></div>
+      </div>
       <a class="button" href="admin-dashboard.html">Back to Dashboard</a>
     </div>
   </div>
@@ -102,6 +114,8 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     const loginCard = document.getElementById('login-card');
     const detailCard = document.getElementById('detail-card');
     const saveStatus = document.getElementById('save-status');
+    const leadsStatus = document.getElementById('leads-status');
+    const leadsList = document.getElementById('leads-list');
     let currentProvider = null;
 
     async function fetchProviders(token) {
@@ -214,6 +228,44 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     }
 
     document.getElementById('save-btn').addEventListener('click', saveChanges);
+
+    async function loadLeads() {
+      if (!dashToken || !currentProvider) return;
+      leadsStatus.textContent = 'Loading leads...';
+      leadsList.innerHTML = '';
+      try {
+        const res = await fetch(`/api/admin/providers/${encodeURIComponent(currentProvider.id)}/leads?limit=25`, {
+          headers: { 'x-admin-token': dashToken }
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          leadsStatus.textContent = data.error || 'Failed to load leads.';
+          return;
+        }
+        const leads = data.leads || [];
+        if (!leads.length) {
+          leadsStatus.textContent = 'No leads found for this provider yet.';
+          return;
+        }
+        leadsStatus.textContent = `${leads.length} lead${leads.length === 1 ? '' : 's'} loaded.`;
+        leadsList.innerHTML = leads.map((l) => `
+          <div class="lead-item">
+            <h4>${l.clientName || 'Client'} • ${l.zip || 'ZIP not provided'}</h4>
+            <div class="lead-meta">
+              <div><strong>Date:</strong> ${l.createdAt ? new Date(l.createdAt).toLocaleString() : '—'}</div>
+              <div><strong>Email:</strong> ${l.clientEmail || 'Not provided'}</div>
+              <div><strong>Phone:</strong> ${l.clientPhone || 'Not provided'}</div>
+              <div><strong>Submitted by:</strong> ${l.submittedBy || '—'}</div>
+              <div><strong>Lead ID:</strong> ${l.leadId || '—'}</div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        leadsStatus.textContent = 'Error loading leads.';
+      }
+    }
+
+    document.getElementById('load-leads-btn').addEventListener('click', loadLeads);
   </script>
 </body>
 </html>
