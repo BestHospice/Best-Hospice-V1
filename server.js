@@ -55,6 +55,7 @@ const slugify = (str) =>
 
 const serviceConfig = {
   'hospice-care': {
+    localNotes: 'Families in {stateName} often search for hospice care that can start quickly, with in-home options and clear communication on eligibility and coverage.',
     name: 'Hospice Care',
     direct:
       'Hospice care in {cityState} focuses on comfort, dignity, and quality of life when curative treatment is no longer the focus. Families want fast access to compassionate teams, clear communication, and dependable support at home or in a facility.',
@@ -70,6 +71,7 @@ const serviceConfig = {
     ]
   },
   'palliative-care': {
+    localNotes: 'In {stateName}, palliative care is commonly used alongside treatment to manage pain, symptoms, and care coordination close to home.',
     name: 'Palliative Care',
     direct:
       'Palliative care in {cityState} supports comfort and quality of life at any stage of serious illness, alongside curative treatments. Families want symptom relief, care coordination, and emotional support without stopping ongoing care.',
@@ -85,6 +87,7 @@ const serviceConfig = {
     ]
   },
   'home-care': {
+    localNotes: 'Home care in {stateName} is frequently used for daily living support, respite for caregivers, and help with mobility and meals.',
     name: 'Home Care',
     direct:
       'Home care in {cityState} focuses on daily living support so people can remain at home. Families seek help with bathing, mobility, meals, companionship, and basic health oversight.',
@@ -661,6 +664,10 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
       <p>${service.eligibility}</p>
     </section>
     <section>
+      <h2>Local note for ${cityState}</h2>
+      <p>${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
+    </section>
+    <section>
       <h2>Compare Hospice, Palliative, and Home Care</h2>
       ${renderComparisonTable()}
     </section>
@@ -721,6 +728,10 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
       <p>${service.eligibility}</p>
     </section>
     <section>
+      <h2>Local note for ${stateName}</h2>
+      <p>${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
+    </section>
+    <section>
       <h2>Compare Hospice, Palliative, and Home Care</h2>
       ${renderComparisonTable()}
     </section>
@@ -763,6 +774,10 @@ function renderHubPage({ serviceKey }) {
     <section>
       <h2>When to Choose ${service.name}</h2>
       <p>${service.eligibility}</p>
+    </section>
+    <section>
+      <h2>Local note</h2>
+      <p>${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
     </section>
     <section>
       <h2>FAQs</h2>
