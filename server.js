@@ -1670,7 +1670,12 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
     ]);
     res.json({
       ok: true,
-      provider: { id: ctx.provider.id, name: ctx.provider.name, email: ctx.provider.email },
+      provider: {
+        id: ctx.provider.id,
+        name: ctx.provider.name,
+        email: ctx.provider.email,
+        planTier: ctx.provider.planTier || 'verified'
+      },
       metrics: {
         totalNotifications,
         totalImpressions,

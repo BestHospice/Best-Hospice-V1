@@ -184,6 +184,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     let totalNotificationsCache = 0;
     let providersList = [];
     let activeProviderId = null;
+    let planMonthly = 250;
 
     function setStatus(msg){ statusEl.textContent = msg || ''; }
 
@@ -200,6 +201,13 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       return data;
     }
 
+    function planToPrice(planTier){
+      const tier = String(planTier || '').toLowerCase();
+      if (tier === 'priority') return 500;
+      if (tier === 'featured') return 375;
+      return 250;
+    }
+
     async function loadMetrics(){
       try{
         const data = await callApi('/api/provider-dashboard/metrics');
@@ -207,6 +215,12 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         totalNotificationsCache = data.metrics.totalNotifications || 0;
         document.getElementById('provider-label').textContent = data.provider ? data.provider.name + ' — ' + data.provider.email : '';
         document.getElementById('welcome').textContent = data.provider ? `Welcome to ${data.provider.name} Dashboard` : 'Welcome to your Dashboard';
+        if (data.provider && data.provider.planTier) {
+          planMonthly = planToPrice(data.provider.planTier);
+          document.getElementById('bill-monthly').textContent = `$${planMonthly}`;
+          const monthlySelect = document.getElementById('roi-monthly');
+          if (monthlySelect) monthlySelect.value = String(planMonthly);
+        }
         updateBillingCards();
         setStatus('');
       }catch(err){
@@ -268,8 +282,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       const revenuePerClient = Math.max(0, parseInt(document.getElementById('roi-revenue-per-client').value || '8000', 10));
       const revenue = totalNotificationsCache * revenuePerClient;
       document.getElementById('bill-revenue').textContent = revenue ? `$${revenue.toLocaleString()}` : '$0';
-      const monthly = parseInt(document.getElementById('roi-monthly').value || '250', 10);
-      document.getElementById('bill-monthly').textContent = `$${monthly}`;
+      document.getElementById('bill-monthly').textContent = `$${planMonthly}`;
     }
 
     document.getElementById('logout').addEventListener('click', ()=>{
