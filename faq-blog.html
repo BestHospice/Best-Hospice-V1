@@ -238,10 +238,12 @@
       if (!siteKey || !window.turnstile) return;
       window.turnstile.render('#turnstile-verify', {
         sitekey: siteKey,
+        appearance: 'always',
         callback: (token) => { verifyToken = token; }
       });
       window.turnstile.render('#turnstile-post', {
         sitekey: siteKey,
+        appearance: 'always',
         callback: (token) => { postToken = token; }
       });
     }
