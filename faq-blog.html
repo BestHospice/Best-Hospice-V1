@@ -53,7 +53,14 @@
 
     <main>
       <section class="card" style="padding:16px;">
-        <h2>FAQs</h2>
+        <div class="tab-row">
+          <button class="tab-button active" id="tab-faq">FAQs</button>
+          <button class="tab-button" id="tab-blog">Blog Posts</button>
+        </div>
+        <p class="note" style="margin:8px 0 12px;">Click a question to reveal the answer.</p>
+
+        <div id="faq-section">
+          <h2>FAQs</h2>
 
         <h3 style="margin:12px 0 6px;">For Families</h3>
         <h4 style="margin:10px 0 6px;">Getting Started</h4>
@@ -162,13 +169,13 @@
           <details class="faq-item"><summary>Do you operate nationwide?</summary><p>We are expanding nationwide. Check your ZIP code for current coverage.</p></details>
           <details class="faq-item"><summary>How often do you update provider information?</summary><p>Providers can update profiles, and we periodically review listings for accuracy.</p></details>
         </div>
-      </section>
-
-      <section class="card" style="margin-top:16px; padding:16px;">
-        <h2>Blog Posts</h2>
-        <p class="tagline">View public posts below. To create a post or comment, verify your email.</p>
-        <div id="blog-status" class="note" style="margin:8px 0;">Loading posts…</div>
-        <div id="blog-posts" class="blog-posts"></div>
+        </div>
+        <div id="blog-section" class="hidden">
+          <h2>Blog Posts</h2>
+          <p class="tagline">View public posts below. To create a post or comment, verify your email.</p>
+          <div id="blog-status" class="note" style="margin:8px 0;">Loading posts…</div>
+          <div id="blog-posts" class="blog-posts"></div>
+        </div>
       </section>
 
       <section class="card" style="margin-top:16px; padding:16px;">
@@ -381,6 +388,19 @@
     document.getElementById('send-code').addEventListener('click', sendCode);
     document.getElementById('confirm-code').addEventListener('click', confirmCode);
     document.getElementById('create-post').addEventListener('click', createPost);
+
+    document.getElementById('tab-faq').addEventListener('click', () => {
+      document.getElementById('tab-faq').classList.add('active');
+      document.getElementById('tab-blog').classList.remove('active');
+      document.getElementById('faq-section').classList.remove('hidden');
+      document.getElementById('blog-section').classList.add('hidden');
+    });
+    document.getElementById('tab-blog').addEventListener('click', () => {
+      document.getElementById('tab-blog').classList.add('active');
+      document.getElementById('tab-faq').classList.remove('active');
+      document.getElementById('blog-section').classList.remove('hidden');
+      document.getElementById('faq-section').classList.add('hidden');
+    });
 
     loadTurnstile();
     fetchPosts();
