@@ -44,6 +44,7 @@ const JOB_POLL_MS = 5000;
 const JOB_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const JOB_MAX_ATTEMPTS = 3;
 const JOB_RETRY_DELAY_MS = 5 * 60 * 1000;
+const BLOG_VERIFICATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // --- SEO / programmatic helpers ---
 const slugify = (str) =>
@@ -209,6 +210,36 @@ function hashIp(ip) {
 
 function buildClientName(first, last) {
   return [first || '', last || ''].filter(Boolean).join(' ').trim() || 'Not provided';
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function normalizeCityState(value) {
+  return String(value || '').trim();
+}
+
+function generateCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function isEmailVerifiedForBlog(email, city, state) {
+  const normEmail = normalizeEmail(email);
+  const normCity = normalizeCityState(city);
+  const normState = normalizeCityState(state);
+  if (!normEmail || !normCity || !normState) return false;
+  const since = new Date(Date.now() - BLOG_VERIFICATION_WINDOW_MS);
+  const record = await prisma.blogEmailVerification.findFirst({
+    where: {
+      email: normEmail,
+      city: normCity,
+      state: normState,
+      verifiedAt: { gte: since }
+    },
+    orderBy: { verifiedAt: 'desc' }
+  });
+  return Boolean(record);
 }
 
 async function claimNotificationJobs(limit = 10) {
@@ -1245,6 +1276,174 @@ app.post('/api/admin/verify', (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   res.json({ ok: true });
+});
+
+// Blog: email verification start
+app.post('/api/blog/verify/start', async (req, res) => {
+  try {
+    const { email, city, state, captchaToken } = req.body || {};
+    const normEmail = normalizeEmail(email);
+    const normCity = normalizeCityState(city);
+    const normState = normalizeCityState(state);
+    if (!normEmail || !normCity || !normState) {
+      return res.status(400).json({ error: 'Email, city, and state are required' });
+    }
+    const captchaResult = await verifyTurnstile(captchaToken, req.ip);
+    if (!captchaResult.success) {
+      return res.status(403).json({ error: 'Captcha verification failed.', details: captchaResult['error-codes'] || captchaResult.error });
+    }
+    const code = generateCode();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    await prisma.blogEmailVerification.create({
+      data: { id: uuid(), email: normEmail, city: normCity, state: normState, code, expiresAt }
+    });
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111">
+        <p>Your Best Hospice verification code:</p>
+        <p style="font-size:22px; font-weight:800; letter-spacing:2px;">${code}</p>
+        <p>Enter this code to create a blog post or comment. Codes expire in 30 minutes.</p>
+      </div>
+    `;
+    await sendGenericEmail(normEmail, 'Best Hospice verification code', html);
+    res.json({ ok: true, message: 'Verification code sent.' });
+  } catch (err) {
+    console.error('Blog verify start failed', err);
+    res.status(500).json({ error: 'Failed to send verification code' });
+  }
+});
+
+// Blog: email verification confirm
+app.post('/api/blog/verify/confirm', async (req, res) => {
+  try {
+    const { email, city, state, code } = req.body || {};
+    const normEmail = normalizeEmail(email);
+    const normCity = normalizeCityState(city);
+    const normState = normalizeCityState(state);
+    const normCode = String(code || '').trim();
+    if (!normEmail || !normCity || !normState || !normCode) {
+      return res.status(400).json({ error: 'Email, city, state, and code are required' });
+    }
+    const record = await prisma.blogEmailVerification.findFirst({
+      where: {
+        email: normEmail,
+        city: normCity,
+        state: normState,
+        code: normCode,
+        expiresAt: { gte: new Date() }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (!record) return res.status(400).json({ error: 'Invalid or expired code' });
+    await prisma.blogEmailVerification.update({
+      where: { id: record.id },
+      data: { verifiedAt: new Date() }
+    });
+    res.json({ ok: true, message: 'Email verified.' });
+  } catch (err) {
+    console.error('Blog verify confirm failed', err);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// Blog: list posts with comment counts
+app.get('/api/blog/posts', async (_req, res) => {
+  try {
+    const posts = await prisma.blogPost.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { comments: true }
+    });
+    const data = posts.map((p) => ({
+      id: p.id,
+      title: p.title,
+      body: p.body,
+      authorCity: p.authorCity,
+      authorState: p.authorState,
+      createdAt: p.createdAt,
+      commentCount: p.comments.length,
+      comments: p.comments.map((c) => ({
+        id: c.id,
+        body: c.body,
+        authorCity: c.authorCity,
+        authorState: c.authorState,
+        createdAt: c.createdAt,
+        authorEmail: c.authorEmail
+      }))
+    }));
+    res.json({ ok: true, posts: data });
+  } catch (err) {
+    console.error('Blog list failed', err);
+    res.status(500).json({ error: 'Failed to load posts' });
+  }
+});
+
+// Blog: create post
+app.post('/api/blog/posts', async (req, res) => {
+  try {
+    const { title, body, email, city, state, captchaToken } = req.body || {};
+    if (!title || !body) return res.status(400).json({ error: 'Title and body are required' });
+    const normEmail = normalizeEmail(email);
+    const normCity = normalizeCityState(city);
+    const normState = normalizeCityState(state);
+    if (!normEmail || !normCity || !normState) {
+      return res.status(400).json({ error: 'Email, city, and state are required' });
+    }
+    const captchaResult = await verifyTurnstile(captchaToken, req.ip);
+    if (!captchaResult.success) {
+      return res.status(403).json({ error: 'Captcha verification failed.', details: captchaResult['error-codes'] || captchaResult.error });
+    }
+    const verified = await isEmailVerifiedForBlog(normEmail, normCity, normState);
+    if (!verified) return res.status(403).json({ error: 'Email not verified for posting' });
+    const post = await prisma.blogPost.create({
+      data: {
+        id: uuid(),
+        title: String(title).trim(),
+        body: String(body).trim(),
+        authorEmail: normEmail,
+        authorCity: normCity,
+        authorState: normState
+      }
+    });
+    res.json({ ok: true, postId: post.id });
+  } catch (err) {
+    console.error('Blog post create failed', err);
+    res.status(500).json({ error: 'Failed to create post' });
+  }
+});
+
+// Blog: create comment
+app.post('/api/blog/posts/:id/comments', async (req, res) => {
+  try {
+    const { body, email, city, state, captchaToken } = req.body || {};
+    if (!body) return res.status(400).json({ error: 'Comment is required' });
+    const normEmail = normalizeEmail(email);
+    const normCity = normalizeCityState(city);
+    const normState = normalizeCityState(state);
+    if (!normEmail || !normCity || !normState) {
+      return res.status(400).json({ error: 'Email, city, and state are required' });
+    }
+    const captchaResult = await verifyTurnstile(captchaToken, req.ip);
+    if (!captchaResult.success) {
+      return res.status(403).json({ error: 'Captcha verification failed.', details: captchaResult['error-codes'] || captchaResult.error });
+    }
+    const verified = await isEmailVerifiedForBlog(normEmail, normCity, normState);
+    if (!verified) return res.status(403).json({ error: 'Email not verified for commenting' });
+    const postId = req.params.id;
+    const comment = await prisma.blogComment.create({
+      data: {
+        id: uuid(),
+        postId,
+        body: String(body).trim(),
+        authorEmail: normEmail,
+        authorCity: normCity,
+        authorState: normState
+      }
+    });
+    res.json({ ok: true, commentId: comment.id });
+  } catch (err) {
+    console.error('Blog comment failed', err);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
 });
 
 app.get('/api/admin/audit', async (req, res) => {

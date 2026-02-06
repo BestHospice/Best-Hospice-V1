@@ -93,6 +93,42 @@ model ProviderImpression {
   createdAt  DateTime @default(now())
 }
 
+model BlogPost {
+  id          String      @id @default(uuid())
+  title       String
+  body        String
+  authorEmail String
+  authorCity  String
+  authorState String
+  createdAt   DateTime    @default(now())
+  comments    BlogComment[]
+}
+
+model BlogComment {
+  id          String   @id @default(uuid())
+  post        BlogPost @relation(fields: [postId], references: [id])
+  postId      String
+  body        String
+  authorEmail String
+  authorCity  String
+  authorState String
+  createdAt   DateTime @default(now())
+}
+
+model BlogEmailVerification {
+  id          String   @id @default(uuid())
+  email       String
+  city        String
+  state       String
+  code        String
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([email, code])
+  @@index([email, verifiedAt])
+}
+
 model AdminAuditLog {
   id              String     @id @default(uuid())
   adminIdentifier String

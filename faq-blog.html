@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAQ & Blog Posts | Best Hospice</title>
+  <meta name="description" content="Best Hospice FAQs and community blog posts about hospice, palliative, and home care." />
+  <link rel="canonical" href="https://www.besthospice.com/faq-blog.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles-modern.css" />
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1447731666875537');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
+  /></noscript>
+  <!-- End Meta Pixel Code -->
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="brand">
+          <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Best Home Health logo" class="brand-logo">
+        </div>
+        <div class="top-links">
+          <a class="pill ghost-pill" href="index.html">Main Menu</a>
+          <a class="pill ghost-pill" href="locations.html">Locations We Currently Serve</a>
+          <a class="pill ghost-pill" href="provider.html">Provider Signup</a>
+          <a class="pill ghost-pill" href="contact.html">Contact Us</a>
+        </div>
+      </div>
+      <div class="hero-body" style="grid-template-columns:1fr;">
+        <div class="hero-text">
+          <h1>FAQ & Blog Posts</h1>
+          <p class="tagline">Helpful answers and community updates about hospice, palliative, and home care.</p>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="card" style="padding:16px;">
+        <h2>FAQs</h2>
+        <ul class="summary-list bullets">
+          <li><strong>How much does hospice cost?</strong> Medicare typically covers hospice services, and many private plans do as well.</li>
+          <li><strong>Is hospice covered by insurance?</strong> Most patients use Medicare; providers can confirm coverage details for your plan.</li>
+          <li><strong>Hospice vs palliative vs home health?</strong> Hospice is comfort-focused near end of life; palliative supports comfort during treatment; home health focuses on daily living support.</li>
+          <li><strong>How fast can care begin?</strong> Many providers can start services within 24–48 hours after eligibility is confirmed.</li>
+        </ul>
+      </section>
+
+      <section class="card" style="margin-top:16px; padding:16px;">
+        <h2>Blog Posts</h2>
+        <p class="tagline">View public posts below. To create a post or comment, verify your email.</p>
+        <div id="blog-status" class="note" style="margin:8px 0;">Loading posts…</div>
+        <div id="blog-posts" class="blog-posts"></div>
+      </section>
+
+      <section class="card" style="margin-top:16px; padding:16px;">
+        <h2>Verify your email</h2>
+        <div class="form-grid">
+          <div><label for="v-email">Email</label><input id="v-email" class="input-text" type="email" placeholder="you@example.com" /></div>
+          <div><label for="v-city">City</label><input id="v-city" class="input-text" type="text" placeholder="City" /></div>
+          <div><label for="v-state">State</label><input id="v-state" class="input-text" type="text" placeholder="State" /></div>
+        </div>
+        <div style="margin-top:10px;">
+          <div id="turnstile-verify"></div>
+          <button class="button" id="send-code" style="margin-top:10px;">Send verification code</button>
+          <p id="verify-status" class="note"></p>
+        </div>
+        <div style="margin-top:10px;">
+          <label for="v-code" style="font-weight:700;">Verification code</label>
+          <input id="v-code" class="input-text" type="text" placeholder="Enter the 6‑digit code" />
+          <button class="button" id="confirm-code" style="margin-top:10px;">Confirm code</button>
+          <p id="confirm-status" class="note"></p>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:16px; padding:16px;">
+        <h2>Create a post</h2>
+        <div class="form-grid">
+          <div style="grid-column:1/-1;"><label for="post-title">Title</label><input id="post-title" class="input-text" type="text" placeholder="Post title" /></div>
+          <div style="grid-column:1/-1;"><label for="post-body">Post</label><textarea id="post-body" class="input-text" rows="6" placeholder="Write your post..."></textarea></div>
+        </div>
+        <div style="margin-top:10px;">
+          <div id="turnstile-post"></div>
+          <button class="button" id="create-post" style="margin-top:10px;">Create post</button>
+          <p id="post-status" class="note"></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">Best Hospice</div>
+        <div class="footer-meta">Contact: support@besthospice.com • United States</div>
+        <div class="footer-links">
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+          <a href="refund-policy.html">Refund & Cancellation Policy</a>
+          <a href="provider-billing.html">Provider Billing</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    let verified = false;
+    let verifyToken = '';
+    let postToken = '';
+
+    async function loadTurnstile() {
+      const res = await fetch('/api/config/turnstile');
+      const data = await res.json().catch(() => ({}));
+      const siteKey = data.siteKey;
+      if (!siteKey || !window.turnstile) return;
+      window.turnstile.render('#turnstile-verify', {
+        sitekey: siteKey,
+        callback: (token) => { verifyToken = token; }
+      });
+      window.turnstile.render('#turnstile-post', {
+        sitekey: siteKey,
+        callback: (token) => { postToken = token; }
+      });
+    }
+
+    async function fetchPosts() {
+      const statusEl = document.getElementById('blog-status');
+      const container = document.getElementById('blog-posts');
+      try {
+        const res = await fetch('/api/blog/posts');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load posts');
+        const posts = data.posts || [];
+        if (!posts.length) {
+          statusEl.textContent = 'No posts yet. Be the first to share.';
+          container.innerHTML = '';
+          return;
+        }
+        statusEl.textContent = `${posts.length} post${posts.length === 1 ? '' : 's'} published.`;
+        container.innerHTML = posts.map((p) => `
+          <div class="lead-item">
+            <h3 style="margin:0 0 6px;">${escapeHtml(p.title)}</h3>
+            <div class="lead-meta">
+              <div><strong>Posted:</strong> ${new Date(p.createdAt).toLocaleString()}</div>
+              <div><strong>Location:</strong> ${escapeHtml(p.authorCity)}, ${escapeHtml(p.authorState)}</div>
+            </div>
+            <p style="margin-top:8px;">${escapeHtml(p.body)}</p>
+            <div class="lead-meta" style="margin-top:8px;"><strong>Comments:</strong> ${p.commentCount || 0}</div>
+            <div style="margin-top:8px;">
+              <textarea class="input-text" rows="3" placeholder="Write a comment..." data-post-id="${p.id}"></textarea>
+              <button class="button" style="margin-top:8px;" onclick="submitComment('${p.id}')">Comment</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        statusEl.textContent = err.message || 'Failed to load posts.';
+      }
+    }
+
+    function escapeHtml(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    async function sendCode() {
+      const email = document.getElementById('v-email').value.trim();
+      const city = document.getElementById('v-city').value.trim();
+      const state = document.getElementById('v-state').value.trim();
+      const statusEl = document.getElementById('verify-status');
+      statusEl.textContent = '';
+      try {
+        const res = await fetch('/api/blog/verify/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, city, state, captchaToken: verifyToken })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to send code');
+        statusEl.textContent = data.message || 'Code sent.';
+      } catch (err) {
+        statusEl.textContent = err.message || 'Failed to send code.';
+      }
+    }
+
+    async function confirmCode() {
+      const email = document.getElementById('v-email').value.trim();
+      const city = document.getElementById('v-city').value.trim();
+      const state = document.getElementById('v-state').value.trim();
+      const code = document.getElementById('v-code').value.trim();
+      const statusEl = document.getElementById('confirm-status');
+      statusEl.textContent = '';
+      try {
+        const res = await fetch('/api/blog/verify/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, city, state, code })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Verification failed');
+        verified = true;
+        statusEl.textContent = data.message || 'Verified.';
+      } catch (err) {
+        statusEl.textContent = err.message || 'Verification failed.';
+      }
+    }
+
+    async function createPost() {
+      const email = document.getElementById('v-email').value.trim();
+      const city = document.getElementById('v-city').value.trim();
+      const state = document.getElementById('v-state').value.trim();
+      const title = document.getElementById('post-title').value.trim();
+      const body = document.getElementById('post-body').value.trim();
+      const statusEl = document.getElementById('post-status');
+      statusEl.textContent = '';
+      if (!verified) {
+        statusEl.textContent = 'Please verify your email before posting.';
+        return;
+      }
+      try {
+        const res = await fetch('/api/blog/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, body, email, city, state, captchaToken: postToken })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create post');
+        statusEl.textContent = 'Post created.';
+        document.getElementById('post-title').value = '';
+        document.getElementById('post-body').value = '';
+        fetchPosts();
+      } catch (err) {
+        statusEl.textContent = err.message || 'Failed to create post.';
+      }
+    }
+
+    async function submitComment(postId) {
+      const email = document.getElementById('v-email').value.trim();
+      const city = document.getElementById('v-city').value.trim();
+      const state = document.getElementById('v-state').value.trim();
+      const textarea = document.querySelector(`textarea[data-post-id="${postId}"]`);
+      const body = textarea ? textarea.value.trim() : '';
+      if (!verified) {
+        alert('Please verify your email before commenting.');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/blog/posts/${postId}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body, email, city, state, captchaToken: postToken })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to add comment');
+        if (textarea) textarea.value = '';
+        fetchPosts();
+      } catch (err) {
+        alert(err.message || 'Failed to add comment.');
+      }
+    }
+
+    document.getElementById('send-code').addEventListener('click', sendCode);
+    document.getElementById('confirm-code').addEventListener('click', confirmCode);
+    document.getElementById('create-post').addEventListener('click', createPost);
+
+    loadTurnstile();
+    fetchPosts();
+  </script>
+</body>
+</html>
