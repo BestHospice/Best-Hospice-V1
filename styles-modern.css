@@ -257,33 +257,40 @@ a {
 
 .section-title {
   text-align: center;
-  margin-bottom: 2px;
+  margin-bottom: 6px;
 }
 
-.bubble-ring {
+.why-section {
+  margin-top: 8px;
+  padding: 16px 18px;
   display: grid;
-  gap: 2px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  margin-top: 2px;
+  gap: 14px;
 }
-.bubble-card {
+
+.why-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.why-card {
   background: #f8fbff;
-  border: 1px solid rgba(47, 125, 186, 0.15);
-  border-radius: 14px;
-  padding: 6px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 16px;
+  padding: 16px;
   display: grid;
-  gap: 2px;
-  position: relative;
-  min-height: 0;
+  gap: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
-.bubble-card h3,
-.bubble-card h4 {
-  margin: 0 0 4px;
-  text-align: center;
+
+.why-card h3 {
+  margin: 0;
+  font-size: 18px;
 }
-.bubble-card p {
-  margin: 0 0 4px;
-  line-height: 1.35;
+
+.why-card p {
+  margin: 0;
+  line-height: 1.5;
 }
 
 .action-row {
