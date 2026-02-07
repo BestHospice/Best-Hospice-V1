@@ -696,43 +696,43 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
   const providerSchemas = providers.slice(0, 10);
 
   const body = `
-    <section>
-      <h1>${service.name} in ${cityState}: Providers, Cost & Eligibility</h1>
-      <p>${service.direct.replace('{cityState}', cityState)}</p>
+    <section class="card" style="padding:18px;">
+      <h1 style="margin:0 0 8px;">${service.name} in ${cityState}: Providers, Cost & Eligibility</h1>
+      <p class="tagline" style="margin:0 0 10px;">${service.direct.replace('{cityState}', cityState)}</p>
       <div class="direct-answer">
         <strong>Direct answer:</strong> ${service.direct.replace('{cityState}', cityState)}
       </div>
     </section>
-    <section>
-      <h2>${service.name} Providers in ${cityState}</h2>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">${service.name} Providers in ${cityState}</h2>
       ${renderProviderList(providers)}
     </section>
-    <section>
-      <h2>Cost & Coverage</h2>
-      <p>${service.cost.replace('{stateName}', stateName)}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">Cost & Coverage</h2>
+      <p style="margin:0;">${service.cost.replace('{stateName}', stateName)}</p>
     </section>
-    <section>
-      <h2>When to Choose ${service.name}</h2>
-      <p>${service.eligibility}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">When to Choose ${service.name}</h2>
+      <p style="margin:0;">${service.eligibility}</p>
     </section>
-    <section>
-      <h2>Local note for ${cityState}</h2>
-      <p>${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">Local note for ${cityState}</h2>
+      <p style="margin:0;">${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
     </section>
-    <section>
-      <h2>Compare Hospice, Palliative, and Home Care</h2>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Compare Hospice, Palliative, and Home Care</h2>
       ${renderComparisonTable()}
     </section>
-    <section>
-      <h2>FAQs</h2>
-      <ul>${(service.faq || [])
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">FAQs</h2>
+      <ul style="display:grid; gap:8px; margin:0; padding-left:18px;">${(service.faq || [])
         .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
         .join('')}</ul>
     </section>
     ${renderTrustBlock(formatDateISO())}
-    <section>
-      <h3>Explore more</h3>
-      <ul>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h3 style="margin:0 0 8px;">Explore more</h3>
+      <ul style="margin:0; padding-left:18px;">
         ${nearbyCityLinks(city, state)
           .map((l) => `<li><a href="${l.url}">${l.name}</a></li>`)
           .join('')}
@@ -757,39 +757,39 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   const providerSchemas = providers.slice(0, 10);
   const cities = Array.from(new Set(providers.map((p) => p.city))).filter(Boolean).slice(0, 20);
   const body = `
-    <section>
-      <h1>${service.name} in ${stateName}</h1>
-      <p>${service.direct.replace('{cityState}', stateName)}</p>
+    <section class="card" style="padding:18px;">
+      <h1 style="margin:0 0 8px;">${service.name} in ${stateName}</h1>
+      <p class="tagline" style="margin:0;">${service.direct.replace('{cityState}', stateName)}</p>
     </section>
-    <section>
-      <h2>Top Providers in ${stateName}</h2>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Top Providers in ${stateName}</h2>
       ${renderProviderList(providers.slice(0, 20))}
     </section>
-    <section>
-      <h2>Browse cities in ${stateName}</h2>
-      <ul>${cities
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Browse cities in ${stateName}</h2>
+      <ul style="display:grid; gap:6px; margin:0; padding-left:18px;">${cities
         .map((c) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${slugify(c)}-${(state || '').toLowerCase()}">${c}, ${state.toUpperCase()}</a></li>`)
         .join('')}</ul>
     </section>
-    <section>
-      <h2>Cost & Coverage</h2>
-      <p>${service.cost.replace('{stateName}', stateName)}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">Cost & Coverage</h2>
+      <p style="margin:0;">${service.cost.replace('{stateName}', stateName)}</p>
     </section>
-    <section>
-      <h2>When to Choose ${service.name}</h2>
-      <p>${service.eligibility}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">When to Choose ${service.name}</h2>
+      <p style="margin:0;">${service.eligibility}</p>
     </section>
-    <section>
-      <h2>Local note for ${stateName}</h2>
-      <p>${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">Local note for ${stateName}</h2>
+      <p style="margin:0;">${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
     </section>
-    <section>
-      <h2>Compare Hospice, Palliative, and Home Care</h2>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Compare Hospice, Palliative, and Home Care</h2>
       ${renderComparisonTable()}
     </section>
-    <section>
-      <h2>FAQs</h2>
-      <ul>${(service.faq || [])
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">FAQs</h2>
+      <ul style="display:grid; gap:8px; margin:0; padding-left:18px;">${(service.faq || [])
         .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
         .join('')}</ul>
     </section>
