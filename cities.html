@@ -135,9 +135,9 @@
                       <h3 style="margin:0 0 8px;">${stateName}</h3>
                       <div style="display:grid; gap:8px;">
                         ${cities.map((city) => `
-                          <div class="lead-item" style="padding:10px;">
-                            <strong>${city}, ${stateKey.toUpperCase()}</strong>
-                            <div style="margin-top:6px;">
+                          <div class="lead-item" style="padding:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                            <strong style="font-size:18px;">${city}, ${stateKey.toUpperCase()}</strong>
+                            <div style="margin:0;">
                               <a class="pill ghost-pill" href="/${section.key === 'hospice' ? 'hospice-care' : section.key === 'palliative' ? 'palliative-care' : 'home-care'}/${slugify(city)}-${stateKey}">View ${section.title}</a>
                             </div>
                           </div>
