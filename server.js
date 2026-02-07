@@ -159,6 +159,17 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 });
 
 app.use(express.json());
+app.use((req, res, next) => {
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').split(',')[0];
+  const host = req.headers.host;
+  if (host && host.includes('besthospice.com')) {
+    const needsRedirect = host !== CANONICAL_HOST || proto !== CANONICAL_PROTOCOL;
+    if (needsRedirect && (req.method === 'GET' || req.method === 'HEAD')) {
+      return res.redirect(301, `${CANONICAL_DOMAIN}${req.originalUrl}`);
+    }
+  }
+  return next();
+});
 app.use(express.static(__dirname));
 
 // Provider auth helper
@@ -490,6 +501,9 @@ async function logAdminAction(adminIdentifier, action, targetId, metadata, ipHas
 
 // ---------- SEO helper functions ----------
 const CANONICAL_DOMAIN = process.env.DOMAIN || 'https://www.besthospice.com';
+const CANONICAL_URL = new URL(CANONICAL_DOMAIN);
+const CANONICAL_HOST = CANONICAL_URL.host;
+const CANONICAL_PROTOCOL = CANONICAL_URL.protocol.replace(':', '');
 
 function providerSlug(provider) {
   return `${slugify(provider.name || 'provider')}-${(provider.id || '').slice(0, 8)}`;
@@ -651,7 +665,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   </head>
   <body class="seo-page">
-    <header><a href="/index.html">Best Hospice</a></header>
+    <header><a href="/">Best Hospice</a></header>
     <main>${body}</main>
     <footer><p>Best Hospice — connecting families to trusted hospice, palliative, and home care providers.</p></footer>
   </body>
@@ -666,7 +680,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
   const description = `${service.name} options in ${cityState}. Providers, costs, and what to expect.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${slugify(city)}-${(state || '').toLowerCase()}`;
   const breadcrumbItems = [
-    { name: 'Home', url: `${CANONICAL_DOMAIN}/index.html` },
+    { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
     { name: service.name, url: `${CANONICAL_DOMAIN}/${serviceKey}` },
     { name: stateName, url: `${CANONICAL_DOMAIN}/${serviceKey}/${(state || '').toLowerCase()}` },
     { name: cityState, url: canonical }
@@ -728,7 +742,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   const description = `${service.name} options across ${stateName}. Providers, costs, and what to expect.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${(state || '').toLowerCase()}`;
   const breadcrumbItems = [
-    { name: 'Home', url: `${CANONICAL_DOMAIN}/index.html` },
+    { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
     { name: service.name, url: `${CANONICAL_DOMAIN}/${serviceKey}` },
     { name: stateName, url: canonical }
   ];
@@ -777,13 +791,13 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas });
 }
 
-function renderHubPage({ serviceKey }) {
+function renderHubPage({ serviceKey, states = [] }) {
   const service = serviceConfig[serviceKey];
   const title = `${service.name} | How It Works, Eligibility, Costs`;
   const description = `${service.name} basics, costs, and eligibility. Find providers near you.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}`;
   const breadcrumbItems = [
-    { name: 'Home', url: `${CANONICAL_DOMAIN}/index.html` },
+    { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
     { name: service.name, url: canonical }
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
@@ -794,9 +808,11 @@ function renderHubPage({ serviceKey }) {
     </section>
     <section>
       <h2>Find providers by state</h2>
-      <ul>${Object.keys(stateNameMap)
-        .map((s) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${s}">${stateNameMap[s]}</a></li>`)
-        .join('')}</ul>
+      ${states.length
+        ? `<ul>${states
+          .map((s) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${s}">${stateNameMap[s] || s.toUpperCase()}</a></li>`)
+          .join('')}</ul>`
+        : '<p>We are adding coverage in new states. Check back soon.</p>'}
     </section>
     <section>
       <h2>Cost & Coverage</h2>
@@ -829,7 +845,7 @@ function renderProviderPage(provider) {
   const description = `${provider.name} serves ${cityState}. Contact info, address, and services.`;
   const canonical = `${CANONICAL_DOMAIN}/provider/${slug}`;
   const breadcrumbItems = [
-    { name: 'Home', url: `${CANONICAL_DOMAIN}/index.html` },
+    { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
     { name: cityState, url: `${CANONICAL_DOMAIN}/hospice-care/${slugify(provider.city)}-${(provider.state || '').toLowerCase()}` },
     { name: provider.name, url: canonical }
   ];
@@ -2431,7 +2447,15 @@ app.get('/:service(hospice-care|palliative-care|home-care)', async (req, res) =>
   try {
     const { service } = req.params;
     if (!SERVICE_KEYS.includes(service)) return res.status(404).send('Not found');
-    const html = renderHubPage({ serviceKey: service });
+    const providers = await prisma.provider.findMany({ select: { state: true } });
+    const states = Array.from(
+      new Set(
+        providers
+          .map((p) => (p.state || '').toLowerCase())
+          .filter(Boolean)
+      )
+    ).sort();
+    const html = renderHubPage({ serviceKey: service, states });
     res.send(html);
   } catch (err) {
     console.error('Hub page failed', err);
@@ -2456,28 +2480,58 @@ app.get('/provider/:slug', async (req, res) => {
 });
 
 app.get('/sitemap.xml', async (_req, res) => {
-  const serviceUrls = SERVICE_KEYS.map((s) => `${CANONICAL_DOMAIN}/${s}`);
   const locSitemap = `${CANONICAL_DOMAIN}/sitemap-locations.xml`;
   const provSitemap = `${CANONICAL_DOMAIN}/sitemap-providers.xml`;
+  const pagesSitemap = `${CANONICAL_DOMAIN}/sitemap-pages.xml`;
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${[locSitemap, provSitemap].map((u) => `<sitemap><loc>${u}</loc></sitemap>`).join('\n')}
-${serviceUrls.map((u) => `<sitemap><loc>${u}</loc></sitemap>`).join('\n')}
+${[pagesSitemap, locSitemap, provSitemap].map((u) => `<sitemap><loc>${u}</loc></sitemap>`).join('\n')}
 </sitemapindex>`;
+  res.type('text/xml').send(body);
+});
+
+app.get('/sitemap-pages.xml', async (_req, res) => {
+  const pages = [
+    '/',
+    '/contact.html',
+    '/provider.html',
+    '/provider-billing.html',
+    '/locations.html',
+    '/faq-blog.html',
+    '/who-we-are.html',
+    '/are-you-a-provider.html',
+    '/privacy.html',
+    '/terms.html',
+    '/refund-policy.html'
+  ];
+  const serviceHubs = SERVICE_KEYS.map((s) => `/${s}`);
+  const urls = [...pages, ...serviceHubs].map((p) => `${CANONICAL_DOMAIN}${p}`);
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
+</urlset>`;
   res.type('text/xml').send(body);
 });
 
 app.get('/sitemap-locations.xml', async (_req, res) => {
   const providers = await fetchAllProviders();
-  const seen = new Set();
+  const seenCities = new Set();
+  const seenStates = new Set();
   const urls = [];
   for (const p of providers) {
-    if (!p.city || !p.state) continue;
-    const key = `${p.city.toLowerCase()}-${p.state.toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const state = (p.state || '').toLowerCase();
+    if (state && !seenStates.has(state)) {
+      seenStates.add(state);
+      SERVICE_KEYS.forEach((s) => {
+        urls.push(`${CANONICAL_DOMAIN}/${s}/${state}`);
+      });
+    }
+    if (!p.city || !state) continue;
+    const key = `${p.city.toLowerCase()}-${state}`;
+    if (seenCities.has(key)) continue;
+    seenCities.add(key);
     SERVICE_KEYS.forEach((s) => {
-      urls.push(`${CANONICAL_DOMAIN}/${s}/${slugify(p.city)}-${p.state.toLowerCase()}`);
+      urls.push(`${CANONICAL_DOMAIN}/${s}/${slugify(p.city)}-${state}`);
     });
   }
   const body = `<?xml version="1.0" encoding="UTF-8"?>
