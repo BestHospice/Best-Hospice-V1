@@ -215,6 +215,15 @@
         </div>
       </section>
 
+      <section class="card" style="padding:16px; margin-top:14px;">
+        <h3 style="margin:0 0 8px;">Admin Log in</h3>
+        <p class="note" style="margin:0 0 10px;">Enter the Provider Dashboard Token to enable delete controls.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+          <input id="admin-token" class="input-text" type="password" placeholder="Enter admin token" style="flex:1; min-width:220px;" />
+          <button class="button" id="admin-login">Enable Admin Controls</button>
+          <span id="admin-status" class="note"></span>
+        </div>
+      </section>
       
     </main>
 
@@ -236,6 +245,7 @@
     let verified = false;
     let verifyToken = '';
     let postToken = '';
+    let adminToken = '';
 
     async function loadTurnstile() {
       const res = await fetch('/api/config/turnstile');
@@ -276,7 +286,26 @@
               <div><strong>Location:</strong> ${escapeHtml(p.authorCity)}, ${escapeHtml(p.authorState)}</div>
             </div>
             <p style="margin-top:8px;">${escapeHtml(p.body)}</p>
+            ${adminToken ? `<button class="button" style="margin-top:8px; background:#b6252a; border-color:#b6252a;" onclick="deletePost('${p.id}')">Delete post</button>` : ''}
             <div class="lead-meta" style="margin-top:8px;"><strong>Comments:</strong> ${p.commentCount || 0}</div>
+            ${adminToken && (p.comments || []).length
+              ? `<div style="margin-top:8px;">
+                  ${(p.comments || [])
+                    .map(
+                      (c) => `
+                    <div class="lead-item" style="padding:10px; margin:8px 0;">
+                      <div class="lead-meta">
+                        <div><strong>Comment:</strong> ${escapeHtml(c.body)}</div>
+                        <div><strong>Location:</strong> ${escapeHtml(c.authorCity)}, ${escapeHtml(c.authorState)}</div>
+                        <div><strong>Posted:</strong> ${new Date(c.createdAt).toLocaleString()}</div>
+                      </div>
+                      <button class="button" style="margin-top:8px; background:#b6252a; border-color:#b6252a;" onclick="deleteComment('${c.id}')">Delete comment</button>
+                    </div>
+                    `
+                    )
+                    .join('')}
+                </div>`
+              : ''}
             <div style="margin-top:8px;">
               <textarea class="input-text" rows="3" placeholder="Write a comment..." data-post-id="${p.id}"></textarea>
               <button class="button" style="margin-top:8px;" onclick="submitComment('${p.id}')">Comment</button>
@@ -393,9 +422,52 @@
       }
     }
 
+    async function deletePost(postId) {
+      if (!adminToken) return;
+      if (!confirm('Delete this post and all comments?')) return;
+      try {
+        const res = await fetch(`/api/admin/blog/posts/${postId}`, {
+          method: 'DELETE',
+          headers: { 'x-admin-token': adminToken }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to delete post');
+        fetchPosts();
+      } catch (err) {
+        alert(err.message || 'Failed to delete post.');
+      }
+    }
+
+    async function deleteComment(commentId) {
+      if (!adminToken) return;
+      if (!confirm('Delete this comment?')) return;
+      try {
+        const res = await fetch(`/api/admin/blog/comments/${commentId}`, {
+          method: 'DELETE',
+          headers: { 'x-admin-token': adminToken }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to delete comment');
+        fetchPosts();
+      } catch (err) {
+        alert(err.message || 'Failed to delete comment.');
+      }
+    }
+
     document.getElementById('send-code').addEventListener('click', sendCode);
     document.getElementById('confirm-code').addEventListener('click', confirmCode);
     document.getElementById('create-post').addEventListener('click', createPost);
+    document.getElementById('admin-login').addEventListener('click', () => {
+      const token = document.getElementById('admin-token').value.trim();
+      const statusEl = document.getElementById('admin-status');
+      if (!token) {
+        statusEl.textContent = 'Enter a token to enable admin controls.';
+        return;
+      }
+      adminToken = token;
+      statusEl.textContent = 'Admin controls enabled.';
+      fetchPosts();
+    });
 
     document.getElementById('tab-faq').addEventListener('click', () => {
       document.getElementById('tab-faq').classList.add('active');
