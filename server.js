@@ -1446,6 +1446,31 @@ app.post('/api/blog/posts/:id/comments', async (req, res) => {
   }
 });
 
+// Admin: delete blog post (and comments)
+app.delete('/api/admin/blog/posts/:id', async (req, res) => {
+  const token = req.headers['x-admin-token'];
+  const adminIdentifier = token === ADMIN_TOKEN_DASH ? 'dash_token' : token === ADMIN_TOKEN_AUDIT ? 'audit_token' : 'unknown';
+  if (token !== ADMIN_TOKEN_DASH && token !== ADMIN_TOKEN_AUDIT) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const postId = req.params.id;
+  try {
+    const existing = await prisma.blogPost.findUnique({ where: { id: postId } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    await prisma.$transaction([
+      prisma.blogComment.deleteMany({ where: { postId } }),
+      prisma.blogPost.delete({ where: { id: postId } })
+    ]);
+    await logAdminAction(adminIdentifier, 'BLOG_POST_DELETE', postId, { title: existing.title }, hashIp(req.ip || ''));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Admin blog delete failed', err);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
 app.get('/api/admin/audit', async (req, res) => {
   const token = req.headers['x-admin-token'];
   if (token !== ADMIN_TOKEN_AUDIT) {
