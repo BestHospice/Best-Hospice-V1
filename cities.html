@@ -12,14 +12,21 @@
     <div class="page-shell">
       <header class="hero">
         <div class="hero-top">
-          <div class="logo-card">
-            <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Best Home Health logo" />
+          <div class="brand">
+            <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Best Home Health logo" class="brand-logo">
           </div>
-          <div class="hero-actions">
-            <a class="pill ghost-pill" href="index.html">Back to search</a>
+          <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+            <span></span><span></span><span></span>
+          </button>
+          <div class="top-links" id="topLinks">
+            <a class="pill" href="provider.html">Are you a hospice provider? <u>Click here</u> to join BestHospice.com</a>
+            <a class="pill ghost-pill" href="why.html">Who We Are</a>
+            <a class="pill ghost-pill" href="provider-dashboard.html">Provider Dashboard</a>
+            <a class="pill ghost-pill" href="provider-billing.html">Provider Billing</a>
             <a class="pill ghost-pill" href="locations.html">Locations We Currently Serve</a>
-            <a class="pill ghost-pill" href="provider.html">Provider Signup</a>
+            <a class="pill ghost-pill" href="faq-blog.html">FAQ & Blog Posts</a>
             <a class="pill ghost-pill" href="contact.html">Contact Us</a>
+            <a class="pill ghost-pill" href="admin.html">Admin</a>
           </div>
         </div>
         <div class="hero-body" style="grid-template-columns: 1fr;">
@@ -135,6 +142,15 @@
       }
 
       loadCities();
+      (() => {
+        const toggle = document.querySelector('.menu-toggle');
+        const links = document.getElementById('topLinks');
+        if (!toggle || !links) return;
+        toggle.addEventListener('click', () => {
+          const open = links.classList.toggle('open');
+          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      })();
     </script>
   </body>
 </html>
