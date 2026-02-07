@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Browse Cities | Best Hospice</title>
+    <meta name="description" content="Browse cities with active Best Hospice and Home Health providers. Find hospice, palliative, and home care by city." />
+    <link rel="canonical" href="https://www.besthospice.com/cities.html" />
+    <link rel="stylesheet" href="styles-modern.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-top">
+          <div class="logo-card">
+            <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Best Home Health logo" />
+          </div>
+          <div class="hero-actions">
+            <a class="pill ghost-pill" href="index.html">Back to search</a>
+            <a class="pill ghost-pill" href="locations.html">Locations We Currently Serve</a>
+            <a class="pill ghost-pill" href="provider.html">Provider Signup</a>
+            <a class="pill ghost-pill" href="contact.html">Contact Us</a>
+          </div>
+        </div>
+        <div class="hero-body" style="grid-template-columns: 1fr;">
+          <div class="hero-text">
+            <h1>Browse Cities We Serve</h1>
+            <p class="tagline">Find hospice, palliative, and home care options by city and state.</p>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="card" style="padding:18px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+            <div>
+              <h2 style="margin:0 0 4px;">Cities with active providers</h2>
+              <div id="cities-status" class="note">Loading cities…</div>
+            </div>
+            <a class="pill ghost-pill" href="provider.html">Join as a provider</a>
+          </div>
+          <div id="cities-list"></div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div class="footer-inner">
+          <div class="footer-brand">Best Hospice</div>
+          <div class="footer-meta">Contact: support@besthospice.com • United States</div>
+          <div class="footer-links">
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <a href="refund-policy.html">Refund & Cancellation Policy</a>
+            <a href="provider-billing.html">Provider Billing</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      const stateNameMap = {
+        al: 'Alabama', ak: 'Alaska', az: 'Arizona', ar: 'Arkansas', ca: 'California', co: 'Colorado', ct: 'Connecticut',
+        de: 'Delaware', fl: 'Florida', ga: 'Georgia', hi: 'Hawaii', id: 'Idaho', il: 'Illinois', in: 'Indiana', ia: 'Iowa',
+        ks: 'Kansas', ky: 'Kentucky', la: 'Louisiana', me: 'Maine', md: 'Maryland', ma: 'Massachusetts', mi: 'Michigan',
+        mn: 'Minnesota', ms: 'Mississippi', mo: 'Missouri', mt: 'Montana', ne: 'Nebraska', nv: 'Nevada', nh: 'New Hampshire',
+        nj: 'New Jersey', nm: 'New Mexico', ny: 'New York', nc: 'North Carolina', nd: 'North Dakota', oh: 'Ohio', ok: 'Oklahoma',
+        or: 'Oregon', pa: 'Pennsylvania', ri: 'Rhode Island', sc: 'South Carolina', sd: 'South Dakota', tn: 'Tennessee', tx: 'Texas',
+        ut: 'Utah', vt: 'Vermont', va: 'Virginia', wa: 'Washington', wv: 'West Virginia', wi: 'Wisconsin', wy: 'Wyoming'
+      };
+
+      function normalizeState(state) {
+        if (!state) return null;
+        const raw = String(state).trim();
+        if (!raw) return null;
+        const key = raw.toLowerCase();
+        if (stateNameMap[key]) return stateNameMap[key];
+        if (key.length === 2) return key.toUpperCase();
+        return raw.replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+
+      function slugify(value) {
+        return String(value || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+      }
+
+      async function loadCities() {
+        const statusEl = document.getElementById('cities-status');
+        const container = document.getElementById('cities-list');
+        try {
+          const res = await fetch('/api/providers');
+          const data = await res.json();
+          const map = {};
+          data.forEach((p) => {
+            const city = (p.city || '').trim();
+            const state = (p.state || '').trim();
+            if (!city || !state) return;
+            const stateKey = state.toLowerCase();
+            map[stateKey] = map[stateKey] || new Set();
+            map[stateKey].add(city);
+          });
+          const states = Object.keys(map).sort();
+          if (!states.length) {
+            statusEl.textContent = 'No cities available yet.';
+            container.innerHTML = '';
+            return;
+          }
+          statusEl.textContent = `${states.length} state${states.length === 1 ? '' : 's'} with active cities.`;
+          container.innerHTML = states.map((stateKey) => {
+            const cities = Array.from(map[stateKey]).sort((a, b) => a.localeCompare(b));
+            const stateName = normalizeState(stateKey) || stateKey.toUpperCase();
+            return `
+              <div class="card" style="padding:14px; margin:12px 0;">
+                <h3 style="margin:0 0 8px;">${stateName}</h3>
+                <div style="display:grid; gap:8px;">
+                  ${cities.map((city) => `
+                    <div class="lead-item" style="padding:10px;">
+                      <strong>${city}, ${stateKey.toUpperCase()}</strong>
+                      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+                        <a class="pill ghost-pill" href="/hospice-care/${slugify(city)}-${stateKey}">Hospice</a>
+                        <a class="pill ghost-pill" href="/palliative-care/${slugify(city)}-${stateKey}">Palliative</a>
+                        <a class="pill ghost-pill" href="/home-care/${slugify(city)}-${stateKey}">Home Care</a>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          }).join('');
+        } catch (err) {
+          statusEl.textContent = 'Unable to load cities right now.';
+          container.innerHTML = '';
+        }
+      }
+
+      loadCities();
+    </script>
+  </body>
+</html>
