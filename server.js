@@ -809,37 +809,42 @@ function renderHubPage({ serviceKey, states = [] }) {
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
   const body = `
-    <section>
-      <h1>${service.name}</h1>
-      <p>${service.direct.replace('{cityState}', 'your area')}</p>
+    <section class="card" style="padding:18px;">
+      <h1 style="margin:0 0 8px;">${service.name}</h1>
+      <p class="tagline" style="margin:0;">${service.direct.replace('{cityState}', 'your area')}</p>
     </section>
-    <section>
-      <h2>Find providers by state</h2>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Find providers by state</h2>
       ${states.length
-        ? `<ul>${states
-          .map((s) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${s}">${stateNameMap[s] || s.toUpperCase()}</a></li>`)
-          .join('')}</ul>`
-        : '<p>We are adding coverage in new states. Check back soon.</p>'}
+        ? `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;">
+            ${states
+              .map((s) => `<a class="pill ghost-pill" href="${CANONICAL_DOMAIN}/${serviceKey}/${s}">${stateNameMap[s] || s.toUpperCase()}</a>`)
+              .join('')}
+          </div>`
+        : '<p class="note">We are adding coverage in new states. Check back soon.</p>'}
     </section>
-    <section>
-      <h2>Cost & Coverage</h2>
-      <p>${service.cost.replace('{stateName}', 'your state')}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">Cost & Coverage</h2>
+      <p style="margin:0;">${service.cost.replace('{stateName}', 'your state')}</p>
     </section>
-    <section>
-      <h2>When to Choose ${service.name}</h2>
-      <p>${service.eligibility}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">When to Choose ${service.name}</h2>
+      <p style="margin:0;">${service.eligibility}</p>
     </section>
-    <section>
-      <h2>Local note</h2>
-      <p>${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">Local note</h2>
+      <p style="margin:0;">${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
     </section>
-    <section>
-      <h2>FAQs</h2>
-      <ul>${(service.faq || [])
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">FAQs</h2>
+      <ul style="display:grid; gap:8px; margin:0; padding-left:18px;">${(service.faq || [])
         .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
         .join('')}</ul>
     </section>
-    ${renderComparisonTable()}
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Compare Hospice, Palliative, and Home Care</h2>
+      ${renderComparisonTable()}
+    </section>
     ${renderTrustBlock(formatDateISO())}
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [] });
