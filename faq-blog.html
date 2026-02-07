@@ -56,11 +56,11 @@
         <div class="tab-row">
           <button class="tab-button active" id="tab-faq">FAQs</button>
           <button class="tab-button" id="tab-blog">Blog Posts</button>
+          <button class="tab-button" id="tab-post">Post or Comment</button>
         </div>
-        <p class="note" style="margin:8px 0 12px;">Click a question to reveal the answer.</p>
-
         <div id="faq-section">
           <h2>FAQs</h2>
+          <p class="note" style="margin:8px 0 12px;">Click a question to reveal the answer.</p>
 
         <h3 style="margin:12px 0 6px;">For Families</h3>
         <h4 style="margin:10px 0 6px;">Getting Started</h4>
@@ -176,40 +176,46 @@
           <div id="blog-status" class="note" style="margin:8px 0;">Loading posts…</div>
           <div id="blog-posts" class="blog-posts"></div>
         </div>
+        <div id="post-section" class="hidden">
+          <h2>Post or Comment</h2>
+          <p class="tagline">Verify your email to create a post or comment on blog posts.</p>
+
+          <section class="card" style="margin-top:12px; padding:16px;">
+            <h3>Verify your email</h3>
+            <div class="form-grid">
+              <div><label for="v-email">Email</label><input id="v-email" class="input-text" type="email" placeholder="you@example.com" /></div>
+              <div><label for="v-city">City</label><input id="v-city" class="input-text" type="text" placeholder="City" /></div>
+              <div><label for="v-state">State</label><input id="v-state" class="input-text" type="text" placeholder="State" /></div>
+            </div>
+            <div style="margin-top:10px;">
+              <div id="turnstile-verify"></div>
+              <button class="button" id="send-code" style="margin-top:10px;">Send verification code</button>
+              <p id="verify-status" class="note"></p>
+            </div>
+            <div style="margin-top:10px;">
+              <label for="v-code" style="font-weight:700;">Verification code</label>
+              <input id="v-code" class="input-text" type="text" placeholder="Enter the 6‑digit code" />
+              <button class="button" id="confirm-code" style="margin-top:10px;">Confirm code</button>
+              <p id="confirm-status" class="note"></p>
+            </div>
+          </section>
+
+          <section class="card" style="margin-top:12px; padding:16px;">
+            <h3>Create a post</h3>
+            <div class="form-grid">
+              <div style="grid-column:1/-1;"><label for="post-title">Title</label><input id="post-title" class="input-text" type="text" placeholder="Post title" /></div>
+              <div style="grid-column:1/-1;"><label for="post-body">Post</label><textarea id="post-body" class="input-text" rows="6" placeholder="Write your post..."></textarea></div>
+            </div>
+            <div style="margin-top:10px;">
+              <div id="turnstile-post"></div>
+              <button class="button" id="create-post" style="margin-top:10px;">Create post</button>
+              <p id="post-status" class="note"></p>
+            </div>
+          </section>
+        </div>
       </section>
 
-      <section class="card" style="margin-top:16px; padding:16px;">
-        <h2>Verify your email</h2>
-        <div class="form-grid">
-          <div><label for="v-email">Email</label><input id="v-email" class="input-text" type="email" placeholder="you@example.com" /></div>
-          <div><label for="v-city">City</label><input id="v-city" class="input-text" type="text" placeholder="City" /></div>
-          <div><label for="v-state">State</label><input id="v-state" class="input-text" type="text" placeholder="State" /></div>
-        </div>
-        <div style="margin-top:10px;">
-          <div id="turnstile-verify"></div>
-          <button class="button" id="send-code" style="margin-top:10px;">Send verification code</button>
-          <p id="verify-status" class="note"></p>
-        </div>
-        <div style="margin-top:10px;">
-          <label for="v-code" style="font-weight:700;">Verification code</label>
-          <input id="v-code" class="input-text" type="text" placeholder="Enter the 6‑digit code" />
-          <button class="button" id="confirm-code" style="margin-top:10px;">Confirm code</button>
-          <p id="confirm-status" class="note"></p>
-        </div>
-      </section>
-
-      <section class="card" style="margin-top:16px; padding:16px;">
-        <h2>Create a post</h2>
-        <div class="form-grid">
-          <div style="grid-column:1/-1;"><label for="post-title">Title</label><input id="post-title" class="input-text" type="text" placeholder="Post title" /></div>
-          <div style="grid-column:1/-1;"><label for="post-body">Post</label><textarea id="post-body" class="input-text" rows="6" placeholder="Write your post..."></textarea></div>
-        </div>
-        <div style="margin-top:10px;">
-          <div id="turnstile-post"></div>
-          <button class="button" id="create-post" style="margin-top:10px;">Create post</button>
-          <p id="post-status" class="note"></p>
-        </div>
-      </section>
+      
     </main>
 
     <footer class="site-footer">
@@ -394,14 +400,26 @@
     document.getElementById('tab-faq').addEventListener('click', () => {
       document.getElementById('tab-faq').classList.add('active');
       document.getElementById('tab-blog').classList.remove('active');
+      document.getElementById('tab-post').classList.remove('active');
       document.getElementById('faq-section').classList.remove('hidden');
       document.getElementById('blog-section').classList.add('hidden');
+      document.getElementById('post-section').classList.add('hidden');
     });
     document.getElementById('tab-blog').addEventListener('click', () => {
       document.getElementById('tab-blog').classList.add('active');
       document.getElementById('tab-faq').classList.remove('active');
+      document.getElementById('tab-post').classList.remove('active');
       document.getElementById('blog-section').classList.remove('hidden');
       document.getElementById('faq-section').classList.add('hidden');
+      document.getElementById('post-section').classList.add('hidden');
+    });
+    document.getElementById('tab-post').addEventListener('click', () => {
+      document.getElementById('tab-post').classList.add('active');
+      document.getElementById('tab-faq').classList.remove('active');
+      document.getElementById('tab-blog').classList.remove('active');
+      document.getElementById('post-section').classList.remove('hidden');
+      document.getElementById('faq-section').classList.add('hidden');
+      document.getElementById('blog-section').classList.add('hidden');
     });
 
     loadTurnstile();
