@@ -340,7 +340,8 @@ async function finishQuestions() {
       email: p.email,
       phone: p.phone,
       website: p.website,
-      planTier: p.planTier
+      planTier: p.planTier,
+      careType: p.careType
     }));
     if (!centers.length) {
       centers = directoryFallback;
@@ -369,7 +370,8 @@ async function finishQuestions() {
       if (center.website) contactLines.push(`Website: ${websiteAnchor(center.website)}`);
       if (center.email) contactLines.push(`<a href="mailto:${center.email}">${center.email}</a>`);
       const contactBlock = contactLines.length ? `<br>${contactLines.join(' | ')}` : '';
-      const content = `<strong>${center.name}</strong><br>${center.address || 'Address not listed'}${badge ? '<br><em>Partner hospice</em>' : ''}${contactBlock}`;
+      const careLine = center.careType ? `<br><em>${formatCareType(center.careType)}</em>` : '';
+      const content = `<strong>${center.name}</strong><br>${center.address || 'Address not listed'}${careLine}${badge ? '<br><em>Partner provider</em>' : ''}${contactBlock}`;
       marker.bindPopup(content);
 
       const item = document.createElement('li');
@@ -378,6 +380,7 @@ async function finishQuestions() {
       item.innerHTML = `
         <p class="result-title">${index + 1}. ${center.name} ${badge}</p>
         <p class="result-meta">
+          ${center.careType ? `<span>${formatCareType(center.careType)}</span>` : ''}
           <span>${center.address || 'Address not listed'}</span>
           <span>${milesAway}</span>
           ${center.phone ? `<span>Phone: <a href="tel:${center.phone}">${center.phone}</a></span>` : ''}
@@ -638,7 +641,8 @@ function renderSummary(centers, label, nearbyProviders) {
     const ul = document.createElement('ul');
     nearbyProviders.forEach((p) => {
       const li = document.createElement('li');
-      li.textContent = `${p.name} — ${p.email}`;
+      const careLabel = p.careType ? ` (${formatCareType(p.careType)})` : '';
+      li.textContent = `${p.name}${careLabel} — ${p.email}`;
       ul.appendChild(li);
     });
     providerBlock.appendChild(ul);
@@ -782,7 +786,8 @@ async function fetchHospiceCenters(lat, lon, radiusKm) {
     email: p.email,
     phone: p.phone,
     website: p.website,
-    planTier: p.planTier
+    planTier: p.planTier,
+    careType: p.careType
   }));
   centers.push(...directoryHits);
   centers.sort((a, b) => {
@@ -805,6 +810,13 @@ function getPlanBadge(planTier) {
   if (tier === 'featured' || tier === 'growth_plus') return '<span class="badge">⭐⭐ Featured</span>';
   if (tier === 'verified' || tier === 'growth' || tier === 'starter') return '<span class="badge">⭐ Verified</span>';
   return '';
+}
+
+function formatCareType(value) {
+  const type = String(value || '').toLowerCase();
+  if (type === 'palliative' || type === 'palliative-care') return 'Palliative Care';
+  if (type === 'home' || type === 'home-care') return 'Home Care';
+  return 'Hospice Care';
 }
 
 function getPlanRank(planTier) {

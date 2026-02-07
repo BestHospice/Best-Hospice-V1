@@ -98,40 +98,54 @@
         try {
           const res = await fetch('/api/providers');
           const data = await res.json();
-          const map = {};
+          const map = { hospice: {}, palliative: {}, home: {} };
           data.forEach((p) => {
             const city = (p.city || '').trim();
             const state = (p.state || '').trim();
             if (!city || !state) return;
+            const careType = String(p.careType || 'hospice').toLowerCase();
+            const typeKey = careType === 'palliative' ? 'palliative' : careType === 'home' ? 'home' : 'hospice';
             const stateKey = state.toLowerCase();
-            map[stateKey] = map[stateKey] || new Set();
-            map[stateKey].add(city);
+            if (!map[typeKey][stateKey]) map[typeKey][stateKey] = new Set();
+            map[typeKey][stateKey].add(city);
           });
-          const states = Object.keys(map).sort();
-          if (!states.length) {
+          const totalStates = Object.keys(map.hospice).length + Object.keys(map.palliative).length + Object.keys(map.home).length;
+          if (!totalStates) {
             statusEl.textContent = 'No cities available yet.';
             container.innerHTML = '';
             return;
           }
-          statusEl.textContent = `${states.length} state${states.length === 1 ? '' : 's'} with active cities.`;
-          container.innerHTML = states.map((stateKey) => {
-            const cities = Array.from(map[stateKey]).sort((a, b) => a.localeCompare(b));
-            const stateName = normalizeState(stateKey) || stateKey.toUpperCase();
+          statusEl.textContent = 'Browse cities by care type below.';
+          const sections = [
+            { key: 'hospice', title: 'Hospice Care' },
+            { key: 'palliative', title: 'Palliative Care' },
+            { key: 'home', title: 'Home Care' }
+          ];
+          container.innerHTML = sections.map((section) => {
+            const states = Object.keys(map[section.key]).sort();
+            if (!states.length) return '';
             return `
-              <div class="card" style="padding:14px; margin:12px 0;">
-                <h3 style="margin:0 0 8px;">${stateName}</h3>
-                <div style="display:grid; gap:8px;">
-                  ${cities.map((city) => `
-                    <div class="lead-item" style="padding:10px;">
-                      <strong>${city}, ${stateKey.toUpperCase()}</strong>
-                      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
-                        <a class="pill ghost-pill" href="/hospice-care/${slugify(city)}-${stateKey}">Hospice</a>
-                        <a class="pill ghost-pill" href="/palliative-care/${slugify(city)}-${stateKey}">Palliative</a>
-                        <a class="pill ghost-pill" href="/home-care/${slugify(city)}-${stateKey}">Home Care</a>
+              <div class="card" style="padding:16px; margin:12px 0;">
+                <h2 style="margin:0 0 10px;">${section.title}</h2>
+                ${states.map((stateKey) => {
+                  const cities = Array.from(map[section.key][stateKey]).sort((a, b) => a.localeCompare(b));
+                  const stateName = normalizeState(stateKey) || stateKey.toUpperCase();
+                  return `
+                    <div style="margin:12px 0;">
+                      <h3 style="margin:0 0 8px;">${stateName}</h3>
+                      <div style="display:grid; gap:8px;">
+                        ${cities.map((city) => `
+                          <div class="lead-item" style="padding:10px;">
+                            <strong>${city}, ${stateKey.toUpperCase()}</strong>
+                            <div style="margin-top:6px;">
+                              <a class="pill ghost-pill" href="/${section.key === 'hospice' ? 'hospice-care' : section.key === 'palliative' ? 'palliative-care' : 'home-care'}/${slugify(city)}-${stateKey}">View ${section.title}</a>
+                            </div>
+                          </div>
+                        `).join('')}
                       </div>
                     </div>
-                  `).join('')}
-                </div>
+                  `;
+                }).join('')}
               </div>
             `;
           }).join('');

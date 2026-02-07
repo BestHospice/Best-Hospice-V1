@@ -24,6 +24,7 @@ model Provider {
   serviceRadiusKm Float
   featured        Boolean  @default(false)
   planTier        String   @default("verified")
+  careType        String   @default("hospice")
   leadCount       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

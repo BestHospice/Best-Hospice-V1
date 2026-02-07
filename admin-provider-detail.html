@@ -64,6 +64,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         <span><strong>Latitude:</strong> <span id="prov-lat"></span> | <strong>Longitude:</strong> <span id="prov-lon"></span></span>
         <span><strong>Service Radius:</strong> <span id="prov-radius"></span></span>
         <span><strong>Plan Tier:</strong> <span id="prov-plan-tier"></span></span>
+        <span><strong>Care Type:</strong> <span id="prov-care-type"></span></span>
         <span><strong>Leads Best Hospice has provided:</strong> <span id="prov-leads"></span></span>
         <span><strong>Added:</strong> <span id="prov-added"></span></span>
       </div>
@@ -88,6 +89,14 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
               <option value="verified">Verified — $250/mo ⭐</option>
               <option value="featured">Featured — $375/mo ⭐⭐</option>
               <option value="priority">Priority — $500/mo ⭐⭐⭐</option>
+            </select>
+          </div>
+          <div>
+            <label for="f-care-type">Care type</label>
+            <select id="f-care-type">
+              <option value="hospice">Hospice Care</option>
+              <option value="palliative">Palliative Care</option>
+              <option value="home">Home Care</option>
             </select>
           </div>
         </div>
@@ -124,6 +133,13 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       return res.json();
     }
 
+    function prettyCareType(value) {
+      const type = String(value || '').toLowerCase();
+      if (type === 'palliative' || type === 'palliative-care') return 'Palliative Care';
+      if (type === 'home' || type === 'home-care') return 'Home Care';
+      return 'Hospice Care';
+    }
+
     function renderProvider(p) {
       currentProvider = p;
       document.getElementById('prov-name').textContent = p.name || 'Unnamed';
@@ -136,6 +152,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       document.getElementById('prov-lon').textContent = p.lon ?? '—';
       document.getElementById('prov-radius').textContent = p.serviceRadiusKm ? `${(p.serviceRadiusKm / 1.60934).toFixed(1)} mi` : '—';
       document.getElementById('prov-plan-tier').textContent = p.planTier || 'verified';
+      document.getElementById('prov-care-type').textContent = prettyCareType(p.careType);
       document.getElementById('prov-leads').textContent = p.leadCount ?? 0;
       document.getElementById('prov-added').textContent = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
 
@@ -159,6 +176,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       document.getElementById('f-lon').value = p.lon ?? '';
       document.getElementById('f-radius').value = p.serviceRadiusKm ? (p.serviceRadiusKm / 1.60934).toFixed(1) : '';
       document.getElementById('f-plan-tier').value = p.planTier || 'verified';
+      document.getElementById('f-care-type').value = p.careType || 'hospice';
     }
 
     async function unlock() {
@@ -204,7 +222,8 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         lat: document.getElementById('f-lat').value.trim(),
         lon: document.getElementById('f-lon').value.trim(),
         serviceRadiusMiles: document.getElementById('f-radius').value.trim(),
-        planTier: document.getElementById('f-plan-tier').value
+        planTier: document.getElementById('f-plan-tier').value,
+        careType: document.getElementById('f-care-type').value
       };
       try {
         const res = await fetch(`/api/providers/${encodeURIComponent(currentProvider.id)}`, {

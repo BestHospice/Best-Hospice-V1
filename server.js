@@ -38,6 +38,13 @@ const normalizePlanTier = (value) => {
   if (tier === 'growth' || tier === 'starter') return 'verified';
   return 'verified';
 };
+const normalizeCareType = (value) => {
+  const type = String(value || '').trim().toLowerCase();
+  if (type === 'hospice' || type === 'hospice-care') return 'hospice';
+  if (type === 'palliative' || type === 'palliative-care') return 'palliative';
+  if (type === 'home' || type === 'home-care') return 'home';
+  return 'hospice';
+};
 const PROVIDER_MONTHLY_RATE = 250;
 const PLAN_NOTIFY_DELAY_MS = { priority: 0, featured: 60 * 1000, verified: 120 * 1000 };
 const JOB_POLL_MS = 5000;
@@ -888,6 +895,7 @@ app.get('/api/providers', async (_req, res) => {
       serviceRadiusKm: true,
       featured: true,
       planTier: true,
+      careType: true,
       leadCount: true,
       createdAt: true,
       updatedAt: true
@@ -1036,8 +1044,8 @@ app.post('/api/providers', async (req, res) => {
     phone,
     website,
     featured = false,
-    planTier
-    ,
+    planTier,
+    careType,
   } = req.body || {};
   if (!name || !address || !city || !state || !zip || !email) {
     return res.status(400).json({ error: 'Missing required fields (name, address, city, state, zip, email).' });
@@ -1076,7 +1084,8 @@ app.post('/api/providers', async (req, res) => {
         lon: lonVal,
         serviceRadiusKm: radiusKmFromMiles !== undefined ? radiusKmFromMiles : Number(serviceRadiusKm) || 96.6,
         featured: Boolean(featured),
-        planTier: normalizePlanTier(planTier)
+        planTier: normalizePlanTier(planTier),
+        careType: normalizeCareType(careType)
       }
     });
     await logAdminAction(adminIdentifier, 'PROVIDER_ADD', provider.id, { name: provider.name, email: provider.email }, hashIp(req.ip || ''));
@@ -1109,7 +1118,8 @@ app.put('/api/providers/:id', async (req, res) => {
     phone,
     website,
     featured,
-    planTier
+    planTier,
+    careType
   } = req.body || {};
   const data = {};
   if (name !== undefined) data.name = String(name).trim();
@@ -1152,6 +1162,7 @@ app.put('/api/providers/:id', async (req, res) => {
   }
   if (featured !== undefined) data.featured = Boolean(featured);
   if (planTier !== undefined && planTier !== '') data.planTier = normalizePlanTier(planTier);
+  if (careType !== undefined && careType !== '') data.careType = normalizeCareType(careType);
 
   if (!Object.keys(data).length) return res.status(400).json({ error: 'No changes provided' });
   try {
@@ -2519,6 +2530,7 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
     '/provider.html',
     '/provider-billing.html',
     '/locations.html',
+    '/cities.html',
     '/faq-blog.html',
     '/who-we-are.html',
     '/are-you-a-provider.html',

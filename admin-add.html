@@ -154,6 +154,14 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
             <option value="priority">Priority — $500/mo ⭐⭐⭐</option>
           </select>
         </div>
+        <div>
+          <label for="careType">Care type</label>
+          <select id="careType">
+            <option value="hospice" selected>Hospice Care</option>
+            <option value="palliative">Palliative Care</option>
+            <option value="home">Home Care</option>
+          </select>
+        </div>
         <input id="featured" type="hidden" value="true" />
         <div>
           <label for="token-add">Provider Add Token</label>
@@ -189,7 +197,8 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         zip: document.getElementById('zip').value.trim(),
         serviceRadiusMiles: Number(document.getElementById('radius').value) || 60,
         featured: true,
-        planTier: document.getElementById('planTier').value
+        planTier: document.getElementById('planTier').value,
+        careType: document.getElementById('careType').value
       };
       statusEl.textContent = 'Submitting...';
       try {
