@@ -106,8 +106,12 @@
             const careType = String(p.careType || 'hospice').toLowerCase();
             const typeKey = careType === 'palliative' ? 'palliative' : careType === 'home' ? 'home' : 'hospice';
             const stateKey = state.toLowerCase();
-            if (!map[typeKey][stateKey]) map[typeKey][stateKey] = new Set();
-            map[typeKey][stateKey].add(city);
+            if (!map[typeKey][stateKey]) map[typeKey][stateKey] = {};
+            if (!map[typeKey][stateKey][city]) map[typeKey][stateKey][city] = [];
+            map[typeKey][stateKey][city].push({
+              name: p.name || 'Provider',
+              website: (p.website || '').trim()
+            });
           });
           const totalStates = Object.keys(map.hospice).length + Object.keys(map.palliative).length + Object.keys(map.home).length;
           if (!totalStates) {
@@ -128,15 +132,29 @@
               <div class="card" style="padding:16px; margin:12px 0;">
                 <h2 style="margin:0 0 10px;">${section.title}</h2>
                 ${states.map((stateKey) => {
-                  const cities = Array.from(map[section.key][stateKey]).sort((a, b) => a.localeCompare(b));
+                  const cityNames = Object.keys(map[section.key][stateKey]).sort((a, b) => a.localeCompare(b));
                   const stateName = normalizeState(stateKey) || stateKey.toUpperCase();
                   return `
                     <div style="margin:12px 0;">
                       <h3 style="margin:0 0 8px;">${stateName}</h3>
                       <div style="display:grid; gap:8px;">
-                        ${cities.map((city) => `
+                        ${cityNames.map((city) => `
                           <div class="lead-item" style="padding:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                            <strong style="font-size:18px;">${city}, ${stateKey.toUpperCase()}</strong>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                              <strong style="font-size:18px;">${city}, ${stateKey.toUpperCase()}</strong>
+                              <div class="note" style="margin:0;">
+                                ${(map[section.key][stateKey][city] || [])
+                                  .map((prov) => {
+                                    const site = (prov.website || '').trim();
+                                    const name = prov.name || 'Provider';
+                                    if (site) {
+                                      return `${name} — <a href="${site}" target="_blank" rel="noopener">Website</a>`;
+                                    }
+                                    return `${name} — Website not listed`;
+                                  })
+                                  .join('<br>')}
+                              </div>
+                            </div>
                             <div style="margin:0;">
                               <a class="pill ghost-pill" href="/${section.key === 'hospice' ? 'hospice-care' : section.key === 'palliative' ? 'palliative-care' : 'home-care'}/${slugify(city)}-${stateKey}">View ${section.title}</a>
                             </div>
