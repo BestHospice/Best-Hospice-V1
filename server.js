@@ -606,7 +606,7 @@ function renderProviderList(providers) {
         <h3>${p.name}</h3>
         <p>${p.address}</p>
         <p>${p.phone ? `Phone: ${p.phone}` : ''}</p>
-        ${p.website ? `<p><a href="${p.website}" target="_blank" rel="noopener">Website</a></p>` : ''}
+        ${p.website ? `<p><a href="${p.website}" target="_blank" rel="noopener" style="color:#1d4ed8;">Website — click here to see the business home page</a></p>` : ''}
       </div>`
     )
     .join('\n');
