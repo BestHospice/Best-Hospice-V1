@@ -1189,6 +1189,8 @@ app.delete('/api/providers/:id', async (req, res) => {
     const provider = await prisma.provider.findUnique({ where: { id } });
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
     await prisma.$transaction([
+      prisma.providerUser.updateMany({ where: { activeProviderId: id }, data: { activeProviderId: null } }),
+      prisma.providerUserProvider.deleteMany({ where: { providerId: id } }),
       prisma.leadNotification.deleteMany({ where: { providerId: id } }),
       prisma.providerImpression.deleteMany({ where: { providerId: id } }),
       prisma.provider.delete({ where: { id } })
