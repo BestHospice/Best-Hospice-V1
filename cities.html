@@ -144,14 +144,7 @@
                               <strong style="font-size:18px;">${city}, ${stateKey.toUpperCase()}</strong>
                               <div class="note" style="margin:0;">
                                 ${(map[section.key][stateKey][city] || [])
-                                  .map((prov) => {
-                                    const site = (prov.website || '').trim();
-                                    const name = prov.name || 'Provider';
-                                    if (site) {
-                                      return `${name} — <a href="${site}" target="_blank" rel="noopener">Website</a>`;
-                                    }
-                                    return `${name} — Website not listed`;
-                                  })
+                                  .map((prov) => (prov.name || 'Provider'))
                                   .join('<br>')}
                               </div>
                             </div>
