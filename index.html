@@ -107,10 +107,17 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
               <p>Reach out to the hospice or home care service to smoothly solve your needs.</p>
             </div>
           </div>
-          <div class="search compact">
-            <p class="start-title">Start here</p>
-            <p class="start-subtitle">to find care that fits personalized needs</p>
-            <a class="button" href="search.html">Enter your ZIP code</a>
+          <div class="search" style="padding:18px;">
+            <p class="start-title" style="font-size:22px;">Start here</p>
+            <p class="start-subtitle" style="font-size:16px;">Enter your ZIP code to find care nearby</p>
+            <form id="hero-zip-form" class="search" style="margin:10px 0 6px;">
+              <label for="hero-zip" class="label" style="font-size:15px;">ZIP code</label>
+              <div class="input-row" style="gap:10px;">
+                <input id="hero-zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="e.g. 30301" required style="font-size:18px; padding:14px 16px;" />
+                <button type="submit" class="button" style="font-size:18px; padding:14px 18px;">Find Care Now</button>
+              </div>
+              <p class="hint" style="margin-top:8px;">US ZIP codes only for now.</p>
+            </form>
             <div class="trust-cards">
               <div class="trust-card">
                 <span class="trust-dot"></span>
@@ -253,6 +260,21 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     } catch (err) {
       // keep default if request fails
     }
+  })();
+
+  (() => {
+    const form = document.getElementById('hero-zip-form');
+    const input = document.getElementById('hero-zip');
+    if (!form || !input) return;
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const zip = input.value.trim();
+      if (!/^\d{5}$/.test(zip)) {
+        input.focus();
+        return;
+      }
+      window.location.href = `search.html?zip=${encodeURIComponent(zip)}`;
+    });
   })();
 </script>
 </html>

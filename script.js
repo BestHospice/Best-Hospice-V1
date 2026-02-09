@@ -170,6 +170,19 @@ const privacySection = document.getElementById('privacy-section');
 const privacyAck = document.getElementById('privacy-ack');
 const privacyContinue = document.getElementById('privacy-continue');
 
+(() => {
+  if (!zipInput) return;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const zip = (params.get('zip') || '').trim();
+    if (/^\d{5}$/.test(zip)) {
+      zipInput.value = zip;
+    }
+  } catch (err) {
+    // ignore if URL parsing fails
+  }
+})();
+
 async function loadTurnstileSiteKey() {
   try {
     const res = await fetch('/api/config/turnstile');
