@@ -24,7 +24,7 @@ function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, servi
 
   return `
 <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #222;">
-  <p><strong>Best Hospice</strong> is your trusted partner in connecting you with clients in need nearby.</p>
+  <p><strong>Best Hospice and Home Health</strong> is your trusted partner in connecting you with clients in need nearby.</p>
   <p>
     We have identified a client located in <strong>Zip Code ${clientZip}</strong> with the following care request:
   </p>
@@ -55,16 +55,16 @@ function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, servi
   </p>
   <hr />
   <p>
-    We support care that acts quickly at <strong>Best Hospice</strong>.  
+    We support care that acts quickly at <strong>Best Hospice and Home Health</strong>.  
     We encourage you to reach out promptly!
   </p>
   <p>
-    Thank you for being a valued member of <strong>Best Hospice</strong> and for providing compassionate care during life’s most difficult moments.
+    Thank you for being a valued member of <strong>Best Hospice and Home Health</strong> and for providing compassionate care during life’s most difficult moments.
   </p>
   <br />
   <p>
     Have a blessed day,<br />
-    <strong>Best Hospice Team</strong><br />
+    <strong>Best Hospice and Home Health Team</strong><br />
     <a href="mailto:admin@besthospice.com">admin@besthospice.com</a>
   </p>
   <p style="font-style: italic; color: #555;">
@@ -85,7 +85,7 @@ async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDa
   }
   const from = process.env.SENDGRID_FROM_EMAIL;
   const replyTo = process.env.SENDGRID_REPLY_TO || from;
-  const subject = `Best Hospice New Client Notification – Zip Code ${clientZip}`;
+  const subject = `Best Hospice and Home Health New Client Notification – Zip Code ${clientZip}`;
 
   const results = [];
   for (const provider of providers) {
@@ -136,7 +136,7 @@ async function sendGenericEmail(to, subject, html) {
 }
 
 async function sendTestEmail(to) {
-  return sendGenericEmail(to, 'Best Hospice test email', '<p>This is a test email from Best Hospice backend.</p>');
+  return sendGenericEmail(to, 'Best Hospice and Home Health test email', '<p>This is a test email from Best Hospice and Home Health backend.</p>');
 }
 
 module.exports = { sendProviderNotifications, sendTestEmail, sendGenericEmail, emailEnabled };

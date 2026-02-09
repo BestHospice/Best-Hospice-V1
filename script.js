@@ -115,7 +115,7 @@ const questions = [
   {
     id: 'moreDetails',
     title: 'If you have more specific needs or want to allow us to decide what care is best, type your situation below',
-    desc: 'Optional: share anything unique about your situation to better inform Best Hospice providers',
+    desc: 'Optional: share anything unique about your situation to better inform Best Hospice and Home Health providers',
     type: 'textarea'
   },
   {
@@ -679,8 +679,8 @@ function renderSummary(centers, label, nearbyProviders) {
     `Client phone: ${answers.contactPhone || 'Not provided'}`,
     `Other services or notes: ${answers.moreDetails || 'Not provided'}`,
     '',
-    'We support care that acts quickly at Best Hospice. We encourage you to reach out promptly!',
-    'Thank you for being a valued member of Best Hospice and for providing compassionate care during life’s most difficult moments.'
+    'We support care that acts quickly at Best Hospice and Home Health. We encourage you to reach out promptly!',
+    'Thank you for being a valued member of Best Hospice and Home Health and for providing compassionate care during life’s most difficult moments.'
   ];
 
   const toList = nearbyProviders.length ? nearbyProviders.map((p) => p.email).join(',') : '';

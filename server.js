@@ -313,7 +313,7 @@ async function processNotificationJob(job) {
 
   if (smsEnabled() && providerPhone) {
     const smsBody = [
-      `Best Hospice lead (ZIP ${payload.clientZip})`,
+      `Best Hospice and Home Health lead (ZIP ${payload.clientZip})`,
       `Submitted by: ${payload.requestSubmittedBy}`,
       `Care: ${payload.careDaysAndTimes}`,
       `Funding: ${payload.funding || 'Not specified'}`,
@@ -632,7 +632,7 @@ function renderTrustBlock(dateStr) {
   return `
     <section class="trust">
       <h2>Reviewed for clarity</h2>
-      <p>Reviewed by the Best Hospice Clinical Review Team.</p>
+      <p>Reviewed by the Best Hospice and Home Health Clinical Review Team.</p>
       <p>Last updated: ${dateStr}</p>
       <p>Sources: Medicare.gov, CMS, NIH.</p>
     </section>
@@ -675,9 +675,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   </head>
   <body class="seo-page">
-    <header><a href="/">Best Hospice</a></header>
+    <header><a href="/">Best Hospice and Home Health</a></header>
     <main>${body}</main>
-    <footer><p>Best Hospice — connecting families to trusted hospice, palliative, and home care providers.</p></footer>
+    <footer><p>Best Hospice and Home Health — connecting families to trusted hospice, palliative, and home care providers.</p></footer>
   </body>
   </html>`;
 }
@@ -1346,12 +1346,12 @@ app.post('/api/blog/verify/start', async (req, res) => {
     });
     const html = `
       <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111">
-        <p>Your Best Hospice verification code:</p>
+        <p>Your Best Hospice and Home Health verification code:</p>
         <p style="font-size:22px; font-weight:800; letter-spacing:2px;">${code}</p>
         <p>Enter this code to create a blog post or comment. Codes expire in 30 minutes.</p>
       </div>
     `;
-    await sendGenericEmail(normEmail, 'Best Hospice verification code', html);
+    await sendGenericEmail(normEmail, 'Best Hospice and Home Health verification code', html);
     res.json({ ok: true, message: 'Verification code sent.' });
   } catch (err) {
     console.error('Blog verify start failed', err);
@@ -1654,13 +1654,13 @@ app.post('/api/provider-auth/signup-start', async (req, res) => {
     try {
       const html = `
         <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111">
-          <p>You requested access to the Best Hospice Provider Dashboard for <strong>${provider.name}</strong>.</p>
+          <p>You requested access to the Best Hospice and Home Health Provider Dashboard for <strong>${provider.name}</strong>.</p>
           <p>Please copy this one-time code and paste it in the dashboard to finish creating your password:</p>
           <p style="font-size:22px; font-weight:800; letter-spacing:2px;">${code}</p>
           <p>Open: <a href="${DASHBOARD_VERIFY_URL}">${DASHBOARD_VERIFY_URL}</a> and use the code above. Codes expire in 48 hours.</p>
         </div>
       `;
-      await sendGenericEmail(normEmail, 'Finish setting up your Best Hospice dashboard', html);
+      await sendGenericEmail(normEmail, 'Finish setting up your Best Hospice and Home Health dashboard', html);
     } catch (err) {
       console.error('Send invite email failed', err);
       return res.status(500).json({ error: 'Failed to send signup email.' });
@@ -2097,7 +2097,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
   if (maybePhi(text)) {
     return res.json({
-      reply: 'Please don’t share private medical details here. Best Hospice helps connect you with licensed providers who can collect that information securely.',
+      reply: 'Please don’t share private medical details here. Best Hospice and Home Health helps connect you with licensed providers who can collect that information securely.',
       navigateTo: navigation.home
     });
   }
@@ -2111,7 +2111,7 @@ app.post('/api/ai/chat', async (req, res) => {
       '• Home care (non-hospice): Focuses on help with daily living at home (bathing/dressing help, meals, light household tasks, companionship) rather than medical end-of-life care.\n' +
       'In simple terms: Hospice focuses on comfort near end of life; palliative care focuses on comfort at any stage; home care focuses on daily living support.';
     if (lower.includes('which') || lower.includes('do i need')) {
-      reply += '\nChoosing the right type of care is something a licensed provider should help with. Best Hospice can connect you with providers who can guide that decision.';
+      reply += '\nChoosing the right type of care is something a licensed provider should help with. Best Hospice and Home Health can connect you with providers who can guide that decision.';
     }
     reply += '\nIf you’d like, I can help you start finding providers near you.';
     return res.json({ reply, navigateTo: null });
@@ -2177,7 +2177,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (lower.includes('cost') || lower.includes('price') || lower.includes('free')) {
       return res.json({
-        reply: 'Best Hospice is free for families. Providers pay to participate; families can search, answer a few guided questions, and contact providers at no cost.',
+        reply: 'Best Hospice and Home Health is free for families. Providers pay to participate; families can search, answer a few guided questions, and contact providers at no cost.',
         navigateTo: navigation.home
       });
     }
@@ -2202,7 +2202,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (lower.includes('best hospice') || lower.includes('what is this website') || lower.includes('who are you')) {
       return res.json({
-        reply: 'Best Hospice connects families to nearby licensed hospice providers. Enter your ZIP and answer a few guided questions; we match you to providers within about 60 miles and alert them so they can reach out quickly. Families are not charged for using the site.',
+        reply: 'Best Hospice and Home Health connects families to nearby licensed hospice providers. Enter your ZIP and answer a few guided questions; we match you to providers within about 60 miles and alert them so they can reach out quickly. Families are not charged for using the site.',
         navigateTo: navigation.home
       });
     }
@@ -2250,13 +2250,13 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (lower.includes('legit') || lower.includes('real hospice') || lower.includes('make money') || lower.includes('how do you make money')) {
       return res.json({
-        reply: 'Providers on Best Hospice are real hospice agencies. Best Hospice is a referral platform—providers pay to participate, and families are not charged.',
+        reply: 'Providers on Best Hospice and Home Health are real hospice agencies. Best Hospice and Home Health is a referral platform—providers pay to participate, and families are not charged.',
         navigateTo: navigation.home
       });
     }
 
     return res.json({
-      reply: 'I can explain hospice, palliative, or home care, how Best Hospice works, or guide you to start the questionnaire. Would you like to learn more, or begin finding providers?',
+      reply: 'I can explain hospice, palliative, or home care, how Best Hospice and Home Health works, or guide you to start the questionnaire. Would you like to learn more, or begin finding providers?',
       navigateTo: navigation.home
     });
   }
@@ -2286,14 +2286,14 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (lower.includes('best hospice') || lower.includes('how does this help')) {
       return res.json({
-        reply: 'Best Hospice connects families who submit care requests with providers in their area. We alert providers promptly so you can respond fast, and your dashboard shows your performance.',
+        reply: 'Best Hospice and Home Health connects families who submit care requests with providers in their area. We alert providers promptly so you can respond fast, and your dashboard shows your performance.',
         navigateTo: navigation.providerLogin
       });
     }
 
     if (lower.includes('cost') || lower.includes('pricing') || lower.includes('contract') || lower.includes('price')) {
       return res.json({
-        reply: 'Best Hospice is subscription-based for providers (no long-term lock-in). You can sign up and manage billing in your Provider Dashboard.',
+        reply: 'Best Hospice and Home Health is subscription-based for providers (no long-term lock-in). You can sign up and manage billing in your Provider Dashboard.',
         navigateTo: navigation.providerLogin
       });
     }
@@ -2333,7 +2333,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (lower.includes('best hospice')) {
       return res.json({
-        reply: 'Best Hospice connects families to nearby hospice providers quickly. Families enter a ZIP, answer guided questions, and we alert providers so they can respond fast. Your dashboard shows leads, performance, and billing.',
+        reply: 'Best Hospice and Home Health connects families to nearby hospice providers quickly. Families enter a ZIP, answer guided questions, and we alert providers so they can respond fast. Your dashboard shows leads, performance, and billing.',
         navigateTo: navigation.providerHome
       });
     }
@@ -2359,7 +2359,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (lower.includes('how much') && lower.includes('made')) {
       return res.json({
-        reply: 'Do you want (1) lead counts, (2) how much you’ve paid Best Hospice, or (3) estimated revenue from leads?',
+        reply: 'Do you want (1) lead counts, (2) how much you’ve paid Best Hospice and Home Health, or (3) estimated revenue from leads?',
         navigateTo: navigation.providerHome
       });
     }
@@ -2615,7 +2615,7 @@ Sitemap: ${CANONICAL_DOMAIN}/sitemap.xml
 });
 
 app.listen(PORT, () => {
-  console.log(`Best Hospice server running on http://localhost:${PORT}`);
+  console.log(`Best Hospice and Home Health server running on http://localhost:${PORT}`);
   if (!EMAIL_ENABLED) {
     console.log('Email not configured: set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (optional: SENDGRID_REPLY_TO)');
   }
