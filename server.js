@@ -588,10 +588,13 @@ function renderProviderSchema(provider) {
 
 function nearbyCityLinks(city, state) {
   if (!city || !state) return [];
+  const cityName = slugify(city);
+  const stateCode = state.toLowerCase();
   return [
     { name: `More providers in ${state.toUpperCase()}`, url: `${CANONICAL_DOMAIN}/hospice-care/${state.toLowerCase()}` },
     { name: `Palliative care in ${city}, ${state.toUpperCase()}`, url: `${CANONICAL_DOMAIN}/palliative-care/${slugify(city)}-${state.toLowerCase()}` },
-    { name: `Home care in ${city}, ${state.toUpperCase()}`, url: `${CANONICAL_DOMAIN}/home-care/${slugify(city)}-${state.toLowerCase()}` }
+    { name: `Home care in ${city}, ${state.toUpperCase()}`, url: `${CANONICAL_DOMAIN}/home-care/${cityName}-${stateCode}` },
+    { name: `Browse cities in ${state.toUpperCase()}`, url: `${CANONICAL_DOMAIN}/cities.html` }
   ];
 }
 
@@ -683,6 +686,11 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
   const service = serviceConfig[serviceKey];
   const cityState = cityStateString(city, state);
   const stateName = stateNameMap[(state || '').toLowerCase()] || (state || '').toUpperCase();
+  const providerCount = providers.length;
+  const providerLine = providerCount
+    ? `We currently list ${providerCount} ${providerCount === 1 ? 'provider' : 'providers'} in ${cityState}.`
+    : `We are actively expanding coverage in ${cityState}.`;
+  const localResources = `Local resources in ${cityState} often include hospital care coordinators, Medicare counseling, and caregiver support groups. Providers can guide you to the right local options.`;
   const title = `${service.name} in ${cityState} | Providers, Cost & Eligibility`;
   const description = `${service.name} options in ${cityState}. Providers, costs, and what to expect.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${slugify(city)}-${(state || '').toLowerCase()}`;
@@ -702,6 +710,11 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
       <div class="direct-answer">
         <strong>Direct answer:</strong> ${service.direct.replace('{cityState}', cityState)}
       </div>
+    </section>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">Local overview</h2>
+      <p style="margin:0 0 8px;">${providerLine}</p>
+      <p style="margin:0;">${localResources}</p>
     </section>
     <section class="card" style="padding:18px; margin-top:14px;">
       <h2 style="margin:0 0 10px;">${service.name} Providers in ${cityState}</h2>
