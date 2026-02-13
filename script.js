@@ -113,10 +113,17 @@ const questions = [
     ]
   },
   {
-    id: 'moreDetails',
-    title: 'If you have more specific needs or want to allow us to decide what care is best, type your situation below',
-    desc: 'Optional: share anything unique about your situation to better inform Best Hospice and Home Health providers',
-    type: 'textarea'
+    id: 'careType',
+    title: 'What type of care are you looking for?',
+    desc: 'Select all that apply',
+    type: 'checklist',
+    groups: [
+      {
+        title: 'Care type',
+        subtitle: 'Choose one or more options',
+        items: ['Hospice Care', 'Home Care', 'Palliative Care', 'Not sure']
+      }
+    ]
   },
   {
     id: 'contactEmail',
