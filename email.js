@@ -11,6 +11,13 @@ function initSendGrid() {
 }
 
 function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, services, funding, otherDetails, clientEmail, clientPhone, clientName }) {
+  const prettySubmittedBy = (() => {
+    const value = String(requestSubmittedBy || '').trim();
+    if (value === 'TheClient') return 'The client';
+    if (value === 'A_Loved_One') return 'Loved one';
+    if (value === 'Other') return 'Other';
+    return value || 'Not specified';
+  })();
   const servicesList = Array.isArray(services) && services.length
     ? services.map((s) => `<li>${s}</li>`).join('')
     : '<li>Not specified</li>';
@@ -30,7 +37,7 @@ function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, servi
   </p>
   <hr />
   <p>
-    <strong>Request Submitted By:</strong> ${requestSubmittedBy}
+    <strong>Request Submitted By:</strong> ${prettySubmittedBy}
   </p>
   <p>
     <strong>Care Schedule Needed:</strong> ${careDaysAndTimes}
