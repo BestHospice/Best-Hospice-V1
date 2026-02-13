@@ -75,6 +75,9 @@ function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, servi
     This message was sent via BestHospice.com as part of a care-coordination referral.  
     Please handle all client information in accordance with applicable privacy and professional standards.
   </p>
+  <p style="font-size: 12px; color: #777;">
+    This message contains confidential referral information.
+  </p>
 </div>
 `;
 }
