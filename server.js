@@ -967,7 +967,12 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
 function renderHubPage({ serviceKey, states = [] }) {
   const service = serviceConfig[serviceKey];
   const longGuide = HUB_LONGFORM_CONTENT[serviceKey];
-  const title = `${service.name}: Guide, Eligibility, Costs & Providers`;
+  const titleMap = {
+    'hospice-care': 'Find Verified Hospice Care Providers Near You | Best Hospice',
+    'palliative-care': 'Find Verified Palliative Care Providers | Best Hospice',
+    'home-care': 'Find Verified Home Care Providers Near You | Best Hospice'
+  };
+  const title = titleMap[serviceKey] || `${service.name}: Guide, Eligibility, Costs & Providers`;
   const description = `Comprehensive ${service.name.toLowerCase()} guide covering who needs it, Medicare coverage, costs, and how to choose providers near you.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}`;
   const breadcrumbItems = [
@@ -2825,13 +2830,17 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
   ];
   const cityDir = path.join(__dirname, 'cities');
   const blogDir = path.join(__dirname, 'blog');
+  const stateDir = path.join(__dirname, 'states');
   const cityPages = fs.existsSync(cityDir)
     ? fs.readdirSync(cityDir).filter((name) => name.endsWith('.html')).map((name) => `/cities/${name}`)
     : [];
   const blogPages = fs.existsSync(blogDir)
     ? fs.readdirSync(blogDir).filter((name) => name.endsWith('.html')).map((name) => `/blog/${name}`)
     : [];
-  const urls = [...pages, ...serviceHubs, ...guides, ...cityPages, ...blogPages].map((p) => `${CANONICAL_DOMAIN}${p}`);
+  const statePages = fs.existsSync(stateDir)
+    ? fs.readdirSync(stateDir).filter((name) => name.endsWith('.html')).map((name) => `/states/${name}`)
+    : [];
+  const urls = [...pages, ...serviceHubs, ...guides, ...statePages, ...cityPages, ...blogPages].map((p) => `${CANONICAL_DOMAIN}${p}`);
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}

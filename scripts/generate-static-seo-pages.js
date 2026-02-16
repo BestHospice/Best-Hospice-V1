@@ -34,11 +34,13 @@ function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
-function formatCareType(careType) {
-  const v = String(careType || '').toLowerCase();
-  if (v === 'palliative') return 'Palliative Care';
-  if (v === 'home') return 'Home Care';
-  return 'Hospice Care';
+function normalizeState(state) {
+  const raw = String(state || '').trim();
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  if (STATE_NAMES[lower]) return STATE_NAMES[lower];
+  if (raw.length === 2 && STATE_NAMES[raw.toLowerCase()]) return STATE_NAMES[raw.toLowerCase()];
+  return raw.replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
 function normalizeCareTypeKey(careType) {
@@ -48,13 +50,14 @@ function normalizeCareTypeKey(careType) {
   return 'hospice';
 }
 
-function normalizeState(state) {
-  const raw = String(state || '').trim();
-  if (!raw) return '';
-  const lower = raw.toLowerCase();
-  if (STATE_NAMES[lower]) return STATE_NAMES[lower];
-  if (raw.length === 2 && STATE_NAMES[raw.toLowerCase()]) return STATE_NAMES[raw.toLowerCase()];
-  return raw.replace(/\b\w/g, (m) => m.toUpperCase());
+function formatCareType(careType) {
+  if (careType === 'palliative') return 'Palliative Care';
+  if (careType === 'home') return 'Home Care';
+  return 'Hospice Care';
+}
+
+function stateSort(a, b) {
+  return a.localeCompare(b, 'en', { sensitivity: 'base' });
 }
 
 function navHtml() {
@@ -115,7 +118,7 @@ function menuScript() {
   `;
 }
 
-function baseLayout({ title, metaDescription, canonicalPath, heroTitle, heroTagline, bodyHtml }) {
+function baseLayout({ title, metaDescription, canonicalPath, heroTitle, heroTagline, bodyHtml, extraHead = '' }) {
   const canonical = `${CANONICAL_DOMAIN}${canonicalPath}`;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -126,6 +129,7 @@ function baseLayout({ title, metaDescription, canonicalPath, heroTitle, heroTagl
   <meta name="description" content="${esc(metaDescription)}" />
   <link rel="canonical" href="${esc(canonical)}" />
   <link rel="stylesheet" href="/styles-modern.css" />
+  ${extraHead}
 </head>
 <body>
   <div class="page-shell">
@@ -139,9 +143,7 @@ function baseLayout({ title, metaDescription, canonicalPath, heroTitle, heroTagl
       </div>
     </header>
 
-    <main>
-      ${bodyHtml}
-    </main>
+    <main>${bodyHtml}</main>
 
     ${footerHtml()}
   </div>
@@ -150,14 +152,55 @@ function baseLayout({ title, metaDescription, canonicalPath, heroTitle, heroTagl
 </html>`;
 }
 
-function stateSort(a, b) {
-  return a.localeCompare(b, 'en', { sensitivity: 'base' });
+function breadcrumbSchema(items) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      name: item.name,
+      item: `${CANONICAL_DOMAIN}${item.url}`
+    }))
+  };
 }
 
-async function generateCityPages() {
+function cityFaqSchema(city, state) {
+  const qs = [
+    {
+      q: `How much does hospice cost in ${state}?`,
+      a: `Hospice in ${state} is often covered by Medicare when eligibility criteria are met. Costs for home care and palliative care can vary by service type and insurance plan.`
+    },
+    {
+      q: `What does Medicare cover for hospice in ${city}?`,
+      a: 'Medicare typically covers core hospice services such as nursing support, comfort medications related to the terminal diagnosis, and medical equipment when patients qualify.'
+    },
+    {
+      q: `How do I know if a provider in ${city} is legitimate?`,
+      a: 'Verify state licensing, Medicare certification where applicable, service area fit, and response reliability. Ask each provider to confirm credentials and accepted payers.'
+    },
+    {
+      q: `Can I switch hospice providers in ${state}?`,
+      a: 'Yes. Families can generally change providers if the current fit is not meeting care expectations.'
+    }
+  ];
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: qs.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a }
+    }))
+  };
+}
+
+async function generateStaticPages() {
   const cityOutputDir = path.join(ROOT, 'cities');
+  const stateOutputDir = path.join(ROOT, 'states');
   const blogOutputDir = path.join(ROOT, 'blog');
   await fs.mkdir(cityOutputDir, { recursive: true });
+  await fs.mkdir(stateOutputDir, { recursive: true });
   await fs.mkdir(blogOutputDir, { recursive: true });
 
   const providers = await prisma.provider.findMany({
@@ -182,30 +225,45 @@ async function generateCityPages() {
       }
     }
   } catch (_err) {
-    // Older schemas/clients may not have careType; fall back to hospice.
+    // Use hospice fallback if column/model is unavailable.
   }
 
   const cityMap = new Map();
+  const stateMap = new Map();
   for (const p of providers) {
     const city = String(p.city || '').trim();
-    const stateRaw = String(p.state || '').trim();
-    if (!city || !stateRaw) continue;
+    const stateName = normalizeState(p.state || '');
+    if (!city || !stateName) continue;
+    const careType = careTypeByProviderId.get(String(p.id)) || 'hospice';
 
-    const state = normalizeState(stateRaw);
-    const cityKey = `${city.toLowerCase()}|${state.toLowerCase()}`;
+    const cityKey = `${city.toLowerCase()}|${stateName.toLowerCase()}`;
     if (!cityMap.has(cityKey)) {
-      const filename = `${slugify(city)}-${slugify(state)}.html`;
       cityMap.set(cityKey, {
         city,
-        state,
-        filename,
+        state: stateName,
+        filename: `${slugify(city)}-${slugify(stateName)}.html`,
         providers: [],
         careTypes: new Set()
       });
     }
-    const careType = careTypeByProviderId.get(String(p.id)) || 'hospice';
-    cityMap.get(cityKey).providers.push({ ...p, careType });
-    cityMap.get(cityKey).careTypes.add(careType);
+    const cityRecord = cityMap.get(cityKey);
+    cityRecord.providers.push({ ...p, careType });
+    cityRecord.careTypes.add(careType);
+
+    const stateKey = stateName.toLowerCase();
+    if (!stateMap.has(stateKey)) {
+      stateMap.set(stateKey, {
+        state: stateName,
+        filename: `${slugify(stateName)}.html`,
+        cities: new Map(),
+        providers: []
+      });
+    }
+    const stateRecord = stateMap.get(stateKey);
+    stateRecord.providers.push({ ...p, careType, city });
+    if (!stateRecord.cities.has(city.toLowerCase())) {
+      stateRecord.cities.set(city.toLowerCase(), cityRecord.filename);
+    }
   }
 
   const cities = Array.from(cityMap.values()).sort((a, b) => {
@@ -214,19 +272,25 @@ async function generateCityPages() {
     return stateSort(a.city, b.city);
   });
 
+  const stateList = Array.from(stateMap.values()).sort((a, b) => stateSort(a.state, b.state));
+
   for (const cityData of cities) {
     const cityTitle = `${cityData.city}, ${cityData.state}`;
+    const stateRecord = stateMap.get(cityData.state.toLowerCase());
+    const stateFile = stateRecord ? stateRecord.filename : `${slugify(cityData.state)}.html`;
+    const relatedCities = cities
+      .filter((c) => c.state === cityData.state && c.city !== cityData.city)
+      .slice(0, 5);
+
     const providerListHtml = cityData.providers
       .map((p) => {
-        const websiteBlock = p.website
-          ? `<p><a href="${esc(p.website)}" target="_blank" rel="noopener">Website</a></p>`
-          : '';
+        const websiteBlock = p.website ? `<p><a href="${esc(p.website)}" target="_blank" rel="noopener">Website - click here</a></p>` : '';
         const phoneBlock = p.phone ? `<p>Phone: ${esc(p.phone)}</p>` : '';
         return `
           <article class="lead-item" style="padding:16px; margin-bottom:10px;">
             <h3 style="margin:0 0 6px;">${esc(p.name)}</h3>
-            <p style="margin:0 0 6px;"><strong>Care Type:</strong> ${esc(formatCareType(p.careType || 'hospice'))}</p>
-            <p style="margin:0 0 6px;">${esc(p.address)}</p>
+            <p style="margin:0 0 6px;"><strong>Care Type:</strong> ${esc(formatCareType(p.careType))}</p>
+            <p style="margin:0 0 6px;">${esc(p.address || `${cityData.city}, ${cityData.state}`)}</p>
             ${phoneBlock}
             ${websiteBlock}
           </article>
@@ -234,10 +298,31 @@ async function generateCityPages() {
       })
       .join('\n');
 
+    const breadcrumbs = [
+      { name: 'Home', url: '/' },
+      { name: 'Browse Cities', url: '/cities.html' },
+      { name: cityData.state, url: `/states/${stateFile}` },
+      { name: cityData.city, url: `/cities/${cityData.filename}` }
+    ];
+
+    const breadcrumbHtml = `<nav aria-label="Breadcrumb" style="margin:0 0 12px;"><a href="/">Home</a> &gt; <a href="/cities.html">Browse Cities</a> &gt; <a href="/states/${stateFile}">${esc(cityData.state)}</a> &gt; <span>${esc(cityData.city)}</span></nav>`;
+
     const body = `
       <section class="card" style="padding:18px;">
-        <h2 style="margin:0 0 8px;">Find Local Providers</h2>
-        <p style="margin:0;">Families in ${esc(cityTitle)} can compare verified hospice, palliative, and home care providers below. Contact providers directly and choose the best fit for your needs.</p>
+        ${breadcrumbHtml}
+        <p style="margin:0 0 10px;">Finding hospice care in ${esc(cityData.city)} can feel overwhelming when families need answers quickly. Best Hospice and Home Health helps families compare verified providers in one place, with no cost or obligation. Our platform is designed to reduce confusion by showing local agencies that serve ${esc(cityData.city)} and nearby communities. We verify core provider details, including service coverage and contact information, so families can focus on fit and responsiveness. If your loved one needs hospice, palliative, or home care, the list below gives you a direct path to providers in ${esc(cityData.city)}. Families can contact multiple agencies, compare availability, and choose the provider that best matches clinical needs, insurance, and communication preferences.</p>
+      </section>
+
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 8px;">Understanding Hospice and Home Care in ${esc(cityData.city)}</h2>
+        <p style="margin:0 0 10px;">Hospice care supports patients and families when comfort becomes the primary goal of care. Services often include nursing support, symptom management, caregiver guidance, and emotional support. Home care generally helps with daily living needs at home, while palliative care can support symptom relief at any stage of serious illness. Together, these services help families keep loved ones safe, comfortable, and supported in familiar surroundings.</p>
+        <p style="margin:0;">Coverage depends on service type and payer. In ${esc(cityData.state)}, Medicare may cover hospice when eligibility criteria are met, and other services may be covered through Medicaid or private insurance depending on plan terms. The providers below serve ${esc(cityData.city)} and surrounding areas and can help confirm eligibility and expected costs.</p>
+      </section>
+
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 8px;">How to Choose a Provider in ${esc(cityData.city)}</h2>
+        <p style="margin:0 0 10px;">When comparing providers, ask how quickly intake can begin, what support is available after hours, and whether they routinely serve your neighborhood. Verification matters: families should confirm licensing, Medicare certification when relevant, and payer acceptance before enrollment. Strong providers communicate clearly, set realistic expectations, and respond quickly when needs change.</p>
+        <p style="margin:0;">Review provider reputation, ask direct questions about care approach, and compare more than one agency whenever possible. The right provider is the one that combines clinical fit with clear communication and reliable follow-through.</p>
       </section>
 
       <section class="card" style="padding:18px; margin-top:14px;">
@@ -246,87 +331,121 @@ async function generateCityPages() {
       </section>
 
       <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 8px;">Cost and Coverage in ${esc(cityTitle)}</h2>
-        <p style="margin:0 0 8px;">Coverage varies by care type and insurance. Hospice is often covered by Medicare when eligibility is met, palliative care may be billed under standard medical benefits, and many non-medical home care services are private-pay.</p>
-        <p style="margin:0;">Ask each provider to confirm accepted insurance and estimated out-of-pocket costs before starting services.</p>
-      </section>
-
-      <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 8px;">How to Choose the Right Provider</h2>
-        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">
-          <li>Compare response speed and intake availability.</li>
-          <li>Confirm exact service coverage in and around ${esc(cityTitle)}.</li>
-          <li>Ask about after-hours support and care coordination.</li>
-          <li>Verify licensing, care experience, and accepted payers.</li>
-        </ul>
-      </section>
-
-      <section class="card" style="padding:18px; margin-top:14px;">
         <h2 style="margin:0 0 8px;">Frequently Asked Questions</h2>
-        <p style="margin:0 0 8px;"><strong>How quickly can care start in ${esc(cityTitle)}?</strong><br>Many agencies can begin intake within 24-48 hours depending on eligibility and scheduling.</p>
-        <p style="margin:0 0 8px;"><strong>Can families contact multiple providers?</strong><br>Yes. Comparing providers is recommended so families can choose the best fit.</p>
-        <p style="margin:0;"><strong>Is this service free for families?</strong><br>Yes. Best Hospice and Home Health is free for families to use.</p>
+        <p style="margin:0 0 8px;"><strong>How much does hospice cost in ${esc(cityData.state)}?</strong><br>Hospice is often covered by Medicare when eligibility criteria are met; additional costs depend on care setting and payer details.</p>
+        <p style="margin:0 0 8px;"><strong>What does Medicare cover for hospice in ${esc(cityData.city)}?</strong><br>Medicare generally covers core hospice services such as nursing care, comfort medications tied to terminal diagnosis, and medical equipment.</p>
+        <p style="margin:0 0 8px;"><strong>How do I know if a provider in ${esc(cityData.city)} is legitimate?</strong><br>Verify licensing, coverage area, response reliability, and accepted insurance before enrolling.</p>
+        <p style="margin:0;"><strong>Can I switch hospice providers in ${esc(cityData.state)}?</strong><br>Yes, families can generally switch providers if care fit is not meeting expectations.</p>
       </section>
 
       <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 8px;">Explore More</h2>
-        <div style="display:flex; flex-wrap:wrap; gap:8px;">
-          <a class="pill ghost-pill" href="/hospice-care">Hospice Care</a>
-          <a class="pill ghost-pill" href="/palliative-care">Palliative Care</a>
-          <a class="pill ghost-pill" href="/home-care">Home Care</a>
-          <a class="pill ghost-pill" href="/cities.html">Browse All Cities</a>
-        </div>
+        <h2 style="margin:0 0 8px;">Related Cities in ${esc(cityData.state)}</h2>
+        <ul style="margin:0 0 10px; padding-left:18px; display:grid; gap:6px;">
+          ${relatedCities.length ? relatedCities.map((c) => `<li><a href="/cities/${c.filename}">${esc(c.city)}, ${esc(c.state)}</a></li>`).join('') : '<li>More cities coming soon.</li>'}
+        </ul>
+        <a class="pill ghost-pill" href="/states/${stateFile}">See all ${esc(cityData.state)} providers</a>
       </section>
     `;
 
+    const schemas = [breadcrumbSchema(breadcrumbs), cityFaqSchema(cityData.city, cityData.state)];
+    const extraHead = `<script type="application/ld+json">${JSON.stringify(schemas)}</script>`;
+
     const html = baseLayout({
       title: `Hospice & Home Care Providers in ${cityTitle} | Best Hospice`,
-      metaDescription: `Find verified hospice, palliative, and home care providers in ${cityTitle}. Connect with trusted local providers. 100% free for families.`,
+      metaDescription: `Find verified hospice, palliative, and home care providers in ${cityTitle}. Connect with trusted local providers. 100% free for families, no obligation.`,
       canonicalPath: `/cities/${cityData.filename}`,
       heroTitle: `Hospice and Home Care Providers in ${cityTitle}`,
       heroTagline: `Compare trusted local providers in ${cityTitle}.`,
-      bodyHtml: body
+      bodyHtml: body,
+      extraHead
     });
 
     await fs.writeFile(path.join(cityOutputDir, cityData.filename), html, 'utf8');
   }
 
-  const groupedStates = new Map();
-  for (const cityData of cities) {
-    if (!groupedStates.has(cityData.state)) groupedStates.set(cityData.state, []);
-    groupedStates.get(cityData.state).push(cityData);
+  // state pages
+  for (const stateData of stateList) {
+    const uniqueCities = Array.from(stateData.cities.entries())
+      .map(([cityLower, filename]) => ({ city: cityLower.replace(/\b\w/g, (m) => m.toUpperCase()), filename }))
+      .sort((a, b) => stateSort(a.city, b.city));
+    const cityLinks = uniqueCities.map((c) => `<li><a href="/cities/${c.filename}">${esc(c.city)}, ${esc(stateData.state)}</a></li>`).join('');
+
+    const body = `
+      <section class="card" style="padding:18px;">
+        <h2 style="margin:0 0 8px;">Finding Hospice and Home Care in ${esc(stateData.state)}</h2>
+        <p style="margin:0 0 10px;">Families across ${esc(stateData.state)} use Best Hospice and Home Health to compare verified local providers quickly and clearly. Whether you are seeking hospice, palliative care, or home care support, this page helps you navigate city-level options with direct links and current provider coverage. Our platform is built to reduce stress by putting trusted options in one place so families can make informed decisions without sales pressure.</p>
+        <p style="margin:0;">Use the city links below to view local provider pages and contact agencies directly.</p>
+      </section>
+
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 8px;">Medicare and Medicaid Information in ${esc(stateData.state)}</h2>
+        <p style="margin:0;">Coverage varies by care type and payer. Medicare often covers hospice when eligibility criteria are met. Medicaid and private insurance coverage may vary across plans and services. Providers can confirm what is covered before care begins.</p>
+      </section>
+
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 10px;">Cities We Serve in ${esc(stateData.state)}</h2>
+        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">${cityLinks}</ul>
+      </section>
+
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 8px;">Coverage Snapshot</h2>
+        <p style="margin:0;">We currently serve ${stateData.providers.length} verified providers across ${uniqueCities.length} cities in ${esc(stateData.state)}.</p>
+      </section>
+    `;
+
+    const html = baseLayout({
+      title: `Hospice & Home Care Providers in ${stateData.state} | Best Hospice`,
+      metaDescription: `Find verified hospice and home care providers across ${stateData.state}. Browse providers by city. 100% free for families.`,
+      canonicalPath: `/states/${stateData.filename}`,
+      heroTitle: `Hospice and Home Care Providers in ${stateData.state}`,
+      heroTagline: `Browse verified provider coverage across ${stateData.state}.`,
+      bodyHtml: body
+    });
+
+    await fs.writeFile(path.join(stateOutputDir, stateData.filename), html, 'utf8');
   }
 
-  const careTypeGroups = [
+  const groupedByCareType = {
+    hospice: new Map(),
+    palliative: new Map(),
+    home: new Map()
+  };
+
+  for (const cityData of cities) {
+    for (const careType of cityData.careTypes) {
+      if (!groupedByCareType[careType]) continue;
+      if (!groupedByCareType[careType].has(cityData.state)) groupedByCareType[careType].set(cityData.state, []);
+      groupedByCareType[careType].get(cityData.state).push(cityData);
+    }
+  }
+
+  const careTypeSections = [
     { key: 'hospice', title: 'Hospice Care' },
     { key: 'palliative', title: 'Palliative Care' },
     { key: 'home', title: 'Home Care' }
-  ];
-
-  const careTypeSections = careTypeGroups
-    .map((careTypeGroup) => {
-      const stateBlocks = Array.from(groupedStates.keys())
-        .sort(stateSort)
+  ]
+    .map((group) => {
+      const states = Array.from(groupedByCareType[group.key].keys()).sort(stateSort);
+      if (!states.length) return '';
+      const stateBlocks = states
         .map((stateName) => {
-          const links = groupedStates
-            .get(stateName)
-            .filter((entry) => entry.careTypes.has(careTypeGroup.key))
-            .sort((a, b) => stateSort(a.city, b.city))
-            .map((entry) => `<li><a href="/cities/${esc(entry.filename)}">${esc(entry.city)}, ${esc(stateName)}</a></li>`)
+          const entries = groupedByCareType[group.key].get(stateName).sort((a, b) => stateSort(a.city, b.city));
+          const links = entries
+            .map((entry) => `<li><a href="/cities/${entry.filename}">${esc(entry.city)}, ${esc(stateName)}</a></li>`)
             .join('');
-          if (!links) return '';
+          const stateFile = stateMap.get(stateName.toLowerCase())?.filename || `${slugify(stateName)}.html`;
           return `
             <div style="margin-top:12px;">
               <h3 style="margin:0 0 8px;">${esc(stateName)}</h3>
-              <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">${links}</ul>
+              <ul style="margin:0 0 10px; padding-left:18px; display:grid; gap:6px;">${links}</ul>
+              <a class="pill ghost-pill" href="/states/${stateFile}">See all ${esc(stateName)} providers</a>
             </div>
           `;
         })
         .join('\n');
-      if (!stateBlocks) return '';
       return `
         <section class="card" style="padding:18px; margin-top:14px;">
-          <h2 style="margin:0 0 10px;">${careTypeGroup.title}</h2>
+          <h2 style="margin:0 0 8px;">${group.title}</h2>
           ${stateBlocks}
         </section>
       `;
@@ -347,9 +466,9 @@ async function generateCityPages() {
       ${careTypeSections || '<section class="card" style="padding:18px; margin-top:14px;"><p>No city pages generated yet.</p></section>'}
     `
   });
-
   await fs.writeFile(path.join(ROOT, 'cities.html'), citiesPage, 'utf8');
 
+  // Optional blog static pages if blog model exists
   const blogPosts = prisma.blogPost
     ? await prisma.blogPost.findMany({
         select: {
@@ -360,12 +479,7 @@ async function generateCityPages() {
           authorState: true,
           createdAt: true,
           comments: {
-            select: {
-              body: true,
-              authorCity: true,
-              authorState: true,
-              createdAt: true
-            },
+            select: { body: true, authorCity: true, authorState: true, createdAt: true },
             orderBy: { createdAt: 'asc' }
           }
         },
@@ -376,104 +490,75 @@ async function generateCityPages() {
   const blogLinks = [];
   for (const post of blogPosts) {
     const slug = `${slugify(post.title)}-${post.id.slice(0, 8)}.html`;
-    blogLinks.push({
-      title: post.title,
-      href: `/blog/${slug}`
-    });
-
+    blogLinks.push({ title: post.title, href: `/blog/${slug}` });
     const commentsHtml = (post.comments || []).length
       ? post.comments
-          .map((c) => `
-            <article class="lead-item" style="padding:12px; margin-top:8px;">
-              <p style="margin:0 0 6px;">${esc(c.body)}</p>
-              <p class="note" style="margin:0;">${esc(c.authorCity)}, ${esc(c.authorState)} • ${new Date(c.createdAt).toLocaleDateString('en-US')}</p>
-            </article>
-          `)
+          .map((c) => `<article class="lead-item" style="padding:12px; margin-top:8px;"><p style="margin:0 0 6px;">${esc(c.body)}</p><p class="note" style="margin:0;">${esc(c.authorCity)}, ${esc(c.authorState)} • ${new Date(c.createdAt).toLocaleDateString('en-US')}</p></article>`)
           .join('')
       : '<p>No comments yet.</p>';
 
-    const blogHtml = baseLayout({
+    const html = baseLayout({
       title: `${post.title} | Best Hospice Blog`,
       metaDescription: `Read: ${post.title}. Community guidance from Best Hospice and Home Health.`,
       canonicalPath: `/blog/${slug}`,
       heroTitle: post.title,
       heroTagline: `Posted from ${post.authorCity}, ${post.authorState} on ${new Date(post.createdAt).toLocaleDateString('en-US')}`,
-      bodyHtml: `
-        <section class="card" style="padding:18px;">
-          <h2 style="margin:0 0 10px;">Post</h2>
-          <p style="margin:0; white-space:pre-wrap;">${esc(post.body)}</p>
-        </section>
-        <section class="card" style="padding:18px; margin-top:14px;">
-          <h2 style="margin:0 0 10px;">Comments</h2>
-          ${commentsHtml}
-        </section>
-      `
+      bodyHtml: `<section class="card" style="padding:18px;"><h2 style="margin:0 0 10px;">Post</h2><p style="margin:0; white-space:pre-wrap;">${esc(post.body)}</p></section><section class="card" style="padding:18px; margin-top:14px;"><h2 style="margin:0 0 10px;">Comments</h2>${commentsHtml}</section>`
     });
 
-    await fs.writeFile(path.join(blogOutputDir, slug), blogHtml, 'utf8');
+    await fs.writeFile(path.join(blogOutputDir, slug), html, 'utf8');
   }
 
   const serviceLinks = [
-    '/hospice-care',
-    '/palliative-care',
-    '/home-care',
-    '/guides/hospice-care',
-    '/guides/palliative-care',
-    '/guides/home-care',
-    '/guides/how-to-choose-hospice-provider',
-    '/guides/medicare-hospice-coverage',
-    '/guides/when-is-it-time-for-hospice',
-    '/guides/hospice-vs-palliative-care',
-    '/guides/home-health-care-costs',
-    '/education.html',
-    '/faq-blog.html'
+    '/hospice-care', '/palliative-care', '/home-care',
+    '/guides/hospice-care', '/guides/palliative-care', '/guides/home-care',
+    '/guides/how-to-choose-hospice-provider', '/guides/medicare-hospice-coverage',
+    '/guides/when-is-it-time-for-hospice', '/guides/hospice-vs-palliative-care',
+    '/guides/home-health-care-costs', '/education.html', '/faq-blog.html'
   ];
 
   const cityLinks = cities.map((c) => ({ title: `${c.city}, ${c.state}`, href: `/cities/${c.filename}` }));
+  const stateLinks = stateList.map((s) => ({ title: s.state, href: `/states/${s.filename}` }));
 
   const sitemapHtml = baseLayout({
     title: 'HTML Sitemap | Best Hospice and Home Health',
-    metaDescription: 'Crawlable HTML sitemap linking city pages, service pages, and blog posts.',
+    metaDescription: 'Crawlable HTML sitemap linking city pages, state pages, service pages, and blog posts.',
     canonicalPath: '/sitemap.html',
     heroTitle: 'HTML Sitemap',
     heroTagline: 'Direct links for search engines and users.',
     bodyHtml: `
       <section class="card" style="padding:18px;">
         <h2 style="margin:0 0 10px;">Service Pages</h2>
-        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">
-          ${serviceLinks.map((href) => `<li><a href="${href}">${href}</a></li>`).join('')}
-        </ul>
+        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">${serviceLinks.map((href) => `<li><a href="${href}">${href}</a></li>`).join('')}</ul>
       </section>
-
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 10px;">State Pages</h2>
+        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">${stateLinks.map((l) => `<li><a href="${l.href}">${esc(l.title)}</a></li>`).join('') || '<li>No state pages yet</li>'}</ul>
+      </section>
       <section class="card" style="padding:18px; margin-top:14px;">
         <h2 style="margin:0 0 10px;">City Pages</h2>
-        <ul style="margin:0; padding-left:18px; display:grid; gap:6px; max-height:560px; overflow:auto;">
-          ${cityLinks.map((l) => `<li><a href="${l.href}">${esc(l.title)}</a></li>`).join('') || '<li>No city pages yet</li>'}
-        </ul>
+        <ul style="margin:0; padding-left:18px; display:grid; gap:6px; max-height:560px; overflow:auto;">${cityLinks.map((l) => `<li><a href="${l.href}">${esc(l.title)}</a></li>`).join('') || '<li>No city pages yet</li>'}</ul>
       </section>
-
       <section class="card" style="padding:18px; margin-top:14px;">
         <h2 style="margin:0 0 10px;">Blog Posts</h2>
-        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">
-          ${blogLinks.map((l) => `<li><a href="${l.href}">${esc(l.title)}</a></li>`).join('') || '<li><a href="/faq-blog.html">FAQ & Blog Posts</a></li>'}
-        </ul>
+        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">${blogLinks.map((l) => `<li><a href="${l.href}">${esc(l.title)}</a></li>`).join('') || '<li><a href="/faq-blog.html">FAQ & Blog Posts</a></li>'}</ul>
       </section>
     `
   });
-
   await fs.writeFile(path.join(ROOT, 'sitemap.html'), sitemapHtml, 'utf8');
 
   return {
     providerCount: providers.length,
     cityCount: cities.length,
+    stateCount: stateList.length,
     blogCount: blogPosts.length
   };
 }
 
 (async () => {
   try {
-    const result = await generateCityPages();
-    console.log(`Generated static SEO pages: ${result.cityCount} city pages, ${result.blogCount} blog pages, ${result.providerCount} providers.`);
+    const result = await generateStaticPages();
+    console.log(`Generated static SEO pages: ${result.cityCount} city pages, ${result.stateCount} state pages, ${result.blogCount} blog pages, ${result.providerCount} providers.`);
   } catch (err) {
     console.error('Failed generating static SEO pages:', err);
     process.exitCode = 1;
