@@ -808,6 +808,7 @@ function renderPageHTML({ title, description, canonical, breadcrumbItems, body, 
     <meta name="description" content="${description}" />
     <link rel="canonical" href="${canonical}" />
     <link rel="stylesheet" href="/styles-modern.css" />
+    <script src="/abel-chat.js" defer></script>
     <!-- Meta Pixel Code -->
 <script>
 !function(f,b,e,v,n,t,s)

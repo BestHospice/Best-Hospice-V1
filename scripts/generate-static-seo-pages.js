@@ -129,6 +129,7 @@ function baseLayout({ title, metaDescription, canonicalPath, heroTitle, heroTagl
   <meta name="description" content="${esc(metaDescription)}" />
   <link rel="canonical" href="${esc(canonical)}" />
   <link rel="stylesheet" href="/styles-modern.css" />
+  <script src="/abel-chat.js" defer></script>
   ${extraHead}
 </head>
 <body>

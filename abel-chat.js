@@ -28,7 +28,7 @@
       if (document.getElementById('main-menu-btn')) return;
       const btn = document.createElement('a');
       btn.id = 'main-menu-btn';
-      btn.href = 'index.html';
+      btn.href = '/';
       btn.textContent = 'Main Menu';
       btn.style.cssText = `
         position:fixed; right:170px; bottom:18px; z-index:9998;
