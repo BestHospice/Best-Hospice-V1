@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 const { v4: uuid } = require('uuid');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { PrismaClient } = require('@prisma/client');
@@ -2808,7 +2809,8 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
     '/are-you-a-provider.html',
     '/privacy.html',
     '/terms.html',
-    '/refund-policy.html'
+    '/refund-policy.html',
+    '/sitemap.html'
   ];
   const serviceHubs = SERVICE_KEYS.map((s) => `/${s}`);
   const guides = [
@@ -2821,7 +2823,15 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
     '/guides/hospice-vs-palliative-care',
     '/guides/home-health-care-costs'
   ];
-  const urls = [...pages, ...serviceHubs, ...guides].map((p) => `${CANONICAL_DOMAIN}${p}`);
+  const cityDir = path.join(__dirname, 'cities');
+  const blogDir = path.join(__dirname, 'blog');
+  const cityPages = fs.existsSync(cityDir)
+    ? fs.readdirSync(cityDir).filter((name) => name.endsWith('.html')).map((name) => `/cities/${name}`)
+    : [];
+  const blogPages = fs.existsSync(blogDir)
+    ? fs.readdirSync(blogDir).filter((name) => name.endsWith('.html')).map((name) => `/blog/${name}`)
+    : [];
+  const urls = [...pages, ...serviceHubs, ...guides, ...cityPages, ...blogPages].map((p) => `${CANONICAL_DOMAIN}${p}`);
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}

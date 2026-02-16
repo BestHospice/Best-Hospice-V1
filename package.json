@@ -7,6 +7,7 @@
     "start": "node server.js",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:generate": "prisma generate",
+    "generate:static-seo": "node scripts/generate-static-seo-pages.js",
     "postinstall": "prisma generate --schema prisma/schema.prisma"
   },
   "prisma": {
