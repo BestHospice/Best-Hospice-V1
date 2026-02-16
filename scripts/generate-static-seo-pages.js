@@ -41,6 +41,13 @@ function formatCareType(careType) {
   return 'Hospice Care';
 }
 
+function normalizeCareTypeKey(careType) {
+  const v = String(careType || '').toLowerCase();
+  if (v === 'palliative' || v === 'palliative-care') return 'palliative';
+  if (v === 'home' || v === 'home-care') return 'home';
+  return 'hospice';
+}
+
 function normalizeState(state) {
   const raw = String(state || '').trim();
   if (!raw) return '';
@@ -166,6 +173,18 @@ async function generateCityPages() {
     orderBy: [{ state: 'asc' }, { city: 'asc' }, { name: 'asc' }]
   });
 
+  const careTypeByProviderId = new Map();
+  try {
+    const careTypeRows = await prisma.$queryRawUnsafe('SELECT "id", "careType" FROM "Provider"');
+    if (Array.isArray(careTypeRows)) {
+      for (const row of careTypeRows) {
+        careTypeByProviderId.set(String(row.id), normalizeCareTypeKey(row.careType));
+      }
+    }
+  } catch (_err) {
+    // Older schemas/clients may not have careType; fall back to hospice.
+  }
+
   const cityMap = new Map();
   for (const p of providers) {
     const city = String(p.city || '').trim();
@@ -180,10 +199,13 @@ async function generateCityPages() {
         city,
         state,
         filename,
-        providers: []
+        providers: [],
+        careTypes: new Set()
       });
     }
-    cityMap.get(cityKey).providers.push(p);
+    const careType = careTypeByProviderId.get(String(p.id)) || 'hospice';
+    cityMap.get(cityKey).providers.push({ ...p, careType });
+    cityMap.get(cityKey).careTypes.add(careType);
   }
 
   const cities = Array.from(cityMap.values()).sort((a, b) => {
@@ -224,6 +246,29 @@ async function generateCityPages() {
       </section>
 
       <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 8px;">Cost and Coverage in ${esc(cityTitle)}</h2>
+        <p style="margin:0 0 8px;">Coverage varies by care type and insurance. Hospice is often covered by Medicare when eligibility is met, palliative care may be billed under standard medical benefits, and many non-medical home care services are private-pay.</p>
+        <p style="margin:0;">Ask each provider to confirm accepted insurance and estimated out-of-pocket costs before starting services.</p>
+      </section>
+
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 8px;">How to Choose the Right Provider</h2>
+        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">
+          <li>Compare response speed and intake availability.</li>
+          <li>Confirm exact service coverage in and around ${esc(cityTitle)}.</li>
+          <li>Ask about after-hours support and care coordination.</li>
+          <li>Verify licensing, care experience, and accepted payers.</li>
+        </ul>
+      </section>
+
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 8px;">Frequently Asked Questions</h2>
+        <p style="margin:0 0 8px;"><strong>How quickly can care start in ${esc(cityTitle)}?</strong><br>Many agencies can begin intake within 24-48 hours depending on eligibility and scheduling.</p>
+        <p style="margin:0 0 8px;"><strong>Can families contact multiple providers?</strong><br>Yes. Comparing providers is recommended so families can choose the best fit.</p>
+        <p style="margin:0;"><strong>Is this service free for families?</strong><br>Yes. Best Hospice and Home Health is free for families to use.</p>
+      </section>
+
+      <section class="card" style="padding:18px; margin-top:14px;">
         <h2 style="margin:0 0 8px;">Explore More</h2>
         <div style="display:flex; flex-wrap:wrap; gap:8px;">
           <a class="pill ghost-pill" href="/hospice-care">Hospice Care</a>
@@ -252,18 +297,37 @@ async function generateCityPages() {
     groupedStates.get(cityData.state).push(cityData);
   }
 
-  const stateSections = Array.from(groupedStates.keys())
-    .sort(stateSort)
-    .map((stateName) => {
-      const links = groupedStates
-        .get(stateName)
-        .sort((a, b) => stateSort(a.city, b.city))
-        .map((entry) => `<li><a href="/cities/${esc(entry.filename)}">${esc(entry.city)}, ${esc(stateName)}</a></li>`)
-        .join('');
+  const careTypeGroups = [
+    { key: 'hospice', title: 'Hospice Care' },
+    { key: 'palliative', title: 'Palliative Care' },
+    { key: 'home', title: 'Home Care' }
+  ];
+
+  const careTypeSections = careTypeGroups
+    .map((careTypeGroup) => {
+      const stateBlocks = Array.from(groupedStates.keys())
+        .sort(stateSort)
+        .map((stateName) => {
+          const links = groupedStates
+            .get(stateName)
+            .filter((entry) => entry.careTypes.has(careTypeGroup.key))
+            .sort((a, b) => stateSort(a.city, b.city))
+            .map((entry) => `<li><a href="/cities/${esc(entry.filename)}">${esc(entry.city)}, ${esc(stateName)}</a></li>`)
+            .join('');
+          if (!links) return '';
+          return `
+            <div style="margin-top:12px;">
+              <h3 style="margin:0 0 8px;">${esc(stateName)}</h3>
+              <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">${links}</ul>
+            </div>
+          `;
+        })
+        .join('\n');
+      if (!stateBlocks) return '';
       return `
         <section class="card" style="padding:18px; margin-top:14px;">
-          <h2 style="margin:0 0 10px;">${esc(stateName)}</h2>
-          <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">${links}</ul>
+          <h2 style="margin:0 0 10px;">${careTypeGroup.title}</h2>
+          ${stateBlocks}
         </section>
       `;
     })
@@ -274,13 +338,13 @@ async function generateCityPages() {
     metaDescription: 'Browse all cities with active Best Hospice and Home Health providers. Direct links to local hospice, palliative, and home care pages.',
     canonicalPath: '/cities.html',
     heroTitle: 'Browse Cities We Serve',
-    heroTagline: 'Direct links to city pages, grouped alphabetically by state.',
+    heroTagline: 'Direct links to city pages grouped by care type and state.',
     bodyHtml: `
       <section class="card" style="padding:18px;">
         <h2 style="margin:0 0 8px;">Cities with active providers</h2>
-        <p style="margin:0;">All city pages below are crawlable HTML and include local provider listings.</p>
+        <p style="margin:0;">Browse city pages by care type below.</p>
       </section>
-      ${stateSections || '<section class="card" style="padding:18px; margin-top:14px;"><p>No city pages generated yet.</p></section>'}
+      ${careTypeSections || '<section class="card" style="padding:18px; margin-top:14px;"><p>No city pages generated yet.</p></section>'}
     `
   });
 
