@@ -286,10 +286,13 @@ async function claimNotificationJobs(limit = 10) {
 async function processNotificationJob(job) {
   const payload = job.payload || {};
   const providerEmail = payload.providerEmail;
+  const providerEmails = Array.isArray(payload.providerEmails)
+    ? payload.providerEmails.map((e) => String(e || '').trim()).filter(Boolean)
+    : (providerEmail ? [String(providerEmail).trim()] : []);
   const providerPhone = payload.providerPhone;
   let emailResult = { status: 'failed', error: 'Missing provider email' };
 
-  if (providerEmail) {
+  if (providerEmails.length) {
     try {
       const results = await sendProviderNotifications({
         clientZip: payload.clientZip,
@@ -301,10 +304,16 @@ async function processNotificationJob(job) {
         clientEmail: payload.clientEmail,
         clientPhone: payload.clientPhone,
         clientName: payload.clientName,
-        providers: [{ id: job.providerId, email: providerEmail }],
-        nearbyProviders: [{ id: job.providerId, email: providerEmail }]
+        providers: [{ id: job.providerId, email: providerEmails[0], emails: providerEmails }],
+        nearbyProviders: [{ id: job.providerId, email: providerEmails[0] }]
       });
-      emailResult = results?.[0] || { status: 'failed', error: 'SendGrid returned no result' };
+      const sent = (results || []).find((r) => r.status === 'sent');
+      if (sent) {
+        emailResult = sent;
+      } else {
+        const firstFailure = (results || [])[0];
+        emailResult = firstFailure || { status: 'failed', error: 'SendGrid returned no result' };
+      }
     } catch (err) {
       console.error('Email notification failed', err);
       emailResult = { status: 'failed', error: err.message || 'send failed' };
@@ -902,6 +911,7 @@ app.get('/api/providers', async (_req, res) => {
       id: true,
       name: true,
       email: true,
+      secondaryContactEmail: true,
       phone: true,
       website: true,
       address: true,
@@ -1058,6 +1068,7 @@ app.post('/api/providers', async (req, res) => {
     serviceRadiusKm,
     serviceRadiusMiles,
     email,
+    secondaryContactEmail,
     providerLoginEmail,
     phone,
     website,
@@ -1085,12 +1096,14 @@ app.post('/api/providers', async (req, res) => {
   }
   try {
     const normalizedEmail = String(email).trim();
+    const normalizedSecondaryEmail = String(secondaryContactEmail || '').trim() || null;
     const normalizedLoginEmail = String(providerLoginEmail || '').trim() || normalizedEmail;
     const provider = await prisma.provider.create({
       data: {
         id: uuid(),
         name,
         email: normalizedEmail,
+        secondaryContactEmail: normalizedSecondaryEmail,
         providerLoginEmail: normalizedLoginEmail,
         phone: phone || '',
         website: website || '',
@@ -1132,6 +1145,7 @@ app.put('/api/providers/:id', async (req, res) => {
     serviceRadiusKm,
     serviceRadiusMiles,
     email,
+    secondaryContactEmail,
     providerLoginEmail,
     phone,
     website,
@@ -1142,6 +1156,10 @@ app.put('/api/providers/:id', async (req, res) => {
   const data = {};
   if (name !== undefined) data.name = String(name).trim();
   if (email !== undefined) data.email = String(email).trim();
+  if (secondaryContactEmail !== undefined) {
+    const normalizedSecondary = String(secondaryContactEmail || '').trim();
+    data.secondaryContactEmail = normalizedSecondary || null;
+  }
   if (providerLoginEmail !== undefined) {
     const normalizedLoginEmail = String(providerLoginEmail).trim();
     if (normalizedLoginEmail) {
@@ -1228,8 +1246,8 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       return res.status(403).json({ error: 'Captcha verification failed.', details: captchaResult['error-codes'] || captchaResult.error });
     }
 
-    const toList = providers.filter((p) => !!p.email && !!p.id);
-    if (!toList.length) return res.status(400).json({ error: 'No provider emails to notify' });
+    const toList = providers.filter((p) => !!p.id);
+    if (!toList.length) return res.status(400).json({ error: 'No providers to notify' });
 
     const requestSubmittedBy = toSubmittedBy(answers.relationship);
     const careDays = answers.frequency?.days?.length ? answers.frequency.days.join(', ') : 'Not specified';
@@ -1271,17 +1289,24 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     if (impressionData.length) await prisma.providerImpression.createMany({ data: impressionData });
 
     const providerIds = toList.map((p) => p.id).filter(Boolean);
-    let tierMap = new Map();
+    let providerMap = new Map();
     if (providerIds.length) {
-      const tiers = await prisma.provider.findMany({
+      const providerRecords = await prisma.provider.findMany({
         where: { id: { in: providerIds } },
-        select: { id: true, planTier: true }
+        select: { id: true, planTier: true, email: true, secondaryContactEmail: true, phone: true }
       });
-      tierMap = new Map(tiers.map((t) => [t.id, t.planTier]));
+      providerMap = new Map(providerRecords.map((p) => [p.id, p]));
     }
 
-    const jobs = toList.map((p) => {
-      const planTier = normalizePlanTier(p.planTier || tierMap.get(p.id));
+    const jobs = toList
+      .map((p) => {
+      const providerRecord = providerMap.get(p.id);
+      const recipientEmails = [
+        String(providerRecord?.email || p.email || '').trim(),
+        String(providerRecord?.secondaryContactEmail || '').trim()
+      ].filter(Boolean);
+      if (!recipientEmails.length) return null;
+      const planTier = normalizePlanTier(p.planTier || providerRecord?.planTier);
       const delayMs = PLAN_NOTIFY_DELAY_MS[planTier] ?? PLAN_NOTIFY_DELAY_MS.verified;
       return {
         id: uuid(),
@@ -1299,12 +1324,14 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           clientEmail,
           clientPhone,
           clientName,
-          providerEmail: p.email,
-          providerPhone: p.phone || '',
+          providerEmail: recipientEmails[0],
+          providerEmails: recipientEmails,
+          providerPhone: providerRecord?.phone || p.phone || '',
           planTier
         }
       };
-    });
+    })
+      .filter(Boolean);
 
     if (jobs.length) {
       await prisma.notificationJob.createMany({ data: jobs });

@@ -99,7 +99,10 @@ async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDa
 
   const results = [];
   for (const provider of providers) {
-    if (!provider.email) continue;
+    const recipientEmails = Array.isArray(provider.emails)
+      ? provider.emails.map((e) => String(e || '').trim()).filter(Boolean)
+      : [String(provider.email || '').trim()].filter(Boolean);
+    if (!recipientEmails.length) continue;
     const html = buildEmailHtml({
       clientZip,
       requestSubmittedBy,
@@ -112,21 +115,23 @@ async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDa
       clientName
     });
 
-    const msg = {
-      to: provider.email,
-      from,
-      replyTo,
-      subject,
-      html
-    };
+    for (const recipient of recipientEmails) {
+      const msg = {
+        to: recipient,
+        from,
+        replyTo,
+        subject,
+        html
+      };
 
-    try {
-      const [resp] = await sgMail.send(msg);
-      const messageId = resp?.headers?.['x-message-id'] || resp?.headers?.['X-Message-Id'];
-      results.push({ email: provider.email, providerId: provider.id, status: 'sent', messageId });
-    } catch (error) {
-      console.error('SendGrid send failed for', provider.email, error?.response?.body || error);
-      results.push({ email: provider.email, providerId: provider.id, status: 'failed', error: error.message || 'unknown error' });
+      try {
+        const [resp] = await sgMail.send(msg);
+        const messageId = resp?.headers?.['x-message-id'] || resp?.headers?.['X-Message-Id'];
+        results.push({ email: recipient, providerId: provider.id, status: 'sent', messageId });
+      } catch (error) {
+        console.error('SendGrid send failed for', recipient, error?.response?.body || error);
+        results.push({ email: recipient, providerId: provider.id, status: 'failed', error: error.message || 'unknown error' });
+      }
     }
   }
 

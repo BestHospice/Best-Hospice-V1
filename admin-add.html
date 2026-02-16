@@ -55,6 +55,10 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <input id="email" />
         </div>
         <div>
+          <label for="secondary-email">Second Client Contact Email (optional)</label>
+          <input id="secondary-email" placeholder="Optional second inbox for lead alerts" />
+        </div>
+        <div>
           <label for="login-email">Provider Log-in Email</label>
           <input id="login-email" placeholder="Defaults to client contact email" />
         </div>
@@ -184,10 +188,12 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         return;
       }
       const clientEmail = document.getElementById('email').value.trim();
+      const secondaryClientEmail = document.getElementById('secondary-email').value.trim();
       const loginEmail = document.getElementById('login-email').value.trim() || clientEmail;
       const payload = {
         name: document.getElementById('name').value.trim(),
         email: clientEmail,
+        secondaryContactEmail: secondaryClientEmail,
         providerLoginEmail: loginEmail,
         phone: document.getElementById('phone').value.trim(),
         website: document.getElementById('website').value.trim(),
