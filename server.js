@@ -112,6 +112,149 @@ const serviceConfig = {
   }
 };
 
+const HUB_LONGFORM_CONTENT = {
+  'hospice-care': {
+    title: 'Hospice Care Guide: What It Is, Who Needs It, and How to Choose',
+    intro: [
+      'Hospice care is specialized, comfort-focused support for people living with a terminal illness when the goal of care shifts from cure to quality of life. Families often hear the word hospice during one of the most emotional periods of their lives, and many are unsure what it really means. In practice, hospice is a coordinated care model that helps patients stay comfortable and supported while helping loved ones make informed decisions and avoid unnecessary stress.',
+      'Hospice is not abandonment of care. It is active care with a different priority. Instead of repeated hospital visits and aggressive treatment side effects, the hospice model prioritizes pain relief, symptom management, dignity, and family support. Many families report that hospice gave them a clearer plan, better communication, and more peaceful time together at home.',
+      'Best Hospice and Home Health helps families compare verified providers by location so they can quickly find agencies with the right coverage area, care philosophy, and communication style.'
+    ],
+    sections: [
+      {
+        heading: 'Who Hospice Care Is For',
+        paragraphs: [
+          'Hospice is most often appropriate when a doctor believes a patient may have six months or less to live if the illness follows its typical course. Common conditions include advanced cancer, end-stage heart or lung disease, late-stage dementia, kidney failure, and neurologic conditions such as ALS.',
+          'Eligibility is based on medical criteria and physician certification, but the family decision is just as important. Hospice is usually the right fit when treatment burden outweighs benefit, symptoms are difficult to control, and the patient wants comfort-focused support.',
+          'Choosing hospice does not lock a patient in forever. A patient can revoke hospice if they want to return to curative treatment, and can re-enroll later if eligibility criteria are met again.'
+        ]
+      },
+      {
+        heading: 'What Hospice Services Include',
+        paragraphs: [
+          'A hospice care plan is delivered by an interdisciplinary team that may include a physician, registered nurse, hospice aide, social worker, chaplain, bereavement counselor, and trained volunteers. Together they manage pain and symptoms while supporting emotional, practical, and spiritual needs.',
+          'Typical services include nursing visits, comfort medications related to the terminal diagnosis, durable medical equipment such as oxygen or a hospital bed, aide support for personal care, caregiver training, and 24/7 on-call support for urgent symptom changes.',
+          'Hospice can be delivered in multiple settings: private home, assisted living, skilled nursing, hospice house, or inpatient unit. Most families prefer home-based hospice when feasible because it keeps routines and surroundings familiar.'
+        ]
+      },
+      {
+        heading: 'How to Choose the Right Hospice Provider',
+        paragraphs: [
+          'Families should compare more than one provider whenever possible. Ask how quickly intake can happen, whether nurses are available after hours, how often routine visits occur, and how emergencies are handled overnight or on weekends.',
+          'Quality signals include clear communication, realistic care planning, responsive call-back times, and strong caregiver education. It is also important to ask if the agency has experience with your loved one’s diagnosis, whether they coordinate medication delivery quickly, and how they support family grief before and after loss.',
+          'Use provider profiles to verify service area, phone and website contact details, and available care types. A strong provider relationship starts with fast response and transparent expectations.'
+        ]
+      },
+      {
+        heading: 'Medicare and Hospice Coverage',
+        paragraphs: [
+          'For most eligible beneficiaries, Medicare Part A covers hospice care with minimal out-of-pocket cost. Coverage usually includes nursing services, hospice aide support, social work, chaplain services, comfort medications tied to the terminal diagnosis, and medical equipment.',
+          'Medicare hospice benefit periods include two 90-day periods followed by unlimited 60-day recertification periods as long as eligibility continues. Patients may have small copays in limited scenarios, but most core hospice services are fully covered.',
+          'Private insurance and Medicaid may also cover hospice care, but benefits vary by plan and state. A quality provider verifies coverage quickly and explains exactly what is and is not included before services begin.'
+        ]
+      },
+      {
+        heading: 'Common Questions Families Ask',
+        paragraphs: [
+          'Families often ask whether hospice means giving up. In reality, hospice means changing the goal from cure to comfort while still receiving intensive support. Others ask whether hospice can start too early; most providers say earlier enrollment improves comfort and reduces crisis-driven decisions.',
+          'Another frequent concern is whether care can continue if a patient lives beyond six months. The answer is yes if recertification shows continued eligibility. Families also ask whether they can change agencies; they can. Patients and representatives maintain choice.',
+          'The best next step is usually to speak with a provider directly, review response expectations, and confirm how the team will support both patient comfort and caregiver resilience.'
+        ]
+      }
+    ]
+  },
+  'palliative-care': {
+    title: 'Palliative Care Guide: Symptom Relief, Care Coordination, and Coverage',
+    intro: [
+      'Palliative care is specialized medical support for people with serious illness at any stage, including during active treatment. The focus is relief of pain, symptoms, stress, and decision burden. Unlike hospice, palliative care does not require stopping curative treatment.',
+      'Many families benefit from palliative care earlier than they expect. When symptoms are controlled and communication improves, patients often feel stronger and more informed. Palliative teams help coordinate specialists, clarify treatment goals, and reduce emergency utilization.',
+      'Best Hospice and Home Health helps families locate palliative-capable providers and compare options in their state and city.'
+    ],
+    sections: [
+      {
+        heading: 'How Palliative Care Differs from Hospice',
+        paragraphs: [
+          'Both hospice and palliative care prioritize comfort and quality of life, but they are not the same program. Hospice is generally for end-of-life care when curative treatment is no longer pursued. Palliative care can begin at diagnosis and run alongside chemotherapy, dialysis, heart failure treatment, or other curative plans.',
+          'A practical way to think about this is timing and treatment intent. Palliative care is an added layer of support during serious illness. Hospice is a full care model when comfort becomes the primary goal.'
+        ]
+      },
+      {
+        heading: 'Who Benefits Most from Palliative Care',
+        paragraphs: [
+          'Patients with cancer, COPD, congestive heart failure, kidney disease, neurologic illness, dementia, and other complex conditions often benefit from palliative services. Frequent hospitalizations, uncontrolled symptoms, and caregiver burnout are strong indicators it is time to request a palliative consult.',
+          'Palliative teams are especially helpful when families face hard choices or conflicting specialist recommendations. They translate complex medical options into clear tradeoffs and align care plans with patient values.'
+        ]
+      },
+      {
+        heading: 'What Palliative Teams Actually Do',
+        paragraphs: [
+          'Core services include advanced symptom management, medication optimization, goals-of-care conversations, psychosocial support, and care coordination across clinics, hospitals, and home settings.',
+          'Palliative clinicians also support advance care planning such as healthcare proxy, advance directive, and code-status conversations. This planning reduces confusion during urgent events and helps families feel prepared.'
+        ]
+      },
+      {
+        heading: 'Insurance Coverage and Cost Expectations',
+        paragraphs: [
+          'Coverage depends on where and how services are delivered. Hospital and clinic-based palliative consults are often billed under standard medical benefits, including Medicare Part B and many private plans. Home-based palliative programs may vary by insurer and region.',
+          'Because benefit design differs, families should confirm copays, visit limits, telehealth availability, and referral requirements. Providers can usually help verify this before ongoing care begins.'
+        ]
+      },
+      {
+        heading: 'How to Get Started',
+        paragraphs: [
+          'Ask your current physician directly for a palliative care referral and explain the symptoms or care-planning gaps you want help with. You can also contact local providers to confirm service area and intake timelines.',
+          'When comparing options, ask about response times, after-hours access, care team composition, and coordination with your existing doctors. Fast communication and clear handoffs are key quality markers.'
+        ]
+      }
+    ]
+  },
+  'home-care': {
+    title: 'Home Care Guide: Types, Costs, Insurance, and Provider Selection',
+    intro: [
+      'Home care helps people remain safe and supported in familiar surroundings. Families often use home care after hospitalization, during chronic illness, or when day-to-day tasks become difficult for an older adult living at home.',
+      'The most common source of confusion is the difference between non-medical home care and skilled home health care. These are different service models, billed differently, and delivered by different staff types.',
+      'Best Hospice and Home Health helps families compare local home care options by city and state so they can match services to need and budget.'
+    ],
+    sections: [
+      {
+        heading: 'Non-Medical Home Care vs. Skilled Home Health',
+        paragraphs: [
+          'Non-medical home care includes support with activities of daily living such as bathing, dressing, meal preparation, companionship, mobility support, and respite for family caregivers. These services are usually arranged directly and often paid privately.',
+          'Skilled home health care is clinical care ordered by a physician and delivered by licensed clinicians such as RNs and therapists. It may include wound care, medication management, physical therapy, and post-acute monitoring.'
+        ]
+      },
+      {
+        heading: 'Typical Home Care Costs',
+        paragraphs: [
+          'Costs vary by geography, schedule, and service complexity. Non-medical care is commonly billed hourly, while skilled visits are often billed per visit and may be covered when eligibility requirements are met.',
+          'Families should ask for a written rate sheet, minimum-hour rules, overtime/holiday pricing, and cancellation terms. Transparent agencies provide clear documentation and avoid surprise billing.'
+        ]
+      },
+      {
+        heading: 'What Insurance May Cover',
+        paragraphs: [
+          'Medicare usually covers skilled home health when criteria are met, but generally does not cover long-duration custodial support such as routine bathing or meal prep without a skilled need. Medicaid coverage varies by state and waiver availability.',
+          'Long-term care insurance may cover non-medical services depending on policy terms. Families should request pre-authorization guidance and direct insurer verification from the provider when possible.'
+        ]
+      },
+      {
+        heading: 'How to Choose a Home Care Provider',
+        paragraphs: [
+          'Ask about caregiver screening, supervision, backup coverage, and continuity plans when a regular caregiver is unavailable. Reliability and consistency are often more important than a small hourly price difference.',
+          'Confirm whether the provider can scale from part-time to higher-intensity schedules if needs change. Strong agencies can adapt care plans quickly and coordinate with hospice or palliative teams when appropriate.'
+        ]
+      },
+      {
+        heading: 'When Home Care Is Not Enough',
+        paragraphs: [
+          'If safety risks become severe, nighttime needs increase beyond available support, or medical complexity rises sharply, families may need higher-acuity options. In those cases, a provider can help evaluate facility-based care or layered services.',
+          'Early planning is essential. Reviewing backup pathways before a crisis helps families avoid rushed decisions and maintain continuity for the patient.'
+        ]
+      }
+    ]
+  }
+};
+
 const stateNameMap = {
   al: 'Alabama', ak: 'Alaska', az: 'Arizona', ar: 'Arkansas', ca: 'California', co: 'Colorado', ct: 'Connecticut',
   de: 'Delaware', fl: 'Florida', ga: 'Georgia', hi: 'Hawaii', id: 'Idaho', il: 'Illinois', in: 'Indiana', ia: 'Iowa',
@@ -822,8 +965,9 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
 
 function renderHubPage({ serviceKey, states = [] }) {
   const service = serviceConfig[serviceKey];
-  const title = `${service.name} | How It Works, Eligibility, Costs`;
-  const description = `${service.name} basics, costs, and eligibility. Find providers near you.`;
+  const longGuide = HUB_LONGFORM_CONTENT[serviceKey];
+  const title = `${service.name}: Guide, Eligibility, Costs & Providers`;
+  const description = `Comprehensive ${service.name.toLowerCase()} guide covering who needs it, Medicare coverage, costs, and how to choose providers near you.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}`;
   const breadcrumbItems = [
     { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
@@ -834,6 +978,10 @@ function renderHubPage({ serviceKey, states = [] }) {
     <section class="card" style="padding:18px;">
       <h1 style="margin:0 0 8px;">${service.name}</h1>
       <p class="tagline" style="margin:0;">${service.direct.replace('{cityState}', 'your area')}</p>
+    </section>
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">${longGuide?.title || `${service.name} Guide`}</h2>
+      ${(longGuide?.intro || []).map((paragraph) => `<p style="margin:0 0 10px;">${paragraph}</p>`).join('')}
     </section>
     <section class="card" style="padding:18px; margin-top:14px;">
       <h2 style="margin:0 0 10px;">Find providers by state</h2>
@@ -857,6 +1005,16 @@ function renderHubPage({ serviceKey, states = [] }) {
       <h2 style="margin:0 0 8px;">Local note</h2>
       <p style="margin:0;">${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
     </section>
+    ${(longGuide?.sections || [])
+      .map(
+        (section) => `
+      <section class="card" style="padding:18px; margin-top:14px;">
+        <h2 style="margin:0 0 8px;">${section.heading}</h2>
+        ${(section.paragraphs || []).map((paragraph) => `<p style="margin:0 0 10px;">${paragraph}</p>`).join('')}
+      </section>
+    `
+      )
+      .join('')}
     <section class="card" style="padding:18px; margin-top:14px;">
       <h2 style="margin:0 0 10px;">FAQs</h2>
       <ul style="display:grid; gap:8px; margin:0; padding-left:18px;">${(service.faq || [])
@@ -2144,6 +2302,46 @@ app.post('/api/ai/chat', async (req, res) => {
     return res.json({ reply, navigateTo: null });
   }
 
+  if (/(how to choose a hospice provider|choose hospice provider|pick a hospice provider|best hospice provider)/i.test(lower)) {
+    return res.json({
+      reply:
+        'To choose a hospice provider, compare response speed, 24/7 nurse availability, visit frequency, symptom-management approach, caregiver support, and diagnosis experience. Ask at least 2-3 providers the same questions so you can compare clearly. Full guide: /guides/how-to-choose-hospice-provider',
+      navigateTo: '/guides/how-to-choose-hospice-provider'
+    });
+  }
+
+  if (/(what does medicare cover for hospice|medicare cover hospice|hospice medicare coverage)/i.test(lower)) {
+    return res.json({
+      reply:
+        'Medicare Part A typically covers hospice physician/nursing care, comfort medications tied to the terminal diagnosis, medical equipment, aide support, social work, and bereavement services. There can be limited copays in specific situations. Full guide: /guides/medicare-hospice-coverage',
+      navigateTo: '/guides/medicare-hospice-coverage'
+    });
+  }
+
+  if (/(when is it time for hospice|signs for hospice|ready for hospice|time for hospice)/i.test(lower)) {
+    return res.json({
+      reply:
+        'Common signs include repeated hospitalizations, worsening decline, higher symptom burden, increased caregiver strain, and goals shifting toward comfort. A provider can confirm eligibility quickly. Full guide: /guides/when-is-it-time-for-hospice',
+      navigateTo: '/guides/when-is-it-time-for-hospice'
+    });
+  }
+
+  if (/(hospice vs palliative|difference between hospice and palliative|palliative vs hospice)/i.test(lower)) {
+    return res.json({
+      reply:
+        'Short version: palliative care can start at any stage and can run alongside treatment; hospice is generally for end-of-life care when comfort becomes the primary goal. Full comparison: /guides/hospice-vs-palliative-care',
+      navigateTo: '/guides/hospice-vs-palliative-care'
+    });
+  }
+
+  if (/(home health care costs|home care costs|cost of home health|cost of home care)/i.test(lower)) {
+    return res.json({
+      reply:
+        'Home care costs depend on service type, hours, and market. Non-medical support is usually hourly private-pay, while skilled home health may be covered when criteria are met. Full guide: /guides/home-health-care-costs',
+      navigateTo: '/guides/home-health-care-costs'
+    });
+  }
+
   if (mode === 'client' && !TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
     const captcha = await verifyTurnstile(turnstileToken, req.ip);
     if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
@@ -2569,6 +2767,21 @@ app.get('/guides/palliative-care', (_req, res) => {
 app.get('/guides/home-care', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'home-care.html'));
 });
+app.get('/guides/how-to-choose-hospice-provider', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'how-to-choose-hospice-provider.html'));
+});
+app.get('/guides/medicare-hospice-coverage', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'medicare-hospice-coverage.html'));
+});
+app.get('/guides/when-is-it-time-for-hospice', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'when-is-it-time-for-hospice.html'));
+});
+app.get('/guides/hospice-vs-palliative-care', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-vs-palliative-care.html'));
+});
+app.get('/guides/home-health-care-costs', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'home-health-care-costs.html'));
+});
 
 app.get('/sitemap.xml', async (_req, res) => {
   const locSitemap = `${CANONICAL_DOMAIN}/sitemap-locations.xml`;
@@ -2598,7 +2811,16 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
     '/refund-policy.html'
   ];
   const serviceHubs = SERVICE_KEYS.map((s) => `/${s}`);
-  const guides = ['/guides/hospice-care', '/guides/palliative-care', '/guides/home-care'];
+  const guides = [
+    '/guides/hospice-care',
+    '/guides/palliative-care',
+    '/guides/home-care',
+    '/guides/how-to-choose-hospice-provider',
+    '/guides/medicare-hospice-coverage',
+    '/guides/when-is-it-time-for-hospice',
+    '/guides/hospice-vs-palliative-care',
+    '/guides/home-health-care-costs'
+  ];
   const urls = [...pages, ...serviceHubs, ...guides].map((p) => `${CANONICAL_DOMAIN}${p}`);
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
