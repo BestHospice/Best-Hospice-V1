@@ -2532,6 +2532,17 @@ app.get('/provider/:slug', async (req, res) => {
   }
 });
 
+// Education guides (static HTML)
+app.get('/guides/hospice-care', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care.html'));
+});
+app.get('/guides/palliative-care', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'palliative-care.html'));
+});
+app.get('/guides/home-care', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'home-care.html'));
+});
+
 app.get('/sitemap.xml', async (_req, res) => {
   const locSitemap = `${CANONICAL_DOMAIN}/sitemap-locations.xml`;
   const provSitemap = `${CANONICAL_DOMAIN}/sitemap-providers.xml`;
@@ -2552,6 +2563,7 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
     '/locations.html',
     '/cities.html',
     '/faq-blog.html',
+    '/education.html',
     '/who-we-are.html',
     '/are-you-a-provider.html',
     '/privacy.html',
@@ -2559,7 +2571,8 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
     '/refund-policy.html'
   ];
   const serviceHubs = SERVICE_KEYS.map((s) => `/${s}`);
-  const urls = [...pages, ...serviceHubs].map((p) => `${CANONICAL_DOMAIN}${p}`);
+  const guides = ['/guides/hospice-care', '/guides/palliative-care', '/guides/home-care'];
+  const urls = [...pages, ...serviceHubs, ...guides].map((p) => `${CANONICAL_DOMAIN}${p}`);
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
