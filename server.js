@@ -770,8 +770,15 @@ function renderProviderList(providers) {
 
 function renderComparisonTable() {
   return `
-    <table class="compare">
-      <thead><tr><th></th><th>Hospice</th><th>Palliative</th><th>Home Care</th></tr></thead>
+    <table class="compare" aria-label="Compare hospice, palliative, and home care">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Hospice</th>
+          <th>Palliative</th>
+          <th>Home Care</th>
+        </tr>
+      </thead>
       <tbody>
         <tr><td>When used</td><td>Comfort near end of life</td><td>Any stage of serious illness</td><td>Daily living support</td></tr>
         <tr><td>Can include medical team</td><td>Yes</td><td>Yes</td><td>Sometimes (skilled visits)</td></tr>
