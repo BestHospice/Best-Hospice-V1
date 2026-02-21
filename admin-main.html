@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17909571702"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag("js", new Date());
+    gtag("config", "AW-17909571702");
+  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Main | Best Hospice and Home Health</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles-modern.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .admin-shell { max-width: 1180px; margin: 24px auto; padding: 16px; display: grid; gap: 16px; }
+    .card { background: #fff; border-radius: 14px; padding: 16px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); }
+    .login-card { max-width: 460px; margin: 0 auto; display: grid; gap: 10px; }
+    .hidden { display: none; }
+    .input-row { display: grid; gap: 10px; grid-template-columns: 1fr 1fr auto; align-items: end; }
+    .input-row .field { display: grid; gap: 6px; }
+    label { font-weight: 600; color: #0f172a; }
+    input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .stats-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .stat { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; background: #f8fafc; }
+    .stat .k { font-size: 12px; color: #475569; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .stat .v { font-size: 26px; font-weight: 700; color: #0f172a; line-height: 1.15; }
+    .split { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+    .bars { display: grid; gap: 8px; margin-top: 10px; }
+    .bar-row { display: grid; grid-template-columns: 130px 1fr 60px; gap: 8px; align-items: center; font-size: 14px; }
+    .bar-wrap { background: #e2e8f0; border-radius: 999px; overflow: hidden; height: 10px; }
+    .bar-fill { background: linear-gradient(90deg, #0f766e, #0ea5a5); height: 100%; }
+    .timeline { display: grid; gap: 8px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
+    .timeline-row { display: grid; grid-template-columns: 110px 1fr 34px; gap: 8px; align-items: center; font-size: 13px; }
+    .map-box { height: 360px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .table-wrap { max-height: 320px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+    th { background: #f8fafc; position: sticky; top: 0; z-index: 1; }
+    .chip-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .chip { background: #eff6ff; border: 1px solid #dbeafe; color: #1d4ed8; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
+    .note { color: #475569; font-size: 14px; margin-top: 6px; }
+    @media (max-width: 900px) {
+      .split { grid-template-columns: 1fr; }
+      .input-row { grid-template-columns: 1fr; }
+    }
+  </style>
+  <!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1447731666875537');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+  <script src="/abel-chat.js" defer></script>
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="login-card" class="card login-card">
+      <h1>Admin Main</h1>
+      <p class="note">Use the same Provider Dashboard Token to view full site analytics.</p>
+      <input id="token" type="password" placeholder="Enter Provider Dashboard Token" />
+      <button class="button" id="unlock-btn">Unlock Analytics</button>
+      <p id="login-status" class="note"></p>
+      <a class="button ghost" href="admin.html">Back to Admin options</a>
+    </div>
+
+    <section id="dashboard" class="hidden">
+      <div class="card">
+        <h2>Overview</h2>
+        <div class="input-row">
+          <div class="field">
+            <label for="from-date">From</label>
+            <input id="from-date" type="date" />
+          </div>
+          <div class="field">
+            <label for="to-date">To</label>
+            <input id="to-date" type="date" />
+          </div>
+          <button class="button" id="refresh-btn">Refresh</button>
+        </div>
+        <p id="range-label" class="note"></p>
+        <div class="stats-grid" id="stats-grid"></div>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <h2>Lead Trend (Daily)</h2>
+          <div id="timeline" class="timeline"></div>
+        </div>
+        <div class="card">
+          <h2>Care Type Breakdown</h2>
+          <div id="care-bars" class="bars"></div>
+          <h3 style="margin-top:14px;">Submitted By</h3>
+          <div id="submitted-bars" class="bars"></div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <h2>Lead Heat Map</h2>
+          <p class="note">Weighted by lead count per ZIP centroid from provider notifications.</p>
+          <div id="lead-map" class="map-box"></div>
+        </div>
+        <div class="card">
+          <h2>Top ZIP Codes</h2>
+          <div id="top-zips" class="chip-list"></div>
+          <h3 style="margin-top:14px;">Recent Clients</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>ZIP</th>
+                  <th>Submitted By</th>
+                  <th>Requested Care</th>
+                </tr>
+              </thead>
+              <tbody id="recent-leads-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const loginCard = document.getElementById('login-card');
+    const dashboard = document.getElementById('dashboard');
+    const loginStatus = document.getElementById('login-status');
+    const tokenInput = document.getElementById('token');
+    const fromInput = document.getElementById('from-date');
+    const toInput = document.getElementById('to-date');
+    const statsGrid = document.getElementById('stats-grid');
+    const timelineEl = document.getElementById('timeline');
+    const careBarsEl = document.getElementById('care-bars');
+    const submittedBarsEl = document.getElementById('submitted-bars');
+    const topZipsEl = document.getElementById('top-zips');
+    const recentBody = document.getElementById('recent-leads-body');
+    const rangeLabel = document.getElementById('range-label');
+    let adminToken = '';
+    let leadMap = null;
+    let heatLayer = null;
+
+    function fmtNum(v) {
+      return Number(v || 0).toLocaleString();
+    }
+
+    function prettySubmittedBy(v) {
+      if (v === 'TheClient') return 'The client';
+      if (v === 'A_Loved_One') return 'Loved one';
+      return 'Other';
+    }
+
+    function parseCareTypeLabel(servicesText) {
+      const s = String(servicesText || '').toLowerCase();
+      const labels = [];
+      if (s.includes('care type: hospice')) labels.push('Hospice');
+      if (s.includes('care type: palliative')) labels.push('Palliative');
+      if (s.includes('care type: home')) labels.push('Home Care');
+      if (!labels.length) {
+        if (s.includes('hospice')) labels.push('Hospice');
+        if (s.includes('palliative')) labels.push('Palliative');
+        if (s.includes('home')) labels.push('Home Care');
+      }
+      return labels.length ? labels.join(', ') : 'Not sure';
+    }
+
+    function renderBars(root, rows) {
+      root.innerHTML = '';
+      const max = Math.max(1, ...rows.map((r) => r.value || 0));
+      rows.forEach((r) => {
+        const pct = Math.round(((r.value || 0) / max) * 100);
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = `
+          <div>${r.label}</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <div style="text-align:right;">${fmtNum(r.value)}</div>
+        `;
+        root.appendChild(row);
+      });
+    }
+
+    function renderTimeline(data) {
+      timelineEl.innerHTML = '';
+      const max = Math.max(1, ...data.map((d) => d.count || 0));
+      data.forEach((d) => {
+        const pct = Math.round(((d.count || 0) / max) * 100);
+        const row = document.createElement('div');
+        row.className = 'timeline-row';
+        row.innerHTML = `
+          <div>${d.date}</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <div style="text-align:right;">${d.count}</div>
+        `;
+        timelineEl.appendChild(row);
+      });
+      if (!data.length) timelineEl.innerHTML = '<p class="note">No leads in selected range.</p>';
+    }
+
+    function renderStats(totals, timeline, topZips) {
+      const daysActive = timeline.filter((t) => t.count > 0).length;
+      const peakDay = timeline.reduce((acc, t) => (t.count > acc.count ? t : acc), { date: '-', count: 0 });
+      const uniqueZips = new Set((topZips || []).map((z) => z.zip)).size;
+      const cards = [
+        ['Clients Generated (All Time)', fmtNum(totals.leadsAllTime)],
+        ['Clients In Range', fmtNum(totals.leadsInRange)],
+        ['Notifications Sent', fmtNum(totals.notificationsSentInRange)],
+        ['Provider Impressions', fmtNum(totals.impressionsInRange)],
+        ['Avg Notifications / Client', String(totals.avgNotificationsPerLead || 0)],
+        ['Active Lead Days', fmtNum(daysActive)],
+        ['Peak Day', peakDay.date],
+        ['Peak Leads (Single Day)', fmtNum(peakDay.count)],
+        ['Top ZIPs Counted', fmtNum(uniqueZips)]
+      ];
+      statsGrid.innerHTML = cards.map(([k, v]) => (
+        `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`
+      )).join('');
+    }
+
+    function renderTopZips(topZips) {
+      topZipsEl.innerHTML = '';
+      if (!topZips.length) {
+        topZipsEl.innerHTML = '<span class="note">No ZIP activity in this range.</span>';
+        return;
+      }
+      topZips.forEach((z) => {
+        const el = document.createElement('span');
+        el.className = 'chip';
+        el.textContent = `${z.zip} (${z.count})`;
+        topZipsEl.appendChild(el);
+      });
+    }
+
+    function renderRecent(recentLeads) {
+      recentBody.innerHTML = '';
+      if (!recentLeads.length) {
+        recentBody.innerHTML = '<tr><td colspan="4">No recent leads for this range.</td></tr>';
+        return;
+      }
+      recentLeads.forEach((l) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${new Date(l.createdAt).toLocaleString()}</td>
+          <td>${l.zip || '-'}</td>
+          <td>${prettySubmittedBy(l.submittedBy)}</td>
+          <td>${parseCareTypeLabel(l.services)}</td>
+        `;
+        recentBody.appendChild(tr);
+      });
+    }
+
+    function ensureMap() {
+      if (leadMap) return;
+      leadMap = L.map('lead-map').setView([39.5, -98.35], 4);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(leadMap);
+    }
+
+    function renderHeat(points) {
+      ensureMap();
+      if (heatLayer) {
+        heatLayer.forEach((layer) => leadMap.removeLayer(layer));
+      }
+      heatLayer = [];
+      if (!points.length) return;
+      const bounds = [];
+      points.forEach((p) => {
+        const radius = Math.max(10, Math.min(45, 8 + (p.count * 3)));
+        const circle = L.circleMarker([p.lat, p.lon], {
+          radius,
+          stroke: true,
+          color: '#075985',
+          weight: 1,
+          fillColor: '#0ea5a5',
+          fillOpacity: 0.35
+        }).bindPopup(`ZIP ${p.zip}<br>Leads: ${p.count}`);
+        circle.addTo(leadMap);
+        heatLayer.push(circle);
+        bounds.push([p.lat, p.lon]);
+      });
+      if (bounds.length) {
+        leadMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
+      }
+    }
+
+    async function loadAnalytics() {
+      if (!adminToken) return;
+      const from = fromInput.value;
+      const to = toInput.value;
+      const qs = new URLSearchParams();
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      const res = await fetch(`/api/admin/main/analytics?${qs.toString()}`, {
+        headers: { 'x-admin-token': adminToken }
+      });
+      if (!res.ok) {
+        throw new Error('Unable to load analytics.');
+      }
+      const data = await res.json();
+      rangeLabel.textContent = `Showing analytics from ${data.from} to ${data.to}`;
+      renderStats(data.totals || {}, data.timeline || [], (data.breakdowns && data.breakdowns.topZips) || []);
+      renderTimeline(data.timeline || []);
+      const careTypes = (data.breakdowns && data.breakdowns.careTypes) || {};
+      const submittedBy = (data.breakdowns && data.breakdowns.submittedBy) || {};
+      renderBars(careBarsEl, [
+        { label: 'Hospice', value: careTypes.hospice || 0 },
+        { label: 'Palliative', value: careTypes.palliative || 0 },
+        { label: 'Home Care', value: careTypes.home || 0 },
+        { label: 'Not Sure', value: careTypes.notSure || 0 }
+      ]);
+      renderBars(submittedBarsEl, [
+        { label: 'The client', value: submittedBy.TheClient || 0 },
+        { label: 'Loved one', value: submittedBy.A_Loved_One || 0 },
+        { label: 'Other', value: submittedBy.Other || 0 }
+      ]);
+      renderTopZips((data.breakdowns && data.breakdowns.topZips) || []);
+      renderRecent(data.recentLeads || []);
+      renderHeat(data.heatPoints || []);
+    }
+
+    function setDefaultDates() {
+      const today = new Date();
+      const from = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+      toInput.value = today.toISOString().slice(0, 10);
+      fromInput.value = from.toISOString().slice(0, 10);
+    }
+
+    async function unlock() {
+      const token = tokenInput.value.trim();
+      if (!token) {
+        loginStatus.textContent = 'Please enter your token.';
+        return;
+      }
+      try {
+        loginStatus.textContent = 'Verifying...';
+        adminToken = token;
+        await loadAnalytics();
+        sessionStorage.setItem('adminMainToken', token);
+        loginCard.classList.add('hidden');
+        dashboard.classList.remove('hidden');
+      } catch (err) {
+        adminToken = '';
+        loginStatus.textContent = 'Invalid token or unable to load analytics.';
+      }
+    }
+
+    document.getElementById('unlock-btn').addEventListener('click', unlock);
+    document.getElementById('refresh-btn').addEventListener('click', async () => {
+      try {
+        await loadAnalytics();
+      } catch (err) {
+        alert('Could not refresh analytics right now.');
+      }
+    });
+
+    setDefaultDates();
+    const saved = sessionStorage.getItem('adminMainToken');
+    if (saved) {
+      tokenInput.value = saved;
+      unlock();
+    }
+  </script>
+</body>
+</html>

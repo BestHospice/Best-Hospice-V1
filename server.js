@@ -1434,6 +1434,8 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     const careTimes = answers.frequency?.times?.length ? answers.frequency.times.join(', ') : 'Not specified';
     const careDaysAndTimes = `Days: ${careDays}; Times: ${careTimes}`;
     const services = Array.isArray(answers.services) && answers.services.length ? answers.services : ['Not specified'];
+    const careTypeSelections = Array.isArray(answers.careType) && answers.careType.length ? answers.careType : ['Not sure'];
+    const servicePayload = [...services, ...careTypeSelections.map((c) => `Care Type: ${c}`)];
     const funding = answers.funding || 'Not specified';
     const otherDetails = answers.moreDetails || 'Not provided';
     const clientEmail = answers.contactEmail || 'Not provided';
@@ -1449,7 +1451,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
         submittedBy: requestSubmittedBy,
         careDays,
         careTimes,
-        services: Array.isArray(services) ? services.join('; ') : `${services}`,
+        services: Array.isArray(servicePayload) ? servicePayload.join('; ') : `${servicePayload}`,
         clientEmail,
         clientPhone,
         firstName: clientFirst || null,
@@ -1498,7 +1500,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           clientZip: zip,
           requestSubmittedBy,
           careDaysAndTimes,
-          services,
+          services: servicePayload,
           funding,
           otherDetails,
           clientEmail,
@@ -1521,6 +1523,172 @@ app.post('/api/notify', rateLimit, async (req, res) => {
   } catch (err) {
     console.error('Notify failed', err);
     res.status(500).json({ error: 'Notify failed' });
+  }
+});
+
+app.get('/api/admin/main/analytics', async (req, res) => {
+  const token = req.headers['x-admin-token'];
+  if (token !== ADMIN_TOKEN_DASH) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const fromRaw = String(req.query.from || '').trim();
+    const toRaw = String(req.query.to || '').trim();
+    const from = fromRaw ? new Date(`${fromRaw}T00:00:00.000Z`) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const to = toRaw ? new Date(`${toRaw}T23:59:59.999Z`) : new Date();
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      return res.status(400).json({ error: 'Invalid date range' });
+    }
+
+    const [totalLeadsAllTime, leadsRange] = await Promise.all([
+      prisma.lead.count(),
+      prisma.lead.findMany({
+        where: { createdAt: { gte: from, lte: to } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          zip: true,
+          createdAt: true,
+          submittedBy: true,
+          services: true,
+          clientEmail: true,
+          clientPhone: true,
+          firstName: true,
+          lastName: true
+        }
+      })
+    ]);
+
+    const leadIds = leadsRange.map((l) => l.id);
+    const notificationsRange = leadIds.length
+      ? await prisma.leadNotification.count({ where: { leadId: { in: leadIds }, status: 'sent' } })
+      : 0;
+    const impressionsRange = leadIds.length
+      ? await prisma.providerImpression.count({ where: { leadId: { in: leadIds } } })
+      : 0;
+
+    const timelineMap = new Map();
+    const careTypeMap = { hospice: 0, palliative: 0, home: 0, notSure: 0 };
+    const submittedByMap = { TheClient: 0, A_Loved_One: 0, Other: 0 };
+    const zipCountMap = new Map();
+
+    const parseCareTypes = (servicesText) => {
+      const lower = String(servicesText || '').toLowerCase();
+      const hits = new Set();
+      if (lower.includes('care type: hospice')) hits.add('hospice');
+      if (lower.includes('care type: palliative')) hits.add('palliative');
+      if (lower.includes('care type: home')) hits.add('home');
+      if (!hits.size) {
+        if (lower.includes('hospice')) hits.add('hospice');
+        if (lower.includes('palliative')) hits.add('palliative');
+        if (lower.includes('home care') || lower.includes('homecare')) hits.add('home');
+      }
+      if (!hits.size) hits.add('notSure');
+      return Array.from(hits);
+    };
+
+    leadsRange.forEach((lead) => {
+      const day = new Date(lead.createdAt).toISOString().slice(0, 10);
+      timelineMap.set(day, (timelineMap.get(day) || 0) + 1);
+      const careTypes = parseCareTypes(lead.services);
+      careTypes.forEach((key) => {
+        if (key === 'notSure') careTypeMap.notSure += 1;
+        else careTypeMap[key] += 1;
+      });
+      const submittedBy = lead.submittedBy || 'Other';
+      if (submittedByMap[submittedBy] == null) submittedByMap.Other += 1;
+      else submittedByMap[submittedBy] += 1;
+      const zip = String(lead.zip || '').trim();
+      if (zip) zipCountMap.set(zip, (zipCountMap.get(zip) || 0) + 1);
+    });
+
+    const notifsForCentroid = leadIds.length
+      ? await prisma.leadNotification.findMany({
+          where: { leadId: { in: leadIds } },
+          select: {
+            leadId: true,
+            lead: { select: { zip: true } },
+            provider: { select: { lat: true, lon: true } }
+          }
+        })
+      : [];
+
+    const leadCentroidMap = new Map();
+    for (const row of notifsForCentroid) {
+      if (!row.provider?.lat || !row.provider?.lon || !row.lead?.zip) continue;
+      const curr = leadCentroidMap.get(row.leadId) || { zip: row.lead.zip, count: 0, lat: 0, lon: 0 };
+      curr.count += 1;
+      curr.lat += row.provider.lat;
+      curr.lon += row.provider.lon;
+      leadCentroidMap.set(row.leadId, curr);
+    }
+
+    const heatZipMap = new Map();
+    for (const cent of leadCentroidMap.values()) {
+      if (!cent.count) continue;
+      const lat = cent.lat / cent.count;
+      const lon = cent.lon / cent.count;
+      const key = String(cent.zip || '').trim();
+      const curr = heatZipMap.get(key) || { zip: key, count: 0, latAcc: 0, lonAcc: 0, n: 0 };
+      curr.count += 1;
+      curr.latAcc += lat;
+      curr.lonAcc += lon;
+      curr.n += 1;
+      heatZipMap.set(key, curr);
+    }
+
+    const heatPoints = Array.from(heatZipMap.values())
+      .map((z) => ({
+        zip: z.zip,
+        count: z.count,
+        lat: z.latAcc / z.n,
+        lon: z.lonAcc / z.n
+      }))
+      .filter((z) => Number.isFinite(z.lat) && Number.isFinite(z.lon));
+
+    const timeline = Array.from(timelineMap.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const topZips = Array.from(zipCountMap.entries())
+      .map(([zip, count]) => ({ zip, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+
+    const recentLeads = leadsRange.slice(0, 200).map((l) => ({
+      id: l.id,
+      createdAt: l.createdAt,
+      zip: l.zip,
+      submittedBy: l.submittedBy,
+      services: l.services || '',
+      clientName: buildClientName(l.firstName, l.lastName),
+      clientEmail: l.clientEmail || '',
+      clientPhone: l.clientPhone || ''
+    }));
+
+    res.json({
+      ok: true,
+      from: from.toISOString().slice(0, 10),
+      to: to.toISOString().slice(0, 10),
+      totals: {
+        leadsAllTime: totalLeadsAllTime,
+        leadsInRange: leadsRange.length,
+        notificationsSentInRange: notificationsRange,
+        impressionsInRange: impressionsRange,
+        avgNotificationsPerLead: leadsRange.length ? Number((notificationsRange / leadsRange.length).toFixed(2)) : 0
+      },
+      breakdowns: {
+        careTypes: careTypeMap,
+        submittedBy: submittedByMap,
+        topZips
+      },
+      timeline,
+      heatPoints,
+      recentLeads
+    });
+  } catch (err) {
+    console.error('Admin main analytics failed', err);
+    res.status(500).json({ error: 'Failed to load analytics' });
   }
 });
 
