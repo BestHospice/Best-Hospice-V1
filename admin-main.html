@@ -158,6 +158,13 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     let leadMap = null;
     let heatLayer = null;
 
+    function refreshLeadMapLayout() {
+      if (!leadMap) return;
+      requestAnimationFrame(() => leadMap.invalidateSize());
+      setTimeout(() => leadMap.invalidateSize(), 120);
+      setTimeout(() => leadMap.invalidateSize(), 320);
+    }
+
     function fmtNum(v) {
       return Number(v || 0).toLocaleString();
     }
@@ -269,11 +276,12 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
 
     function ensureMap() {
       if (leadMap) return;
-      leadMap = L.map('lead-map').setView([39.5, -98.35], 4);
+      leadMap = L.map('lead-map', { preferCanvas: true, zoomAnimation: false }).setView([39.5, -98.35], 4);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18,
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(leadMap);
+      refreshLeadMapLayout();
     }
 
     function renderHeat(points) {
@@ -283,8 +291,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       }
       heatLayer = [];
       if (!points.length) return;
+      const limitedPoints = points.slice(0, 400);
       const bounds = [];
-      points.forEach((p) => {
+      limitedPoints.forEach((p) => {
         const radius = Math.max(10, Math.min(45, 8 + (p.count * 3)));
         const circle = L.circleMarker([p.lat, p.lon], {
           radius,
@@ -301,6 +310,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       if (bounds.length) {
         leadMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
       }
+      refreshLeadMapLayout();
     }
 
     async function loadAnalytics() {
@@ -354,11 +364,15 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       try {
         loginStatus.textContent = 'Verifying...';
         adminToken = token;
-        await loadAnalytics();
         loginCard.classList.add('hidden');
         dashboard.classList.remove('hidden');
+        rangeLabel.textContent = 'Loading analytics...';
+        await loadAnalytics();
+        refreshLeadMapLayout();
       } catch (err) {
         adminToken = '';
+        dashboard.classList.add('hidden');
+        loginCard.classList.remove('hidden');
         loginStatus.textContent = 'Invalid token or unable to load analytics.';
       }
     }
@@ -367,12 +381,14 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     document.getElementById('refresh-btn').addEventListener('click', async () => {
       try {
         await loadAnalytics();
+        refreshLeadMapLayout();
       } catch (err) {
         alert('Could not refresh analytics right now.');
       }
     });
 
     setDefaultDates();
+    window.addEventListener('resize', refreshLeadMapLayout);
     // Require manual token entry every time.
   </script>
 </body>
