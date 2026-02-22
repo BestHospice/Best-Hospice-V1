@@ -177,40 +177,23 @@ const privacySection = document.getElementById('privacy-section');
 const privacyAck = document.getElementById('privacy-ack');
 const privacyContinue = document.getElementById('privacy-continue');
 
+let autoStartFromQuery = false;
 (() => {
   if (!zipInput) return;
   try {
     const params = new URLSearchParams(window.location.search);
     const zip = (params.get('zip') || '').trim();
+    const autoStart = (params.get('autostart') || '').trim();
     if (/^\d{5}$/.test(zip)) {
       zipInput.value = zip;
+      autoStartFromQuery = autoStart === '1' || autoStart.toLowerCase() === 'true';
     }
   } catch (err) {
     // ignore if URL parsing fails
   }
 })();
 
-async function loadTurnstileSiteKey() {
-  try {
-    const res = await fetch('/api/config/turnstile');
-    if (!res.ok) throw new Error('Failed to load captcha config');
-    const data = await res.json();
-    TURNSTILE_SITE_KEY = data.siteKey;
-  } catch (err) {
-    console.warn('Could not load Turnstile site key', err);
-    TURNSTILE_SITE_KEY = null;
-  }
-}
-
-loadTurnstileSiteKey();
-
-form.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const zip = zipInput.value.trim();
-  if (!/^\d{5}$/.test(zip)) {
-    setStatus('Enter a 5-digit ZIP code.', true);
-    return;
-  }
+function beginQuestionnaireFromZip(zip) {
   // reset captcha state per attempt
   turnstileToken = null;
   pendingZip = zip;
@@ -253,7 +236,41 @@ form.addEventListener('submit', (event) => {
   currentQuestion = 0;
   pendingZip = null;
   showQuestionnaire();
+}
+
+async function loadTurnstileSiteKey() {
+  try {
+    const res = await fetch('/api/config/turnstile');
+    if (!res.ok) throw new Error('Failed to load captcha config');
+    const data = await res.json();
+    TURNSTILE_SITE_KEY = data.siteKey;
+  } catch (err) {
+    console.warn('Could not load Turnstile site key', err);
+    TURNSTILE_SITE_KEY = null;
+  }
+}
+
+loadTurnstileSiteKey();
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const zip = zipInput.value.trim();
+  if (!/^\d{5}$/.test(zip)) {
+    setStatus('Enter a 5-digit ZIP code.', true);
+    return;
+  }
+  beginQuestionnaireFromZip(zip);
 });
+
+(() => {
+  if (!autoStartFromQuery || !zipInput?.value) return;
+  const startFlow = () => beginQuestionnaireFromZip(zipInput.value.trim());
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startFlow, { once: true });
+  } else {
+    startFlow();
+  }
+})();
 
 questionForm.addEventListener('submit', (event) => {
   event.preventDefault();

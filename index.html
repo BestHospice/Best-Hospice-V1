@@ -157,13 +157,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
             <div style="font-size:24px; font-weight:800; line-height:1;">100%</div>
             <div class="note">Free for Families</div>
           </div>
-          <div class="lead-item" style="padding:12px;">
-            <div style="font-size:24px; font-weight:800; line-height:1;">Founded</div>
-            <div class="note">by a West Point Graduate</div>
-          </div>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
-          <a class="pill ghost-pill" href="/education.html">Learn about hospice care first</a>
+          <a class="pill ghost-pill" href="/education.html">Learn about elder care first</a>
           <a class="pill ghost-pill" href="/locations.html">Browse providers by state</a>
         </div>
       </section>
@@ -349,7 +345,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         input.focus();
         return;
       }
-      window.location.href = `search.html?zip=${encodeURIComponent(zip)}`;
+      window.location.href = `search.html?zip=${encodeURIComponent(zip)}&autostart=1`;
     });
   })();
 </script>
