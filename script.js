@@ -66,6 +66,16 @@ const detailRelationship = document.getElementById('detail-relationship');
 const detailCareType = document.getElementById('detail-caretype');
 const detailNotes = document.getElementById('detail-notes');
 
+function refreshMapLayout() {
+  try {
+    requestAnimationFrame(() => map.invalidateSize());
+    setTimeout(() => map.invalidateSize(), 120);
+    setTimeout(() => map.invalidateSize(), 320);
+  } catch (_err) {
+    // ignore
+  }
+}
+
 function setStatus(message, isError = false) {
   if (!statusEl) return;
   statusEl.textContent = message;
@@ -382,8 +392,8 @@ async function handleInitialSearch(event) {
 
     currentNearbyProviders = unique.filter((p) => !!p.id && !!p.email);
     map.setView([geo.lat, geo.lon], 11);
-    map.whenReady(() => map.invalidateSize());
     mapSection.classList.remove('hidden');
+    refreshMapLayout();
     mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     renderResults(unique, geo.label);
 
@@ -454,11 +464,13 @@ detailsYesBtn?.addEventListener('click', () => {
   optionalForm.classList.remove('hidden');
   detailsYesBtn.disabled = true;
   detailsNoBtn.disabled = true;
+  refreshMapLayout();
 });
 
 detailsNoBtn?.addEventListener('click', () => {
   setDetailsStatus('No problem. Providers already received your initial request.');
   optionalChoice.classList.add('hidden');
+  refreshMapLayout();
 });
 
 optionalForm?.addEventListener('submit', handleOptionalDetailsSubmit);
@@ -487,6 +499,7 @@ function injectMainMenuButton() {
 }
 
 window.addEventListener('load', injectMainMenuButton);
+window.addEventListener('resize', refreshMapLayout);
 loadTurnstileSiteKey();
 
 (() => {
