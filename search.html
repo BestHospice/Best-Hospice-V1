@@ -63,7 +63,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <h1>Find hospice, palliative, or home care providers near you</h1>
           <p class="hero-line">Because your loved ones deserve the best, period.</p>
          <p class="tagline">
-            Start with your ZIP code, answer a few guided questions, and see hospice, palliative, or home care providers within 60 miles.
+            Enter your ZIP code and timeline to instantly view local providers. Then optionally share more details for a more personalized match.
           </p>
         </div>
         <form id="search-form" class="search">
@@ -71,61 +71,45 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <label for="zip" class="label">Enter ZIP code</label>
           <div class="input-row">
             <input id="zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="e.g. 30301" required />
-            <button type="submit">Begin</button>
+          </div>
+          <label for="timeline" class="label" style="margin-top:10px;">When do you need care?</label>
+          <div class="input-row">
+            <select id="timeline" name="timeline" required>
+              <option value="">Select timeline</option>
+              <option>Next 24 hours</option>
+              <option>Next 2 days</option>
+              <option>3 days</option>
+              <option>4 days</option>
+              <option>5 days</option>
+              <option>6 days</option>
+              <option>1 week</option>
+              <option>2 weeks</option>
+              <option>2-4 weeks</option>
+              <option>More than 1 month</option>
+              <option>Not sure yet</option>
+            </select>
+          </div>
+          <label for="contact-email" class="label" style="margin-top:10px;">Email address</label>
+          <div class="input-row">
+            <input id="contact-email" name="contactEmail" type="email" placeholder="you@example.com" required />
+          </div>
+          <label for="contact-phone" class="label" style="margin-top:10px;">Phone number (optional)</label>
+          <div class="input-row">
+            <input id="contact-phone" name="contactPhone" type="tel" placeholder="(555) 123-4567" />
+          </div>
+          <div class="input-row" style="margin-top:10px;">
+            <button type="submit">Find Providers in My Area</button>
           </div>
           <div id="captcha-container" class="hidden">
             <div id="turnstile-widget"></div>
           </div>
           <p class="hint">US ZIP codes only for now.</p>
+          <p class="hint">By continuing, you agree to our <a href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms of Service</a>.</p>
         </form>
       </div>
     </header>
 
     <main>
-      <section id="questionnaire" class="question-card hidden card">
-        <div class="question-top">
-          <div>
-            <p class="eyebrow" id="question-progress">Question 1</p>
-            <h2 id="question-title">Tell us about your needs</h2>
-          </div>
-          <div class="chip">Friendly guidance</div>
-        </div>
-        <p id="question-desc" class="question-desc">Answer to continue.</p>
-        <form id="question-form" class="question-form">
-          <div id="question-content" class="question-content"></div>
-          <div class="question-actions">
-            <button type="button" id="back-btn" class="ghost" disabled>Back</button>
-            <button type="submit" class="button">Next</button>
-          </div>
-        </form>
-          <p class="hint">We share because we care. Enabling providers to find you proper care quicker.</p>
-      </section>
-
-      <section id="privacy-section" class="card hidden summary-card">
-        <div>
-          <p class="eyebrow">Important Privacy Notice</p>
-          <h2>Best Hospice and Home Health is a referral and connection platform and does not provide medical care or medical advice.</h2>
-        </div>
-        <div class="summary-content" style="display: grid; gap: 10px;">
-          <p>Please do not share sensitive or private health information, including diagnoses, medical records, Social Security numbers, insurance details, or other confidential medical data. This information is not required to use our service.</p>
-          <p>Information you provide (name, contact details, and general care needs) may be shared with hospice and home care providers in your area to facilitate your connection with care.</p>
-          <p>By continuing, you acknowledge that:</p>
-          <ol class="summary-list">
-            <li>You understand Best Hospice and Home Health is not a healthcare provider.</li>
-            <li>You agree not to submit protected or sensitive health information.</li>
-            <li>You consent to your contact information being shared with local providers to connect you with care.</li>
-            <li>You understand that Best Hospice and Home Health is not responsible for provider services or outcomes.</li>
-          </ol>
-          <p>If you are experiencing a medical emergency, please contact 911 immediately.</p>
-          <p class="note">Review our <a href="privacy.html" style="color:#1d4ed8;">Privacy Policy</a> and <a href="terms.html" style="color:#1d4ed8;">Terms &amp; Conditions</a>.</p>
-          <label style="display:flex; gap:8px; align-items:flex-start; font-size: 15px;">
-            <input type="checkbox" id="privacy-ack" />
-            <span>I have read and acknowledge the notice above.</span>
-          </label>
-          <button class="button" id="privacy-continue" disabled>I Acknowledge &amp; Continue</button>
-        </div>
-      </section>
-
       <section id="map-section" class="layout card hidden">
         <div class="map-col">
           <div id="map" aria-label="Hospice locations map"></div>
@@ -140,19 +124,41 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
             </div>
             <div id="status" class="status">Enter a ZIP to start.</div>
           </div>
+          <p id="lead-confirmation" class="note hidden" style="margin:8px 0;"></p>
           <ul id="results" class="results"></ul>
+          <section id="optional-details-card" class="card hidden" style="margin-top:12px;">
+            <h3 style="margin:0 0 6px;">Help providers assist you better (optional)</h3>
+            <p class="note" style="margin:0 0 10px;">Answer a few more questions so providers can prepare for your specific needs.</p>
+            <div id="optional-choice" style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button id="details-yes" class="button" type="button">Yes, Add More Details</button>
+              <button id="details-no" class="button ghost" type="button">No, Thanks</button>
+            </div>
+            <form id="optional-details-form" class="hidden" style="margin-top:12px; display:grid; gap:10px;">
+              <label for="detail-name" class="label">Your name (optional)</label>
+              <input id="detail-name" type="text" class="input-text" placeholder="First and last name" />
+              <label for="detail-relationship" class="label">Who needs care?</label>
+              <select id="detail-relationship" required>
+                <option value="">Select one</option>
+                <option value="me">Myself</option>
+                <option value="loved-one">Parent</option>
+                <option value="spouse">Spouse</option>
+                <option value="other">Other</option>
+              </select>
+              <label for="detail-caretype" class="label">What type of care?</label>
+              <select id="detail-caretype" required>
+                <option value="">Select one</option>
+                <option>Hospice Care</option>
+                <option>Palliative Care</option>
+                <option>Home Health</option>
+                <option>Not sure</option>
+              </select>
+              <label for="detail-notes" class="label">Any specific needs or questions? (optional)</label>
+              <textarea id="detail-notes" rows="4" class="input-text" placeholder="Anything providers should know"></textarea>
+              <button type="submit" class="button">Send Additional Details to Providers</button>
+            </form>
+            <p id="details-status" class="note" style="margin-top:8px;"></p>
+          </section>
         </div>
-      </section>
-
-      <section id="summary-section" class="card hidden summary-card">
-        <div>
-          <p class="eyebrow">Your Summary</p>
-          <h2>What you shared</h2>
-          <p class="tagline">Review and send to nearby hospice, palliative, or home care teams.</p>
-        </div>
-        <div id="summary-content" class="summary-content"></div>
-        <a id="summary-email" class="button" href="#" target="_blank" rel="noopener">Email this to BestHospice</a>
-        <p class="hint">We share your questionnaire with nearby hospice, palliative, or home care providers so they can reach out quickly.</p>
       </section>
     </main>
     <footer class="site-footer">

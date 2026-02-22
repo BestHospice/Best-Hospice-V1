@@ -439,7 +439,10 @@ async function processNotificationJob(job) {
   if (providerEmails.length) {
     try {
       const results = await sendProviderNotifications({
+        notificationType: payload.notificationType || 'initial',
         clientZip: payload.clientZip,
+        timeline: payload.timeline,
+        providerCount: payload.providerCount,
         requestSubmittedBy: payload.requestSubmittedBy,
         careDaysAndTimes: payload.careDaysAndTimes,
         services: payload.services,
@@ -448,6 +451,9 @@ async function processNotificationJob(job) {
         clientEmail: payload.clientEmail,
         clientPhone: payload.clientPhone,
         clientName: payload.clientName,
+        whoNeedsCare: payload.whoNeedsCare,
+        careType: payload.careType,
+        additionalNotes: payload.additionalNotes,
         providers: [{ id: job.providerId, email: providerEmails[0], emails: providerEmails }],
         nearbyProviders: [{ id: job.providerId, email: providerEmails[0] }]
       });
@@ -494,10 +500,12 @@ async function processNotificationJob(job) {
       }
     });
     if (status === 'sent') {
-      await prisma.provider.update({
-        where: { id: job.providerId },
-        data: { leadCount: { increment: 1 } }
-      });
+      if ((payload.notificationType || 'initial') !== 'details') {
+        await prisma.provider.update({
+          where: { id: job.providerId },
+          data: { leadCount: { increment: 1 } }
+        });
+      }
     }
   }
 
@@ -1082,6 +1090,14 @@ function renderProviderPage(provider) {
 function toSubmittedBy(relationship) {
   if (relationship === 'me') return 'TheClient';
   if (relationship === 'loved-one') return 'A_Loved_One';
+  if (relationship === 'spouse') return 'A_Loved_One';
+  return 'Other';
+}
+
+function relationshipLabel(relationship) {
+  if (relationship === 'me' || relationship === 'TheClient') return 'Myself';
+  if (relationship === 'loved-one' || relationship === 'A_Loved_One') return 'Parent/Loved One';
+  if (relationship === 'spouse') return 'Spouse';
   return 'Other';
 }
 
@@ -1417,58 +1433,110 @@ app.delete('/api/providers/:id', async (req, res) => {
 app.post('/api/notify', rateLimit, async (req, res) => {
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {
-    const { zip, answers, providers, captchaToken } = req.body || {};
+    const { mode, leadId, zip, answers, providers, captchaToken } = req.body || {};
+    const notifyMode = String(mode || 'initial').toLowerCase() === 'details' ? 'details' : 'initial';
     if (!zip || !answers || !Array.isArray(providers) || !providers.length) {
       return res.status(400).json({ error: 'Missing zip, answers, or providers list' });
     }
-    const captchaResult = await verifyTurnstile(captchaToken, req.ip);
-    if (!captchaResult.success) {
-      return res.status(403).json({ error: 'Captcha verification failed.', details: captchaResult['error-codes'] || captchaResult.error });
+    if (notifyMode === 'initial') {
+      const captchaResult = await verifyTurnstile(captchaToken, req.ip);
+      if (!captchaResult.success) {
+        return res.status(403).json({ error: 'Captcha verification failed.', details: captchaResult['error-codes'] || captchaResult.error });
+      }
     }
 
     const toList = providers.filter((p) => !!p.id);
     if (!toList.length) return res.status(400).json({ error: 'No providers to notify' });
 
-    const requestSubmittedBy = toSubmittedBy(answers.relationship);
-    const careDays = answers.frequency?.days?.length ? answers.frequency.days.join(', ') : 'Not specified';
-    const careTimes = answers.frequency?.times?.length ? answers.frequency.times.join(', ') : 'Not specified';
-    const careDaysAndTimes = `Days: ${careDays}; Times: ${careTimes}`;
-    const services = Array.isArray(answers.services) && answers.services.length ? answers.services : ['Not specified'];
-    const careTypeSelections = Array.isArray(answers.careType) && answers.careType.length ? answers.careType : ['Not sure'];
-    const servicePayload = [...services, ...careTypeSelections.map((c) => `Care Type: ${c}`)];
-    const funding = answers.funding || 'Not specified';
-    const otherDetails = answers.moreDetails || 'Not provided';
-    const clientEmail = answers.contactEmail || 'Not provided';
-    const clientPhone = answers.contactPhone || 'Not provided';
-    const clientFirst = answers.fullName?.first || '';
-    const clientLast = answers.fullName?.last || '';
-    const clientName = buildClientName(clientFirst, clientLast);
+    let requestSubmittedBy = toSubmittedBy(answers.relationship);
+    let careDays = answers.timeline || 'Not specified';
+    let careTimes = 'Not specified';
+    let careDaysAndTimes = `Timeline: ${careDays}`;
+    let services = Array.isArray(answers.services) && answers.services.length ? answers.services : [];
+    let careTypeSelections = Array.isArray(answers.careType) && answers.careType.length ? answers.careType : [];
+    let servicePayload = [...services, ...careTypeSelections.map((c) => `Care Type: ${c}`)];
+    let funding = answers.funding || 'Not specified';
+    let otherDetails = answers.moreDetails || '';
+    let clientEmail = answers.contactEmail || 'Not provided';
+    let clientPhone = answers.contactPhone || 'Not provided';
+    let clientFirst = answers.fullName?.first || '';
+    let clientLast = answers.fullName?.last || '';
+    let clientName = buildClientName(clientFirst, clientLast);
+    let whoNeedsCare = relationshipLabel(answers.relationship || requestSubmittedBy);
+    let careTypeText = careTypeSelections.join(', ') || 'Not sure';
+    let additionalNotes = otherDetails || 'Not provided';
 
-    const lead = await prisma.lead.create({
-      data: {
-        id: uuid(),
-        zip,
-        submittedBy: requestSubmittedBy,
-        careDays,
-        careTimes,
-        services: Array.isArray(servicePayload) ? servicePayload.join('; ') : `${servicePayload}`,
-        clientEmail,
-        clientPhone,
-        firstName: clientFirst || null,
-        lastName: clientLast || null
+    let lead;
+    if (notifyMode === 'details') {
+      if (!leadId) return res.status(400).json({ error: 'Missing leadId for details mode' });
+      const existingLead = await prisma.lead.findUnique({ where: { id: leadId } });
+      if (!existingLead) return res.status(404).json({ error: 'Lead not found' });
+      lead = existingLead;
+
+      requestSubmittedBy = toSubmittedBy(answers.relationship) || existingLead.submittedBy || 'Other';
+      careDays = answers.timeline || existingLead.careDays || 'Not specified';
+      careTimes = existingLead.careTimes || 'Not specified';
+      careDaysAndTimes = `Timeline: ${careDays}`;
+      clientEmail = answers.contactEmail || existingLead.clientEmail || 'Not provided';
+      clientPhone = answers.contactPhone || existingLead.clientPhone || 'Not provided';
+      clientFirst = answers.fullName?.first || existingLead.firstName || '';
+      clientLast = answers.fullName?.last || existingLead.lastName || '';
+      clientName = buildClientName(clientFirst, clientLast);
+      whoNeedsCare = relationshipLabel(answers.relationship || requestSubmittedBy);
+      careTypeSelections = Array.isArray(answers.careType) && answers.careType.length ? answers.careType : [];
+      careTypeText = careTypeSelections.join(', ') || 'Not sure';
+      additionalNotes = answers.moreDetails || 'Not provided';
+      services = Array.isArray(answers.services) ? answers.services : [];
+      servicePayload = [...services, ...careTypeSelections.map((c) => `Care Type: ${c}`)];
+
+      const mergedServices = [
+        existingLead.services || '',
+        whoNeedsCare ? `Who needs care: ${whoNeedsCare}` : '',
+        careTypeText ? `Care Type: ${careTypeText}` : '',
+        additionalNotes ? `Additional notes: ${additionalNotes}` : ''
+      ].filter(Boolean).join('; ');
+
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          submittedBy: requestSubmittedBy,
+          careDays,
+          services: mergedServices,
+          clientEmail,
+          clientPhone,
+          firstName: clientFirst || null,
+          lastName: clientLast || null
+        }
+      });
+    } else {
+      if (!answers.timeline || !answers.contactEmail) {
+        return res.status(400).json({ error: 'Missing timeline or contact email' });
       }
-    });
+      lead = await prisma.lead.create({
+        data: {
+          id: uuid(),
+          zip,
+          submittedBy: requestSubmittedBy,
+          careDays,
+          careTimes,
+          services: `Initial lead request; Timeline: ${careDays}`,
+          clientEmail,
+          clientPhone,
+          firstName: clientFirst || null,
+          lastName: clientLast || null
+        }
+      });
 
-    // Log impressions
-    const impressionData = toList
-      .filter((p) => !!p.id)
-      .map((p) => ({
-        id: uuid(),
-        providerId: p.id,
-        leadId: lead.id,
-        zip
-      }));
-    if (impressionData.length) await prisma.providerImpression.createMany({ data: impressionData });
+      const impressionData = toList
+        .filter((p) => !!p.id)
+        .map((p) => ({
+          id: uuid(),
+          providerId: p.id,
+          leadId: lead.id,
+          zip
+        }));
+      if (impressionData.length) await prisma.providerImpression.createMany({ data: impressionData });
+    }
 
     const providerIds = toList.map((p) => p.id).filter(Boolean);
     let providerMap = new Map();
@@ -1498,6 +1566,9 @@ app.post('/api/notify', rateLimit, async (req, res) => {
         status: 'pending',
         payload: {
           clientZip: zip,
+          notificationType: notifyMode,
+          timeline: careDays,
+          providerCount: toList.length,
           requestSubmittedBy,
           careDaysAndTimes,
           services: servicePayload,
@@ -1506,6 +1577,9 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           clientEmail,
           clientPhone,
           clientName,
+          whoNeedsCare,
+          careType: careTypeText,
+          additionalNotes,
           providerEmail: recipientEmails[0],
           providerEmails: recipientEmails,
           providerPhone: providerRecord?.phone || p.phone || '',
@@ -1519,7 +1593,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       await prisma.notificationJob.createMany({ data: jobs });
     }
 
-    res.json({ ok: true, queued: true, sent: jobs.length });
+    res.json({ ok: true, queued: true, sent: jobs.length, leadId: lead.id, mode: notifyMode });
   } catch (err) {
     console.error('Notify failed', err);
     res.status(500).json({ error: 'Notify failed' });
