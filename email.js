@@ -10,92 +10,104 @@ function initSendGrid() {
   return true;
 }
 
-function buildEmailHtml({ clientZip, requestSubmittedBy, careDaysAndTimes, services, funding, otherDetails, clientEmail, clientPhone, clientName }) {
-  const prettySubmittedBy = (() => {
-    const value = String(requestSubmittedBy || '').trim();
-    if (value === 'TheClient') return 'The client';
-    if (value === 'A_Loved_One') return 'Loved one';
-    if (value === 'Other') return 'Other';
-    return value || 'Not specified';
-  })();
-  const servicesList = Array.isArray(services) && services.length
-    ? services.map((s) => `<li>${s}</li>`).join('')
-    : '<li>Not specified</li>';
-  const emailLine = clientEmail && clientEmail !== 'Not provided'
-    ? `<a href="mailto:${clientEmail}">${clientEmail}</a>`
-    : 'Not provided';
-  const phoneLine = clientPhone && clientPhone !== 'Not provided' ? clientPhone : 'Not provided';
-  const nameLine = clientName && clientName !== 'Not provided' ? clientName : 'Not provided';
-  const fundingLine = funding && funding !== 'Not specified' ? funding : 'Not specified';
-  const detailsLine = otherDetails && otherDetails !== 'Not provided' ? otherDetails : 'Not provided';
+function toDisplay(value, fallback = 'Not provided') {
+  return String(value || '').trim() || fallback;
+}
 
+function sharedSignatureBlock() {
+  return `
+  <p>We support care that acts quickly at <strong>Best Hospice and Home Health</strong>. We encourage you to reach out promptly!</p>
+  <p>Thank you for being a valued member of <strong>Best Hospice and Home Health</strong> and for providing compassionate care during life’s most difficult moments.</p>
+  <br />
+  <p>Have a blessed day,<br />
+  <strong>Best Hospice and Home Health Team</strong><br />
+  <a href="mailto:admin@besthospice.com">admin@besthospice.com</a></p>
+  <p style="font-style: italic; color:#555;">“Because your loved ones deserve the best, period.”</p>
+`;
+}
+
+function buildInitialLeadEmailHtml({ clientZip, timeline, clientEmail, clientPhone, providerCount }) {
   return `
 <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #222;">
-  <p><strong>Best Hospice and Home Health</strong> is your trusted partner in connecting you with clients in need nearby.</p>
-  <p>
-    We have identified a client located in <strong>Zip Code ${clientZip}</strong> with the following care request:
-  </p>
+  <p>A family in your service area is looking for care and has requested provider information.</p>
   <hr />
-  <p>
-    <strong>Request Submitted By:</strong> ${prettySubmittedBy}
-  </p>
-  <p>
-    <strong>Care Schedule Needed:</strong> ${careDaysAndTimes}
-  </p>
-  <p>
-    <strong>Requested Services:</strong>
-  </p>
-  <ul>
-    ${servicesList}
-  </ul>
-  <p>
-    <strong>Funding:</strong> ${fundingLine}
-  </p>
-  <p>
-    <strong>Other notes:</strong> ${detailsLine}
-  </p>
-  <p>
-    <strong>Client Contact Information:</strong><br />
-    Name: ${nameLine}<br />
-    Email: ${emailLine}<br />
-    Phone: ${phoneLine}
-  </p>
+  <p><strong>CONTACT INFORMATION:</strong><br />
+  Phone: ${toDisplay(clientPhone)}<br />
+  Email: ${toDisplay(clientEmail)}<br />
+  ZIP Code: ${toDisplay(clientZip)}<br />
+  Timeline: ${toDisplay(timeline, 'Not specified')}</p>
+  <p><strong>NEXT STEPS:</strong></p>
+  <p>We recommend calling within 24 hours for best response rates. They are also contacting other providers, so prompt follow-up is important.</p>
+  <p>View your lead dashboard: <a href="https://www.besthospice.com/provider-dashboard.html">Provider Dashboard</a></p>
+  ${sharedSignatureBlock()}
   <hr />
-  <p>
-    We support care that acts quickly at <strong>Best Hospice and Home Health</strong>.  
-    We encourage you to reach out promptly!
-  </p>
-  <p>
-    Thank you for being a valued member of <strong>Best Hospice and Home Health</strong> and for providing compassionate care during life’s most difficult moments.
-  </p>
-  <br />
-  <p>
-    Have a blessed day,<br />
-    <strong>Best Hospice and Home Health Team</strong><br />
-    <a href="mailto:admin@besthospice.com">admin@besthospice.com</a>
-  </p>
-  <p style="font-style: italic; color: #555;">
-    “Because your loved ones deserve the best, period.”
-  </p>
-  <hr />
-  <p style="font-size: 12px; color: #777;">
-    This message was sent via BestHospice.com as part of a care-coordination referral.  
-    Please handle all client information in accordance with applicable privacy and professional standards.
-  </p>
-  <p style="font-size: 12px; color: #777;">
-    This message contains confidential referral information.
-  </p>
+  <p style="font-size:12px; color:#666;">This message contains confidential referral information.</p>
 </div>
 `;
 }
 
-async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDaysAndTimes, services, funding, otherDetails, clientEmail, clientPhone, clientName, providers }) {
+function buildEnhancedLeadEmailHtml({
+  clientZip,
+  timeline,
+  clientEmail,
+  clientPhone,
+  clientName,
+  whoNeedsCare,
+  careType,
+  additionalNotes
+}) {
+  return `
+<div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #222;">
+  <p>The family from your earlier lead notification has provided additional details:</p>
+  <hr />
+  <p><strong>UPDATED INFORMATION:</strong><br />
+  Name: ${toDisplay(clientName)}<br />
+  Phone: ${toDisplay(clientPhone)}<br />
+  Email: ${toDisplay(clientEmail)}<br />
+  ZIP Code: ${toDisplay(clientZip)}<br />
+  Timeline: ${toDisplay(timeline, 'Not specified')}</p>
+  <p><strong>CARE DETAILS:</strong><br />
+  Who needs care: ${toDisplay(whoNeedsCare, 'Not specified')}<br />
+  Type of care needed: ${toDisplay(careType, 'Not specified')}<br />
+  Additional notes: "${toDisplay(additionalNotes, 'None provided')}"</p>
+  <p>This family has provided more specific information to help you prepare for your conversation. If you haven't already reached out, now is a great time to call.</p>
+  ${sharedSignatureBlock()}
+  <hr />
+  <p style="font-size:12px; color:#666;">This message contains confidential referral information.</p>
+</div>
+`;
+}
+
+async function sendProviderNotifications({
+  notificationType = 'initial',
+  clientZip,
+  timeline,
+  requestSubmittedBy,
+  careDaysAndTimes,
+  services,
+  funding,
+  otherDetails,
+  clientEmail,
+  clientPhone,
+  clientName,
+  whoNeedsCare,
+  careType,
+  additionalNotes,
+  providerCount,
+  providers
+}) {
   if (!initSendGrid()) {
     throw new Error('SendGrid not configured');
   }
   const from = process.env.SENDGRID_FROM_EMAIL;
   const replyTo = process.env.SENDGRID_REPLY_TO || from;
-  const subject = `Best Hospice and Home Health New Client Notification – Zip Code ${clientZip}`;
+  const finalTimeline = timeline || careDaysAndTimes || 'Not specified';
+  const finalWhoNeedsCare = whoNeedsCare || requestSubmittedBy || 'Not specified';
+  const finalCareType = careType || (Array.isArray(services) ? services.join(', ') : services) || 'Not specified';
+  const finalNotes = additionalNotes || otherDetails || '';
+  const subject = notificationType === 'details'
+    ? `Updated Lead Details - ${clientZip} - Best Hospice and Home Health`
+    : `New Lead in Your Area - ${clientZip} - Best Hospice and Home Health`;
 
   const results = [];
   for (const provider of providers) {
@@ -103,17 +115,24 @@ async function sendProviderNotifications({ clientZip, requestSubmittedBy, careDa
       ? provider.emails.map((e) => String(e || '').trim()).filter(Boolean)
       : [String(provider.email || '').trim()].filter(Boolean);
     if (!recipientEmails.length) continue;
-    const html = buildEmailHtml({
-      clientZip,
-      requestSubmittedBy,
-      careDaysAndTimes,
-      services,
-      funding,
-      otherDetails,
-      clientEmail,
-      clientPhone,
-      clientName
-    });
+    const html = notificationType === 'details'
+      ? buildEnhancedLeadEmailHtml({
+          clientZip,
+          timeline: finalTimeline,
+          clientEmail,
+          clientPhone,
+          clientName,
+          whoNeedsCare: finalWhoNeedsCare,
+          careType: finalCareType,
+          additionalNotes: finalNotes
+        })
+      : buildInitialLeadEmailHtml({
+          clientZip,
+          timeline: finalTimeline,
+          clientEmail,
+          clientPhone,
+          providerCount
+        });
 
     for (const recipient of recipientEmails) {
       const msg = {
