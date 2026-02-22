@@ -42,6 +42,19 @@
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
     th { background: #f8fafc; position: sticky; top: 0; z-index: 1; }
+    .lead-tools { display: grid; gap: 8px; margin-top: 8px; margin-bottom: 8px; }
+    .lead-tools input { width: 100%; }
+    .danger-btn {
+      border: 1px solid #ef4444;
+      color: #b91c1c;
+      background: #fff5f5;
+      border-radius: 8px;
+      padding: 6px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .danger-btn:hover { background: #ffe4e6; }
     .chip-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .chip { background: #eff6ff; border: 1px solid #dbeafe; color: #1d4ed8; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
     .note { color: #475569; font-size: 14px; margin-top: 6px; }
@@ -121,6 +134,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <h2>Top ZIP Codes</h2>
           <div id="top-zips" class="chip-list"></div>
           <h3 style="margin-top:14px;">Recent Clients</h3>
+          <div class="lead-tools">
+            <input id="lead-search" type="search" placeholder="Search by name, email, phone, ZIP, or care type" />
+          </div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -129,6 +145,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
                   <th>ZIP</th>
                   <th>Submitted By</th>
                   <th>Requested Care</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="recent-leads-body"></tbody>
@@ -153,10 +170,13 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     const submittedBarsEl = document.getElementById('submitted-bars');
     const topZipsEl = document.getElementById('top-zips');
     const recentBody = document.getElementById('recent-leads-body');
+    const leadSearchInput = document.getElementById('lead-search');
     const rangeLabel = document.getElementById('range-label');
     let adminToken = '';
     let leadMap = null;
     let heatLayer = null;
+    let currentRecentLeads = [];
+    let filteredRecentLeads = [];
 
     function refreshLeadMapLayout() {
       if (!leadMap) return;
@@ -259,7 +279,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     function renderRecent(recentLeads) {
       recentBody.innerHTML = '';
       if (!recentLeads.length) {
-        recentBody.innerHTML = '<tr><td colspan="4">No recent leads for this range.</td></tr>';
+        recentBody.innerHTML = '<tr><td colspan="5">No recent leads for this range.</td></tr>';
         return;
       }
       recentLeads.forEach((l) => {
@@ -269,9 +289,57 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <td>${l.zip || '-'}</td>
           <td>${prettySubmittedBy(l.submittedBy)}</td>
           <td>${parseCareTypeLabel(l.services)}</td>
+          <td><button class="danger-btn" data-lead-id="${l.id}">Delete</button></td>
         `;
         recentBody.appendChild(tr);
       });
+
+      recentBody.querySelectorAll('.danger-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const leadId = btn.getAttribute('data-lead-id');
+          if (!leadId) return;
+          const ok = window.confirm('Delete this client lead and related notifications? This cannot be undone.');
+          if (!ok) return;
+          btn.disabled = true;
+          btn.textContent = 'Deleting...';
+          try {
+            const res = await fetch(`/api/admin/main/leads/${encodeURIComponent(leadId)}`, {
+              method: 'DELETE',
+              headers: { 'x-admin-token': adminToken }
+            });
+            if (!res.ok) throw new Error('Delete failed');
+            await loadAnalytics();
+            refreshLeadMapLayout();
+          } catch (_err) {
+            alert('Could not delete this lead right now.');
+            btn.disabled = false;
+            btn.textContent = 'Delete';
+          }
+        });
+      });
+    }
+
+    function applyLeadSearch() {
+      const term = String(leadSearchInput?.value || '').trim().toLowerCase();
+      if (!term) {
+        filteredRecentLeads = [...currentRecentLeads];
+      } else {
+        filteredRecentLeads = currentRecentLeads.filter((l) => {
+          const haystack = [
+            l.clientName,
+            l.clientEmail,
+            l.clientPhone,
+            l.zip,
+            l.submittedBy,
+            l.services,
+            new Date(l.createdAt).toLocaleString()
+          ]
+            .map((v) => String(v || '').toLowerCase())
+            .join(' | ');
+          return haystack.includes(term);
+        });
+      }
+      renderRecent(filteredRecentLeads);
     }
 
     function ensureMap() {
@@ -344,7 +412,8 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         { label: 'Other', value: submittedBy.Other || 0 }
       ]);
       renderTopZips((data.breakdowns && data.breakdowns.topZips) || []);
-      renderRecent(data.recentLeads || []);
+      currentRecentLeads = data.recentLeads || [];
+      applyLeadSearch();
       renderHeat(data.heatPoints || []);
     }
 
@@ -378,6 +447,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     }
 
     document.getElementById('unlock-btn').addEventListener('click', unlock);
+    leadSearchInput?.addEventListener('input', applyLeadSearch);
     document.getElementById('refresh-btn').addEventListener('click', async () => {
       try {
         await loadAnalytics();

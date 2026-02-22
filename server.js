@@ -1766,6 +1766,46 @@ app.get('/api/admin/main/analytics', async (req, res) => {
   }
 });
 
+app.delete('/api/admin/main/leads/:id', async (req, res) => {
+  const token = req.headers['x-admin-token'];
+  if (token !== ADMIN_TOKEN_DASH) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const leadId = String(req.params.id || '').trim();
+  if (!leadId) {
+    return res.status(400).json({ error: 'Missing lead id' });
+  }
+  try {
+    const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true } });
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+    await prisma.$transaction([
+      prisma.notificationJob.deleteMany({ where: { leadId } }),
+      prisma.providerImpression.deleteMany({ where: { leadId } }),
+      prisma.leadNotification.deleteMany({ where: { leadId } }),
+      prisma.lead.delete({ where: { id: leadId } })
+    ]);
+
+    await prisma.provider.updateMany({ data: { leadCount: 0 } });
+    const grouped = await prisma.leadNotification.groupBy({
+      by: ['providerId'],
+      where: { status: 'sent' },
+      _count: { _all: true }
+    });
+    for (const row of grouped) {
+      await prisma.provider.update({
+        where: { id: row.providerId },
+        data: { leadCount: row._count._all || 0 }
+      });
+    }
+
+    res.json({ ok: true, deletedLeadId: leadId });
+  } catch (err) {
+    console.error('Admin lead delete failed', err);
+    res.status(500).json({ error: 'Failed to delete lead' });
+  }
+});
+
 app.post('/api/admin/verify', (req, res) => {
   const token = req.headers['x-admin-token'];
   if (token !== ADMIN_TOKEN_REMOVE) {
