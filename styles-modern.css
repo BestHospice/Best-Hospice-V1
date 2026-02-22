@@ -697,6 +697,8 @@ a {
 
 .map-col {
   padding: 14px;
+  display: grid;
+  gap: 12px;
 }
 
 .results-card {
@@ -731,6 +733,39 @@ a {
   overflow-y: auto;
   display: grid;
   gap: 8px;
+}
+
+.optional-details-card {
+  margin-top: 2px;
+  padding: 16px;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(11, 79, 108, 0.05));
+  box-shadow: 0 14px 30px rgba(2, 6, 23, 0.1);
+}
+
+.optional-title {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.optional-subtitle {
+  margin: 0 0 12px;
+}
+
+.optional-choice {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.optional-details-form {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.optional-status {
+  margin-top: 10px;
 }
 
 .result {
@@ -1109,6 +1144,11 @@ a {
 
   .map-col {
     padding: 12px;
+  }
+
+  .optional-choice .button {
+    width: 100%;
+    justify-content: center;
   }
 
   .status {

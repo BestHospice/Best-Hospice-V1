@@ -113,26 +113,14 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         <div class="map-col">
           <div id="map" aria-label="Hospice locations map"></div>
           <p class="note" style="margin-top:6px; font-size:12px; opacity:0.7;">Map data © OpenStreetMap contributors.</p>
-        </div>
-        <div class="results-card">
-          <div class="results-header">
-            <div>
-              <p class="eyebrow">Results</p>
-              <h2>Nearby Hospice, Palliative, or Home Care Providers</h2>
-              <p class="note">⭐ Verified, ⭐⭐ Featured, ⭐⭐⭐ Priority. More stars indicate higher commitment to patient care and promoting their business.</p>
-            </div>
-            <div id="status" class="status">Enter a ZIP to start.</div>
-          </div>
-          <p id="lead-confirmation" class="note hidden" style="margin:8px 0;"></p>
-          <ul id="results" class="results"></ul>
-          <section id="optional-details-card" class="card hidden" style="margin-top:12px;">
-            <h3 style="margin:0 0 6px;">Help providers assist you better (optional)</h3>
-            <p class="note" style="margin:0 0 10px;">Answer a few more questions so providers can prepare for your specific needs.</p>
-            <div id="optional-choice" style="display:flex; gap:8px; flex-wrap:wrap;">
+          <section id="optional-details-card" class="card optional-details-card hidden">
+            <h3 class="optional-title">Help providers assist you better (optional)</h3>
+            <p class="note optional-subtitle">Answer a few more questions so providers can prepare for your specific needs.</p>
+            <div id="optional-choice" class="optional-choice">
               <button id="details-yes" class="button" type="button">Yes, Add More Details</button>
               <button id="details-no" class="button ghost" type="button">No, Thanks</button>
             </div>
-            <form id="optional-details-form" class="hidden" style="margin-top:12px; display:grid; gap:10px;">
+            <form id="optional-details-form" class="hidden optional-details-form">
               <label for="detail-name" class="label">Your name (optional)</label>
               <input id="detail-name" type="text" class="input-text" placeholder="First and last name" />
               <label for="detail-relationship" class="label">Who needs care?</label>
@@ -155,8 +143,20 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
               <textarea id="detail-notes" rows="4" class="input-text" placeholder="Anything providers should know"></textarea>
               <button type="submit" class="button">Send Additional Details to Providers</button>
             </form>
-            <p id="details-status" class="note" style="margin-top:8px;"></p>
+            <p id="details-status" class="note optional-status"></p>
           </section>
+        </div>
+        <div class="results-card">
+          <div class="results-header">
+            <div>
+              <p class="eyebrow">Results</p>
+              <h2>Nearby Hospice, Palliative, or Home Care Providers</h2>
+              <p class="note">⭐ Verified, ⭐⭐ Featured, ⭐⭐⭐ Priority. More stars indicate higher commitment to patient care and promoting their business.</p>
+            </div>
+            <div id="status" class="status">Enter a ZIP to start.</div>
+          </div>
+          <p id="lead-confirmation" class="note hidden" style="margin:8px 0;"></p>
+          <ul id="results" class="results"></ul>
         </div>
       </section>
     </main>
