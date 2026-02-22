@@ -811,6 +811,61 @@ a {
   text-decoration: underline;
 }
 
+.cities-main {
+  display: grid;
+  gap: 14px;
+}
+
+.cities-intro {
+  padding: 18px;
+}
+
+.cities-intro-text {
+  margin: 0;
+  color: var(--muted);
+}
+
+.cities-care-block {
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.cities-block-title {
+  margin: 0 0 4px;
+}
+
+.cities-state-group {
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 14px;
+  background: #f8fbff;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.cities-state-title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.cities-city-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.cities-city-list li a {
+  font-weight: 600;
+  color: #0b4f6c;
+}
+
+.cities-city-list li a:hover {
+  color: #0f766e;
+  text-decoration: underline;
+}
+
 .hidden {
   display: none;
 }
