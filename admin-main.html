@@ -77,7 +77,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       <input id="token" type="password" placeholder="Enter Provider Dashboard Token" />
       <button class="button" id="unlock-btn">Unlock Analytics</button>
       <p id="login-status" class="note"></p>
-      <a class="button ghost" href="admin.html">Back to Admin options</a>
+      <a class="button ghost" href="admin.html">Main Menu</a>
     </div>
 
     <section id="dashboard" class="hidden">
@@ -355,7 +355,6 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         loginStatus.textContent = 'Verifying...';
         adminToken = token;
         await loadAnalytics();
-        sessionStorage.setItem('adminMainToken', token);
         loginCard.classList.add('hidden');
         dashboard.classList.remove('hidden');
       } catch (err) {
@@ -374,11 +373,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     });
 
     setDefaultDates();
-    const saved = sessionStorage.getItem('adminMainToken');
-    if (saved) {
-      tokenInput.value = saved;
-      unlock();
-    }
+    // Require manual token entry every time.
   </script>
 </body>
 </html>
