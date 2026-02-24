@@ -28,6 +28,7 @@
     .form-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
     .form-grid label { display:block; font-weight:700; font-size:14px; margin-bottom:4px; }
     .form-grid input { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; }
+    .form-grid textarea { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; resize:vertical; min-height:86px; font-family:inherit; }
     .form-grid select { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; background:#fff; }
     .lead-list { display:grid; gap:10px; margin-top:10px; }
     .lead-item { border:1px solid #e5e7eb; border-radius:12px; padding:10px; background:#f8fafc; }
@@ -74,6 +75,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         <span><strong>Address:</strong> <span id="prov-address"></span></span>
         <span><strong>Latitude:</strong> <span id="prov-lat"></span> | <strong>Longitude:</strong> <span id="prov-lon"></span></span>
         <span><strong>Service Radius:</strong> <span id="prov-radius"></span></span>
+        <span><strong>Service ZIP Codes:</strong> <span id="prov-service-zips"></span></span>
         <span><strong>Plan Tier:</strong> <span id="prov-plan-tier"></span></span>
         <span><strong>Care Type:</strong> <span id="prov-care-type"></span></span>
         <span><strong>Leads Best Hospice and Home Health has provided:</strong> <span id="prov-leads"></span></span>
@@ -95,6 +97,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <div><label for="f-lat">Latitude</label><input id="f-lat" type="text"></div>
           <div><label for="f-lon">Longitude</label><input id="f-lon" type="text"></div>
           <div><label for="f-radius">Service radius (miles)</label><input id="f-radius" type="number" step="0.1" min="0"></div>
+          <div><label for="f-service-zips">Service ZIP codes (optional, unlimited)</label><textarea id="f-service-zips" placeholder="35223, 35216, 35005"></textarea></div>
           <div>
             <label for="f-plan-tier">Plan tier</label>
             <select id="f-plan-tier">
@@ -164,6 +167,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       document.getElementById('prov-lat').textContent = p.lat ?? '—';
       document.getElementById('prov-lon').textContent = p.lon ?? '—';
       document.getElementById('prov-radius').textContent = p.serviceRadiusKm ? `${(p.serviceRadiusKm / 1.60934).toFixed(1)} mi` : '—';
+      document.getElementById('prov-service-zips').textContent = p.serviceZipCodes || '—';
       document.getElementById('prov-plan-tier').textContent = p.planTier || 'verified';
       document.getElementById('prov-care-type').textContent = prettyCareType(p.careType);
       document.getElementById('prov-leads').textContent = p.leadCount ?? 0;
@@ -189,6 +193,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       document.getElementById('f-lat').value = p.lat ?? '';
       document.getElementById('f-lon').value = p.lon ?? '';
       document.getElementById('f-radius').value = p.serviceRadiusKm ? (p.serviceRadiusKm / 1.60934).toFixed(1) : '';
+      document.getElementById('f-service-zips').value = p.serviceZipCodes || '';
       document.getElementById('f-plan-tier').value = p.planTier || 'verified';
       document.getElementById('f-care-type').value = p.careType || 'hospice';
     }
@@ -238,6 +243,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         lat: document.getElementById('f-lat').value.trim(),
         lon: document.getElementById('f-lon').value.trim(),
         serviceRadiusMiles: document.getElementById('f-radius').value.trim(),
+        serviceZipCodes: document.getElementById('f-service-zips').value.trim(),
         planTier: document.getElementById('f-plan-tier').value,
         careType: document.getElementById('f-care-type').value
       };

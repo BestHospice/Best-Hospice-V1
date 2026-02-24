@@ -52,6 +52,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         <div>
           <h1 id="welcome" style="margin:0; font-size:22px; font-weight:800;">Welcome to your Dashboard</h1>
           <p id="provider-label" style="margin:0; color:#4b5563;"></p>
+          <p id="coverage-label" style="margin:4px 0 0; color:#4b5563; font-size:13px;"></p>
           <div id="provider-switcher" class="hidden" style="margin-top:8px;">
             <label style="font-weight:700; font-size:14px; color:#111827;">
               Choose a location:
@@ -165,9 +166,10 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       <div style="border-top:1px solid #e5e7eb; padding-top:12px; display:flex; justify-content:flex-start;">
         <div style="width:100%;">
           <h3>Manage Billing</h3>
-          <div class="metrics" style="margin-top:8px;">
-            <div class="metric-card"><h4>Monthly subscription</h4><div id="bill-monthly">$250</div></div>
-          </div>
+        <div class="metrics" style="margin-top:8px;">
+          <div class="metric-card"><h4>Monthly subscription</h4><div id="bill-monthly">$250</div></div>
+          <div class="metric-card"><h4>Coverage settings</h4><div id="coverage-summary">Radius only</div></div>
+        </div>
           <div style="margin-top:10px;">
             <button class="dash-btn" id="billing">Open Billing Portal</button>
           </div>
@@ -230,6 +232,18 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         totalNotificationsCache = data.metrics.totalNotifications || 0;
         document.getElementById('provider-label').textContent = data.provider ? data.provider.name + ' — ' + data.provider.email : '';
         document.getElementById('welcome').textContent = data.provider ? `Welcome to ${data.provider.name} Dashboard` : 'Welcome to your Dashboard';
+        if (data.provider) {
+          const radiusMiles = Number(data.provider.serviceRadiusKm || 0) > 0
+            ? `${(Number(data.provider.serviceRadiusKm) / 1.60934).toFixed(1)} mi radius`
+            : 'No radius set';
+          const zipList = String(data.provider.serviceZipCodes || '').trim();
+          const zipCount = zipList ? zipList.split(',').map((z) => z.trim()).filter(Boolean).length : 0;
+          const coverageText = zipCount > 0
+            ? `${radiusMiles} OR ${zipCount} service ZIP code${zipCount === 1 ? '' : 's'}`
+            : radiusMiles;
+          document.getElementById('coverage-label').textContent = `Coverage: ${coverageText}`;
+          document.getElementById('coverage-summary').textContent = coverageText;
+        }
         if (data.provider && data.provider.planTier) {
           planMonthly = planToPrice(data.provider.planTier);
           document.getElementById('bill-monthly').textContent = `$${planMonthly}`;

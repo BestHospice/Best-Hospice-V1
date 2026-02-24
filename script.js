@@ -118,6 +118,13 @@ function getPlanRank(planTier) {
   return 1;
 }
 
+function parseServiceZipCodes(value) {
+  return String(value || '')
+    .split(/[\s,;\n\r\t]+/)
+    .map((z) => z.trim())
+    .filter((z) => /^\d{5}$/.test(z));
+}
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const toRad = (v) => (v * Math.PI) / 180;
   const R = 6371;
@@ -128,13 +135,16 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-function getNearbyProviders(lat, lon, providers, radiusKm) {
+function getNearbyProviders(lat, lon, providers, radiusKm, searchZip) {
   return providers
     .map((p) => ({ ...p, distance: haversineKm(lat, lon, p.lat, p.lon) }))
     .filter((p) => {
       const providerRadius = p.serviceRadiusKm || radiusKm;
       const effectiveRadius = Math.min(radiusKm, providerRadius);
-      return p.distance <= effectiveRadius;
+      const zipCoverage = parseServiceZipCodes(p.serviceZipCodes);
+      const zipMatch = /^\d{5}$/.test(searchZip || '') && zipCoverage.includes(String(searchZip));
+      const radiusMatch = p.distance <= effectiveRadius;
+      return zipMatch || radiusMatch;
     })
     .sort((a, b) => {
       const rankDiff = getPlanRank(b.planTier) - getPlanRank(a.planTier);
@@ -363,7 +373,7 @@ async function handleInitialSearch(event) {
 
     const radiusKm = 96.6;
     await loadRemoteProviders();
-    const directoryHits = getNearbyProviders(geo.lat, geo.lon, providerDirectory, radiusKm);
+    const directoryHits = getNearbyProviders(geo.lat, geo.lon, providerDirectory, radiusKm, zip);
 
     const merged = [
       ...directoryHits,

@@ -1,0 +1,2 @@
+ALTER TABLE "Provider"
+ADD COLUMN IF NOT EXISTS "serviceZipCodes" TEXT;

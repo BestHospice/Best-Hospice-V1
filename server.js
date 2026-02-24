@@ -46,6 +46,18 @@ const normalizeCareType = (value) => {
   if (type === 'home' || type === 'home-care') return 'home';
   return 'hospice';
 };
+const normalizeZipCodeList = (value) => {
+  const asString = Array.isArray(value) ? value.join(',') : String(value || '');
+  const zips = asString
+    .split(/[\s,;\n\r\t]+/)
+    .map((z) => z.trim())
+    .filter((z) => /^\d{5}$/.test(z));
+  return Array.from(new Set(zips));
+};
+const zipCodesToStorage = (value) => {
+  const zips = normalizeZipCodeList(value);
+  return zips.length ? zips.join(',') : null;
+};
 const PROVIDER_MONTHLY_RATE = 250;
 const PLAN_NOTIFY_DELAY_MS = { priority: 0, featured: 60 * 1000, verified: 120 * 1000 };
 const JOB_POLL_MS = 5000;
@@ -1117,6 +1129,7 @@ app.get('/api/providers', async (_req, res) => {
       lat: true,
       lon: true,
       serviceRadiusKm: true,
+      serviceZipCodes: true,
       featured: true,
       planTier: true,
       careType: true,
@@ -1263,6 +1276,7 @@ app.post('/api/providers', async (req, res) => {
     lon,
     serviceRadiusKm,
     serviceRadiusMiles,
+    serviceZipCodes,
     email,
     secondaryContactEmail,
     providerLoginEmail,
@@ -1310,6 +1324,7 @@ app.post('/api/providers', async (req, res) => {
         lat: latVal,
         lon: lonVal,
         serviceRadiusKm: radiusKmFromMiles !== undefined ? radiusKmFromMiles : Number(serviceRadiusKm) || 96.6,
+        serviceZipCodes: zipCodesToStorage(serviceZipCodes),
         featured: Boolean(featured),
         planTier: normalizePlanTier(planTier),
         careType: normalizeCareType(careType)
@@ -1340,6 +1355,7 @@ app.put('/api/providers/:id', async (req, res) => {
     lon,
     serviceRadiusKm,
     serviceRadiusMiles,
+    serviceZipCodes,
     email,
     secondaryContactEmail,
     providerLoginEmail,
@@ -1391,6 +1407,9 @@ app.put('/api/providers/:id', async (req, res) => {
   } else if (serviceRadiusKm !== undefined && serviceRadiusKm !== '') {
     const n = Number(serviceRadiusKm);
     if (!Number.isNaN(n) && n >= 0) data.serviceRadiusKm = n;
+  }
+  if (serviceZipCodes !== undefined) {
+    data.serviceZipCodes = zipCodesToStorage(serviceZipCodes);
   }
   if (featured !== undefined) data.featured = Boolean(featured);
   if (planTier !== undefined && planTier !== '') data.planTier = normalizePlanTier(planTier);
@@ -2471,7 +2490,9 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
         id: ctx.provider.id,
         name: ctx.provider.name,
         email: ctx.provider.email,
-        planTier: ctx.provider.planTier || 'verified'
+        planTier: ctx.provider.planTier || 'verified',
+        serviceRadiusKm: ctx.provider.serviceRadiusKm || 0,
+        serviceZipCodes: ctx.provider.serviceZipCodes || null
       },
       metrics: {
         totalNotifications,

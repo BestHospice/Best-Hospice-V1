@@ -13,6 +13,7 @@ model Provider {
   name            String
   email           String
   secondaryContactEmail String?
+  serviceZipCodes String?
   providerLoginEmail String?
   phone           String?
   website         String?
