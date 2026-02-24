@@ -1189,6 +1189,14 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .hero-right {
+    order: 1;
+  }
+
+  .hero-text {
+    order: 2;
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }
