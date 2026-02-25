@@ -18,12 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
   <link rel="stylesheet" href="styles-modern.css" />
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <!-- Meta Pixel Code -->
 <script>
 !function(f,b,e,v,n,t,s)
@@ -66,7 +61,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
             Enter your ZIP code and timeline to instantly view local providers. Then optionally share more details for a more personalized match.
           </p>
         </div>
-        <form id="search-form" class="search">
+        <form id="search-form" class="search" action="search-results.html" method="get">
           <p class="eyebrow">Start here</p>
           <label for="zip" class="label">Enter ZIP code</label>
           <div class="input-row">
@@ -100,77 +95,10 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <div class="input-row" style="margin-top:10px;">
             <button type="submit">Find Providers in My Area</button>
           </div>
-          <div id="captcha-container" class="hidden">
-            <div id="turnstile-widget"></div>
-          </div>
           <p class="hint">By continuing, you agree to our <a href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms of Service</a>.</p>
         </form>
       </div>
     </header>
-
-    <main>
-      <section id="reassurance-card" class="card optional-details-card hidden">
-        <h3 class="optional-title">You're in good hands.</h3>
-        <p id="reassurance-message" class="note optional-subtitle"></p>
-        <p class="note optional-subtitle">BestHospice is completely free for families — we never charge you, take commissions, or share your information with anyone outside of your matched providers.</p>
-        <p class="note optional-subtitle">Want to help providers better assist your loved one? Taking 2 more minutes to share additional details will help providers come prepared with the right care options for your specific situation.</p>
-        <div class="optional-choice">
-          <button id="flow-continue" class="button" type="button">Continue</button>
-          <button id="flow-skip" class="button secondary" type="button">Skip for now</button>
-        </div>
-      </section>
-
-      <section id="optional-details-card" class="card optional-details-card hidden">
-        <h3 class="optional-title">Help providers assist you better (optional)</h3>
-        <p class="note optional-subtitle">Answer a few more questions so providers can prepare for your specific needs.</p>
-        <form id="optional-details-form" class="optional-details-form">
-          <label for="detail-name" class="label">Your name (optional)</label>
-          <input id="detail-name" type="text" class="input-text" placeholder="First and last name" />
-          <label for="detail-relationship" class="label">Who needs care?</label>
-          <select id="detail-relationship" required>
-            <option value="">Select one</option>
-            <option value="me">Myself</option>
-            <option value="loved-one">Parent</option>
-            <option value="spouse">Spouse</option>
-            <option value="other">Other</option>
-          </select>
-          <label for="detail-caretype" class="label">What type of care?</label>
-          <select id="detail-caretype" required>
-            <option value="">Select one</option>
-            <option>Hospice Care</option>
-            <option>Palliative Care</option>
-            <option>Home Health</option>
-            <option>Not sure</option>
-          </select>
-          <label for="detail-notes" class="label">Any specific needs or questions? (optional)</label>
-          <textarea id="detail-notes" rows="4" class="input-text" placeholder="Anything providers should know"></textarea>
-          <div class="optional-choice">
-            <button type="submit" class="button">Send Additional Details to Providers</button>
-            <button id="details-skip" class="button secondary" type="button">Skip for now</button>
-          </div>
-        </form>
-        <p id="details-status" class="note optional-status"></p>
-      </section>
-
-      <section id="map-section" class="layout card hidden">
-        <div class="map-col">
-          <div id="map" aria-label="Hospice locations map"></div>
-          <p class="note" style="margin-top:6px; font-size:12px; opacity:0.7;">Map data © OpenStreetMap contributors.</p>
-        </div>
-        <div class="results-card">
-          <div class="results-header">
-            <div>
-              <p class="eyebrow">Results</p>
-              <h2>Nearby Hospice, Palliative, or Home Care Providers</h2>
-              <p class="note">⭐ Verified, ⭐⭐ Featured, ⭐⭐⭐ Priority. More stars indicate higher commitment to patient care and promoting their business.</p>
-            </div>
-            <div id="status" class="status">Enter a ZIP to start.</div>
-          </div>
-          <p id="lead-confirmation" class="note hidden" style="margin:8px 0; font-size:16px; font-weight:600;"></p>
-          <ul id="results" class="results"></ul>
-        </div>
-      </section>
-    </main>
     <footer class="site-footer">
       <div class="footer-inner">
         <div class="footer-brand">Best Hospice and Home Health</div>
@@ -184,10 +112,5 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       </div>
     </footer>
   </div>
-
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-  ></script>
-  <script src="script.js?v=4"></script>
 </body>
 </html>
