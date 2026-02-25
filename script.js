@@ -55,11 +55,14 @@ const statusEl = document.getElementById('status');
 const leadConfirmation = document.getElementById('lead-confirmation');
 const mapSection = document.getElementById('map-section');
 
+const reassuranceCard = document.getElementById('reassurance-card');
+const reassuranceMessage = document.getElementById('reassurance-message');
+const flowContinueBtn = document.getElementById('flow-continue');
+const flowSkipBtn = document.getElementById('flow-skip');
+
 const optionalCard = document.getElementById('optional-details-card');
-const optionalChoice = document.getElementById('optional-choice');
 const optionalForm = document.getElementById('optional-details-form');
-const detailsYesBtn = document.getElementById('details-yes');
-const detailsNoBtn = document.getElementById('details-no');
+const detailsSkipBtn = document.getElementById('details-skip');
 const detailsStatus = document.getElementById('details-status');
 const detailName = document.getElementById('detail-name');
 const detailRelationship = document.getElementById('detail-relationship');
@@ -271,6 +274,33 @@ function splitName(fullName) {
   };
 }
 
+function extractCityFromLabel(label, zip) {
+  const parts = String(label || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) return 'your area';
+  const zipStr = String(zip || '').trim();
+  for (const part of parts) {
+    if (part === zipStr || /^\d{5}$/.test(part)) continue;
+    if (/county/i.test(part)) continue;
+    if (/united states/i.test(part)) continue;
+    return part;
+  }
+  return parts[0] || 'your area';
+}
+
+function revealFinalScreen() {
+  reassuranceCard?.classList.add('hidden');
+  optionalCard?.classList.add('hidden');
+  mapSection.classList.remove('hidden');
+  leadConfirmation.textContent =
+    "You're all set. The providers below have been notified and are ready to help. Expect to hear from them soon. Browse their profiles below to learn more about who will be reaching out.";
+  leadConfirmation.classList.remove('hidden');
+  refreshMapLayout();
+  mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 async function notifyInitialLead() {
   const res = await fetch('/api/notify', {
     method: 'POST',
@@ -359,8 +389,9 @@ async function handleInitialSearch(event) {
   currentNearbyProviders = [];
   leadConfirmation.classList.add('hidden');
   setDetailsStatus('');
+  reassuranceCard.classList.add('hidden');
   optionalCard.classList.add('hidden');
-  optionalForm.classList.add('hidden');
+  mapSection.classList.add('hidden');
 
   try {
     await getCaptchaToken();
@@ -402,23 +433,26 @@ async function handleInitialSearch(event) {
 
     currentNearbyProviders = unique.filter((p) => !!p.id && !!p.email);
     map.setView([geo.lat, geo.lon], 11);
-    mapSection.classList.remove('hidden');
-    refreshMapLayout();
-    mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     renderResults(unique, geo.label);
 
     if (!currentNearbyProviders.length) {
+      mapSection.classList.remove('hidden');
+      refreshMapLayout();
+      mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setStatus(`Showing ${unique.length} providers near ${geo.label}. No contact-enabled providers were found to notify yet.`, true);
       return;
     }
 
     const initialResult = await notifyInitialLead();
     currentLeadId = initialResult.leadId || null;
-    leadConfirmation.textContent = `We've notified providers in your area. Expect calls/emails within 24 hours.`;
-    leadConfirmation.classList.remove('hidden');
-    setStatus(`Showing ${unique.length} verified providers near ${geo.label}.`);
-    optionalCard.classList.remove('hidden');
-    optionalChoice.classList.remove('hidden');
+    const cityName = extractCityFromLabel(geo.label, zip);
+    const contactTarget = currentContactPhone
+      ? `${currentContactPhone} or ${currentContactEmail}`
+      : currentContactEmail;
+    reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} verified hospice providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
+    reassuranceCard.classList.remove('hidden');
+    reassuranceCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setStatus(`We've notified ${currentNearbyProviders.length} providers near ${geo.label}.`);
   } catch (err) {
     console.error(err);
     setStatus('Unable to complete search right now. Please try again.', true);
@@ -462,25 +496,25 @@ async function handleOptionalDetailsSubmit(event) {
     setDetailsStatus('Sending additional details...');
     await notifyEnhancedDetails(answers);
     setDetailsStatus('Thank you! Providers now have more details to assist you.');
-    optionalForm.classList.add('hidden');
-    optionalChoice.classList.add('hidden');
+    revealFinalScreen();
   } catch (err) {
     console.error(err);
     setDetailsStatus('Could not send additional details. Please try again.', true);
   }
 }
 
-detailsYesBtn?.addEventListener('click', () => {
-  optionalForm.classList.remove('hidden');
-  detailsYesBtn.disabled = true;
-  detailsNoBtn.disabled = true;
-  refreshMapLayout();
+flowContinueBtn?.addEventListener('click', () => {
+  reassuranceCard?.classList.add('hidden');
+  optionalCard?.classList.remove('hidden');
+  optionalCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-detailsNoBtn?.addEventListener('click', () => {
-  setDetailsStatus('No problem. Providers already received your initial request.');
-  optionalChoice.classList.add('hidden');
-  refreshMapLayout();
+flowSkipBtn?.addEventListener('click', () => {
+  revealFinalScreen();
+});
+
+detailsSkipBtn?.addEventListener('click', () => {
+  revealFinalScreen();
 });
 
 optionalForm?.addEventListener('submit', handleOptionalDetailsSubmit);

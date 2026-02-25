@@ -109,42 +109,53 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     </header>
 
     <main>
+      <section id="reassurance-card" class="card optional-details-card hidden">
+        <h3 class="optional-title">You're in good hands.</h3>
+        <p id="reassurance-message" class="note optional-subtitle"></p>
+        <p class="note optional-subtitle">BestHospice is completely free for families — we never charge you, take commissions, or share your information with anyone outside of your matched providers.</p>
+        <p class="note optional-subtitle">Want to help providers better assist your loved one? Taking 2 more minutes to share additional details will help providers come prepared with the right care options for your specific situation.</p>
+        <div class="optional-choice">
+          <button id="flow-continue" class="button" type="button">Continue</button>
+          <button id="flow-skip" class="button secondary" type="button">Skip for now</button>
+        </div>
+      </section>
+
+      <section id="optional-details-card" class="card optional-details-card hidden">
+        <h3 class="optional-title">Help providers assist you better (optional)</h3>
+        <p class="note optional-subtitle">Answer a few more questions so providers can prepare for your specific needs.</p>
+        <form id="optional-details-form" class="optional-details-form">
+          <label for="detail-name" class="label">Your name (optional)</label>
+          <input id="detail-name" type="text" class="input-text" placeholder="First and last name" />
+          <label for="detail-relationship" class="label">Who needs care?</label>
+          <select id="detail-relationship" required>
+            <option value="">Select one</option>
+            <option value="me">Myself</option>
+            <option value="loved-one">Parent</option>
+            <option value="spouse">Spouse</option>
+            <option value="other">Other</option>
+          </select>
+          <label for="detail-caretype" class="label">What type of care?</label>
+          <select id="detail-caretype" required>
+            <option value="">Select one</option>
+            <option>Hospice Care</option>
+            <option>Palliative Care</option>
+            <option>Home Health</option>
+            <option>Not sure</option>
+          </select>
+          <label for="detail-notes" class="label">Any specific needs or questions? (optional)</label>
+          <textarea id="detail-notes" rows="4" class="input-text" placeholder="Anything providers should know"></textarea>
+          <div class="optional-choice">
+            <button type="submit" class="button">Send Additional Details to Providers</button>
+            <button id="details-skip" class="button secondary" type="button">Skip for now</button>
+          </div>
+        </form>
+        <p id="details-status" class="note optional-status"></p>
+      </section>
+
       <section id="map-section" class="layout card hidden">
         <div class="map-col">
           <div id="map" aria-label="Hospice locations map"></div>
           <p class="note" style="margin-top:6px; font-size:12px; opacity:0.7;">Map data © OpenStreetMap contributors.</p>
-          <section id="optional-details-card" class="card optional-details-card hidden">
-            <h3 class="optional-title">Help providers assist you better (optional)</h3>
-            <p class="note optional-subtitle">Answer a few more questions so providers can prepare for your specific needs.</p>
-            <div id="optional-choice" class="optional-choice">
-              <button id="details-yes" class="button" type="button">Yes, Add More Details</button>
-              <button id="details-no" class="button" type="button">No, Thanks</button>
-            </div>
-            <form id="optional-details-form" class="hidden optional-details-form">
-              <label for="detail-name" class="label">Your name (optional)</label>
-              <input id="detail-name" type="text" class="input-text" placeholder="First and last name" />
-              <label for="detail-relationship" class="label">Who needs care?</label>
-              <select id="detail-relationship" required>
-                <option value="">Select one</option>
-                <option value="me">Myself</option>
-                <option value="loved-one">Parent</option>
-                <option value="spouse">Spouse</option>
-                <option value="other">Other</option>
-              </select>
-              <label for="detail-caretype" class="label">What type of care?</label>
-              <select id="detail-caretype" required>
-                <option value="">Select one</option>
-                <option>Hospice Care</option>
-                <option>Palliative Care</option>
-                <option>Home Health</option>
-                <option>Not sure</option>
-              </select>
-              <label for="detail-notes" class="label">Any specific needs or questions? (optional)</label>
-              <textarea id="detail-notes" rows="4" class="input-text" placeholder="Anything providers should know"></textarea>
-              <button type="submit" class="button">Send Additional Details to Providers</button>
-            </form>
-            <p id="details-status" class="note optional-status"></p>
-          </section>
         </div>
         <div class="results-card">
           <div class="results-header">
@@ -155,7 +166,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
             </div>
             <div id="status" class="status">Enter a ZIP to start.</div>
           </div>
-          <p id="lead-confirmation" class="note hidden" style="margin:8px 0;"></p>
+          <p id="lead-confirmation" class="note hidden" style="margin:8px 0; font-size:16px; font-weight:600;"></p>
           <ul id="results" class="results"></ul>
         </div>
       </section>
@@ -177,6 +188,6 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
-  <script src="script.js?v=3"></script>
+  <script src="script.js?v=4"></script>
 </body>
 </html>
