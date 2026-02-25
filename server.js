@@ -1622,27 +1622,20 @@ app.post('/api/notify', rateLimit, async (req, res) => {
 app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {
-    const { email, zip, city, timeline } = req.body || {};
-    const safeEmail = String(email || '').trim();
+    const { zip } = req.body || {};
     const safeZip = String(zip || '').trim();
-    const safeCity = String(city || '').trim() || 'Unknown city';
-    const safeTimeline = String(timeline || '').trim() || 'Not specified';
-    if (!safeEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(safeEmail)) {
-      return res.status(400).json({ error: 'Valid email is required' });
-    }
     if (!/^\\d{5}$/.test(safeZip)) {
       return res.status(400).json({ error: 'Valid ZIP is required' });
     }
 
-    const targetEmail = process.env.WAITLIST_ALERT_EMAIL || 'contact@besthospice.com';
-    const subject = `Coverage request for ${safeCity} (${safeZip})`;
+    const targetEmail = 'contact@besthospice.com';
+    const subject = `Coverage request for ZIP ${safeZip}`;
     const html = `
       <div style="font-family: Arial, Helvetica, sans-serif; line-height:1.6; color:#222;">
-        <p>A family requested notification when provider coverage becomes available.</p>
-        <p><strong>Email:</strong> ${safeEmail}<br />
-        <strong>ZIP:</strong> ${safeZip}<br />
-        <strong>City:</strong> ${safeCity}<br />
-        <strong>Timeline:</strong> ${safeTimeline}</p>
+        <p>A client at zipcode ${safeZip} has requested care but is unable to get in touch because no providers are nearby.</p>
+        <p>We are working on their behalf to find care as soon as possible.</p>
+        <p>Thank you for your time and we are here for you and your family.</p>
+        <p><em>Because your loved ones deserve the best, period.</em></p>
       </div>
     `;
     await sendGenericEmail(targetEmail, subject, html);

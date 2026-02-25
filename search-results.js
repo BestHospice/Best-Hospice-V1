@@ -67,7 +67,6 @@ const detailNotes = document.getElementById('detail-notes');
 const captchaContainer = document.getElementById('captcha-container');
 const noProvidersCard = document.getElementById('no-providers-card');
 const noProviderCityEl = document.getElementById('no-provider-city');
-const waitlistEmailInput = document.getElementById('waitlist-email');
 const waitlistSubmitBtn = document.getElementById('waitlist-submit');
 const waitlistStatusEl = document.getElementById('waitlist-status');
 
@@ -310,7 +309,6 @@ function showNoProvidersState(cityName) {
   optionalCard?.classList.add('hidden');
   mapSection.classList.add('hidden');
   if (noProviderCityEl) noProviderCityEl.textContent = cityName || 'your area';
-  if (waitlistEmailInput && currentContactEmail) waitlistEmailInput.value = currentContactEmail;
   if (waitlistStatusEl) waitlistStatusEl.textContent = '';
   noProvidersCard?.classList.remove('hidden');
   noProvidersCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -521,12 +519,6 @@ detailsSkipBtn?.addEventListener('click', () => {
 });
 
 waitlistSubmitBtn?.addEventListener('click', async () => {
-  const email = String(waitlistEmailInput?.value || '').trim();
-  if (!email) {
-    waitlistStatusEl.textContent = 'Please enter your email.';
-    waitlistStatusEl.style.color = '#b91c1c';
-    return;
-  }
   waitlistStatusEl.textContent = 'Submitting...';
   waitlistStatusEl.style.color = '#4b5563';
   try {
@@ -535,7 +527,6 @@ waitlistSubmitBtn?.addEventListener('click', async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email,
         zip: currentZip,
         city: cityName,
         timeline: currentTimeline
