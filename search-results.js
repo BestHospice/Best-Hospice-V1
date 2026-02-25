@@ -65,6 +65,11 @@ const detailRelationship = document.getElementById('detail-relationship');
 const detailCareType = document.getElementById('detail-caretype');
 const detailNotes = document.getElementById('detail-notes');
 const captchaContainer = document.getElementById('captcha-container');
+const noProvidersCard = document.getElementById('no-providers-card');
+const noProviderCityEl = document.getElementById('no-provider-city');
+const waitlistEmailInput = document.getElementById('waitlist-email');
+const waitlistSubmitBtn = document.getElementById('waitlist-submit');
+const waitlistStatusEl = document.getElementById('waitlist-status');
 
 function refreshMapLayout() {
   try {
@@ -78,7 +83,7 @@ function refreshMapLayout() {
 
 function setStatus(message, isError = false) {
   if (!statusEl) return;
-  statusEl.textContent = '';
+  statusEl.textContent = isError ? message : '';
   statusEl.style.color = isError ? '#b91c1c' : '#4b5563';
 }
 
@@ -290,6 +295,7 @@ function extractCityFromLabel(label, zip) {
 function revealFinalScreen() {
   reassuranceCard?.classList.add('hidden');
   optionalCard?.classList.add('hidden');
+  noProvidersCard?.classList.add('hidden');
   mapSection.classList.remove('hidden');
   leadConfirmation.textContent =
     "You're all set! The providers below have been notified and are ready to help. Expect to hear from them soon. Browse their profiles below to learn more about who will be reaching out.";
@@ -297,6 +303,17 @@ function revealFinalScreen() {
   if (notifyMini.textContent.trim()) notifyMini.classList.remove('hidden');
   refreshMapLayout();
   mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function showNoProvidersState(cityName) {
+  reassuranceCard?.classList.add('hidden');
+  optionalCard?.classList.add('hidden');
+  mapSection.classList.add('hidden');
+  if (noProviderCityEl) noProviderCityEl.textContent = cityName || 'your area';
+  if (waitlistEmailInput && currentContactEmail) waitlistEmailInput.value = currentContactEmail;
+  if (waitlistStatusEl) waitlistStatusEl.textContent = '';
+  noProvidersCard?.classList.remove('hidden');
+  noProvidersCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function toRelationshipValue(inputValue) {
@@ -463,19 +480,19 @@ async function startResultsFlow() {
 
     currentNearbyProviders = unique.filter((p) => !!p.id && !!p.email);
     map.setView([geo.lat, geo.lon], 11);
-    renderResults(unique, geo.label);
-
+    const cityName = extractCityFromLabel(geo.label, currentZip);
     if (!currentNearbyProviders.length) {
-      revealFinalScreen();
-      setStatus(`Showing ${unique.length} providers near ${geo.label}. No contact-enabled providers were found to notify yet.`, true);
+      showNoProvidersState(cityName);
+      setStatus('', false);
       return;
     }
+
+    renderResults(unique, geo.label);
 
     await getCaptchaToken();
     const initialResult = await notifyInitialLead();
     currentLeadId = initialResult.leadId || null;
 
-    const cityName = extractCityFromLabel(geo.label, currentZip);
     const contactTarget = currentContactPhone
       ? `${currentContactPhone} or ${currentContactEmail}`
       : currentContactEmail;
@@ -501,6 +518,37 @@ flowSkipBtn?.addEventListener('click', () => {
 
 detailsSkipBtn?.addEventListener('click', () => {
   revealFinalScreen();
+});
+
+waitlistSubmitBtn?.addEventListener('click', async () => {
+  const email = String(waitlistEmailInput?.value || '').trim();
+  if (!email) {
+    waitlistStatusEl.textContent = 'Please enter your email.';
+    waitlistStatusEl.style.color = '#b91c1c';
+    return;
+  }
+  waitlistStatusEl.textContent = 'Submitting...';
+  waitlistStatusEl.style.color = '#4b5563';
+  try {
+    const cityName = extractCityFromLabel(currentGeoLabel, currentZip);
+    const res = await fetch('/api/waitlist/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        zip: currentZip,
+        city: cityName,
+        timeline: currentTimeline
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Could not submit request');
+    waitlistStatusEl.textContent = 'Thank you. We will notify you when coverage is available in your area.';
+    waitlistStatusEl.style.color = '#0f766e';
+  } catch (err) {
+    waitlistStatusEl.textContent = err.message || 'Could not submit request right now.';
+    waitlistStatusEl.style.color = '#b91c1c';
+  }
 });
 
 optionalForm?.addEventListener('submit', handleOptionalDetailsSubmit);

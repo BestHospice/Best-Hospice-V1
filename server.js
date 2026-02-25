@@ -1619,6 +1619,40 @@ app.post('/api/notify', rateLimit, async (req, res) => {
   }
 });
 
+app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
+  if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
+  try {
+    const { email, zip, city, timeline } = req.body || {};
+    const safeEmail = String(email || '').trim();
+    const safeZip = String(zip || '').trim();
+    const safeCity = String(city || '').trim() || 'Unknown city';
+    const safeTimeline = String(timeline || '').trim() || 'Not specified';
+    if (!safeEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(safeEmail)) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    if (!/^\\d{5}$/.test(safeZip)) {
+      return res.status(400).json({ error: 'Valid ZIP is required' });
+    }
+
+    const targetEmail = process.env.WAITLIST_ALERT_EMAIL || 'contact@besthospice.com';
+    const subject = `Coverage request for ${safeCity} (${safeZip})`;
+    const html = `
+      <div style="font-family: Arial, Helvetica, sans-serif; line-height:1.6; color:#222;">
+        <p>A family requested notification when provider coverage becomes available.</p>
+        <p><strong>Email:</strong> ${safeEmail}<br />
+        <strong>ZIP:</strong> ${safeZip}<br />
+        <strong>City:</strong> ${safeCity}<br />
+        <strong>Timeline:</strong> ${safeTimeline}</p>
+      </div>
+    `;
+    await sendGenericEmail(targetEmail, subject, html);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Waitlist notify failed', err);
+    res.status(500).json({ error: 'Could not submit notification request' });
+  }
+});
+
 app.get('/api/admin/main/analytics', async (req, res) => {
   const token = req.headers['x-admin-token'];
   if (token !== ADMIN_TOKEN_DASH) {
