@@ -78,7 +78,7 @@ function refreshMapLayout() {
 
 function setStatus(message, isError = false) {
   if (!statusEl) return;
-  statusEl.textContent = message;
+  statusEl.textContent = '';
   statusEl.style.color = isError ? '#b91c1c' : '#4b5563';
 }
 
@@ -292,7 +292,7 @@ function revealFinalScreen() {
   optionalCard?.classList.add('hidden');
   mapSection.classList.remove('hidden');
   leadConfirmation.textContent =
-    "You're all set. The providers below have been notified and are ready to help. Expect to hear from them soon. Browse their profiles below to learn more about who will be reaching out.";
+    "You're all set! The providers below have been notified and are ready to help. Expect to hear from them soon. Browse their profiles below to learn more about who will be reaching out.";
   leadConfirmation.classList.remove('hidden');
   if (notifyMini.textContent.trim()) notifyMini.classList.remove('hidden');
   refreshMapLayout();
