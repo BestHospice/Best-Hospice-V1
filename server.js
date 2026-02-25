@@ -1623,10 +1623,9 @@ app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {
     const { zip } = req.body || {};
-    const safeZip = String(zip || '').trim();
-    if (!/^\\d{5}$/.test(safeZip)) {
-      return res.status(400).json({ error: 'Valid ZIP is required' });
-    }
+    const rawZip = String(zip || '').trim();
+    const zipMatch = rawZip.match(/\d{5}/);
+    const safeZip = zipMatch ? zipMatch[0] : (rawZip || 'unknown');
 
     const targetEmail = 'contact@besthospice.com';
     const subject = `Coverage request for ZIP ${safeZip}`;
