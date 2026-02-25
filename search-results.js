@@ -529,7 +529,9 @@ waitlistSubmitBtn?.addEventListener('click', async () => {
       body: JSON.stringify({
         zip: currentZip,
         city: cityName,
-        timeline: currentTimeline
+        timeline: currentTimeline,
+        contactEmail: currentContactEmail,
+        contactPhone: currentContactPhone
       })
     });
     const data = await res.json().catch(() => ({}));

@@ -1622,16 +1622,22 @@ app.post('/api/notify', rateLimit, async (req, res) => {
 app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {
-    const { zip } = req.body || {};
+    const { zip, timeline, contactEmail, contactPhone } = req.body || {};
     const rawZip = String(zip || '').trim();
     const zipMatch = rawZip.match(/\d{5}/);
     const safeZip = zipMatch ? zipMatch[0] : (rawZip || 'unknown');
+    const safeTimeline = String(timeline || '').trim() || 'Not specified';
+    const safeContactEmail = String(contactEmail || '').trim() || 'Not provided';
+    const safeContactPhone = String(contactPhone || '').trim() || 'Not provided';
 
     const targetEmail = 'contact@besthospice.com';
     const subject = `Coverage request for ZIP ${safeZip}`;
     const html = `
       <div style="font-family: Arial, Helvetica, sans-serif; line-height:1.6; color:#222;">
         <p>A client at zipcode ${safeZip} has requested care but is unable to get in touch because no providers are nearby.</p>
+        <p><strong>Client Email:</strong> ${safeContactEmail}<br />
+        <strong>Client Phone:</strong> ${safeContactPhone}<br />
+        <strong>When Care Is Needed:</strong> ${safeTimeline}</p>
         <p>We are working on their behalf to find care as soon as possible.</p>
         <p>Thank you for your time and we are here for you and your family.</p>
         <p><em>Because your loved ones deserve the best, period.</em></p>
