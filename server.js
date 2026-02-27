@@ -3048,6 +3048,81 @@ app.post('/api/ai/chat', async (req, res) => {
 
 // ---------- Programmatic SEO pages ----------
 const SERVICE_KEYS = Object.keys(serviceConfig);
+const GUIDE_PATHS = [
+  '/guides/hospice-care',
+  '/guides/palliative-care',
+  '/guides/home-care',
+  '/guides/how-to-choose-hospice-provider',
+  '/guides/medicare-hospice-coverage',
+  '/guides/when-is-it-time-for-hospice',
+  '/guides/hospice-vs-palliative-care',
+  '/guides/home-health-care-costs'
+];
+const CORE_CONTENT_PAGES = [
+  '/',
+  '/contact.html',
+  '/provider.html',
+  '/provider-billing.html',
+  '/provider-tools.html',
+  '/locations.html',
+  '/cities.html',
+  '/faq-blog.html',
+  '/education.html',
+  '/why.html',
+  '/privacy.html',
+  '/terms.html',
+  '/refund-policy.html',
+  '/search.html',
+  '/search-results.html',
+  '/sitemap.html'
+];
+
+async function buildSitemapUrls() {
+  const urls = new Set();
+  CORE_CONTENT_PAGES.forEach((p) => urls.add(`${CANONICAL_DOMAIN}${p}`));
+  SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}`));
+  GUIDE_PATHS.forEach((p) => urls.add(`${CANONICAL_DOMAIN}${p}`));
+
+  const [providers, allProviderLocations] = await Promise.all([
+    fetchAllProviders(),
+    prisma.provider.findMany({ select: { city: true, state: true } })
+  ]);
+
+  const seenStates = new Set();
+  const seenCities = new Set();
+  for (const p of allProviderLocations) {
+    const state = String(p.state || '').toLowerCase().trim();
+    const city = String(p.city || '').trim();
+    if (!state) continue;
+    if (!seenStates.has(state)) {
+      seenStates.add(state);
+      SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${state}`));
+    }
+    if (!city) continue;
+    const cityKey = `${city.toLowerCase()}-${state}`;
+    if (seenCities.has(cityKey)) continue;
+    seenCities.add(cityKey);
+    SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${slugify(city)}-${state}`));
+  }
+
+  providers.forEach((p) => {
+    urls.add(`${CANONICAL_DOMAIN}/provider/${providerSlug(p)}`);
+  });
+
+  const fsGroups = [
+    { dir: path.join(__dirname, 'cities'), prefix: '/cities/' },
+    { dir: path.join(__dirname, 'states'), prefix: '/states/' },
+    { dir: path.join(__dirname, 'blog'), prefix: '/blog/' }
+  ];
+  for (const group of fsGroups) {
+    if (!fs.existsSync(group.dir)) continue;
+    fs.readdirSync(group.dir)
+      .filter((name) => name.endsWith('.html'))
+      .forEach((name) => urls.add(`${CANONICAL_DOMAIN}${group.prefix}${name}`));
+  }
+
+  return Array.from(urls).sort();
+}
 
 app.get('/:service(hospice-care|palliative-care|home-care)/:city-:state', async (req, res) => {
   try {
@@ -3141,44 +3216,18 @@ app.get('/guides/home-health-care-costs', (_req, res) => {
 });
 
 app.get('/sitemap.xml', async (_req, res) => {
-  const locSitemap = `${CANONICAL_DOMAIN}/sitemap-locations.xml`;
-  const provSitemap = `${CANONICAL_DOMAIN}/sitemap-providers.xml`;
-  const pagesSitemap = `${CANONICAL_DOMAIN}/sitemap-pages.xml`;
+  const urls = await buildSitemapUrls();
   const body = `<?xml version="1.0" encoding="UTF-8"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${[pagesSitemap, locSitemap, provSitemap].map((u) => `<sitemap><loc>${u}</loc></sitemap>`).join('\n')}
-</sitemapindex>`;
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
+</urlset>`;
   res.type('text/xml').send(body);
 });
 
 app.get('/sitemap-pages.xml', async (_req, res) => {
-  const pages = [
-    '/',
-    '/contact.html',
-    '/provider.html',
-    '/provider-billing.html',
-    '/locations.html',
-    '/cities.html',
-    '/faq-blog.html',
-    '/education.html',
-    '/who-we-are.html',
-    '/are-you-a-provider.html',
-    '/privacy.html',
-    '/terms.html',
-    '/refund-policy.html',
-    '/sitemap.html'
-  ];
+  const pages = CORE_CONTENT_PAGES;
   const serviceHubs = SERVICE_KEYS.map((s) => `/${s}`);
-  const guides = [
-    '/guides/hospice-care',
-    '/guides/palliative-care',
-    '/guides/home-care',
-    '/guides/how-to-choose-hospice-provider',
-    '/guides/medicare-hospice-coverage',
-    '/guides/when-is-it-time-for-hospice',
-    '/guides/hospice-vs-palliative-care',
-    '/guides/home-health-care-costs'
-  ];
+  const guides = GUIDE_PATHS;
   const cityDir = path.join(__dirname, 'cities');
   const blogDir = path.join(__dirname, 'blog');
   const stateDir = path.join(__dirname, 'states');
@@ -3239,9 +3288,7 @@ ${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
 
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send(`User-agent: *
-Disallow: /api
-Disallow: /admin
-Disallow: /provider-dashboard
+Allow: /
 Sitemap: ${CANONICAL_DOMAIN}/sitemap.xml
 `);
 });
