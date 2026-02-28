@@ -43,6 +43,7 @@ const normalizeCheckoutPlan = (value) => {
   const plan = String(value || '').trim().toLowerCase();
   if (plan === 'verified' || plan === 'featured' || plan === 'priority') return plan;
   if (plan === '5locenterprise' || plan === 'enterprise' || plan === 'enterprise5' || plan === '5loc') return '5locenterprise';
+  if (plan === '10locenterprise' || plan === 'enterprise10' || plan === '10loc') return '10locenterprise';
   return 'verified';
 };
 const normalizeCareType = (value) => {
@@ -1164,7 +1165,8 @@ app.post('/api/providers/email/checkout', async (req, res) => {
       verified: process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
       featured: process.env.STRIPE_PRICE_ID_FEATURED || process.env.STRIPE_PRICE_ID_ADVANCED,
       priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER,
-      '5locenterprise': process.env.STRIPE_PRICE_ID_5LOCEnterprise
+      '5locenterprise': process.env.STRIPE_PRICE_ID_5LOCEnterprise,
+      '10locenterprise': process.env.STRIPE_PRICE_ID_10LOCEnterprise
     };
     const normalizedPlan = normalizeCheckoutPlan(plan);
     const priceId = planPrices[normalizedPlan] || process.env.STRIPE_PRICE_ID;
@@ -1240,7 +1242,8 @@ app.post('/api/providers/:id/checkout', async (req, res) => {
       verified: process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
       featured: process.env.STRIPE_PRICE_ID_FEATURED || process.env.STRIPE_PRICE_ID_ADVANCED,
       priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER,
-      '5locenterprise': process.env.STRIPE_PRICE_ID_5LOCEnterprise
+      '5locenterprise': process.env.STRIPE_PRICE_ID_5LOCEnterprise,
+      '10locenterprise': process.env.STRIPE_PRICE_ID_10LOCEnterprise
     };
     const normalizedPlan = normalizeCheckoutPlan(plan);
     const priceId = planPrices[normalizedPlan] || process.env.STRIPE_PRICE_ID;
