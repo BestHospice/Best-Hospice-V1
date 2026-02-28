@@ -101,6 +101,7 @@ async function sendProviderNotifications({
   }
   const from = process.env.SENDGRID_FROM_EMAIL;
   const replyTo = process.env.SENDGRID_REPLY_TO || from;
+  const leadMonitorEmail = String(process.env.LEAD_EMAIL_MONITOR || 'contact@besthospice.com').trim();
   const finalTimeline = timeline || careDaysAndTimes || 'Not specified';
   const finalWhoNeedsCare = whoNeedsCare || requestSubmittedBy || 'Not specified';
   const finalCareType = careType || (Array.isArray(services) ? services.join(', ') : services) || 'Not specified';
@@ -142,6 +143,9 @@ async function sendProviderNotifications({
         subject,
         html
       };
+      if (leadMonitorEmail && leadMonitorEmail.toLowerCase() !== String(recipient).toLowerCase()) {
+        msg.bcc = leadMonitorEmail;
+      }
 
       try {
         const [resp] = await sgMail.send(msg);
