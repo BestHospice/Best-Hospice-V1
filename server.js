@@ -1788,7 +1788,53 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 15);
 
-    const recentLeads = leadsRange.slice(0, 200).map((l) => ({
+    const recentLeadRows = leadsRange.slice(0, 200);
+    const recentLeadIds = recentLeadRows.map((l) => l.id);
+    const notificationRows = recentLeadIds.length
+      ? await prisma.leadNotification.findMany({
+          where: { leadId: { in: recentLeadIds } },
+          orderBy: [{ createdAt: 'asc' }],
+          select: {
+            leadId: true,
+            status: true,
+            sentAt: true,
+            createdAt: true,
+            errorMessage: true,
+            provider: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                city: true,
+                state: true
+              }
+            }
+          }
+        })
+      : [];
+    const notificationsByLeadId = new Map();
+    notificationRows.forEach((n) => {
+      const arr = notificationsByLeadId.get(n.leadId) || [];
+      arr.push({
+        status: n.status || 'unknown',
+        sentAt: n.sentAt || n.createdAt,
+        errorMessage: n.errorMessage || '',
+        provider: n.provider
+          ? {
+              id: n.provider.id,
+              name: n.provider.name || 'Unknown provider',
+              email: n.provider.email || '',
+              phone: n.provider.phone || '',
+              city: n.provider.city || '',
+              state: n.provider.state || ''
+            }
+          : null
+      });
+      notificationsByLeadId.set(n.leadId, arr);
+    });
+
+    const recentLeads = recentLeadRows.map((l) => ({
       id: l.id,
       createdAt: l.createdAt,
       zip: l.zip,
@@ -1796,7 +1842,8 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       services: l.services || '',
       clientName: buildClientName(l.firstName, l.lastName),
       clientEmail: l.clientEmail || '',
-      clientPhone: l.clientPhone || ''
+      clientPhone: l.clientPhone || '',
+      notifications: notificationsByLeadId.get(l.id) || []
     }));
 
     res.json({

@@ -57,6 +57,46 @@
       cursor: pointer;
     }
     .danger-btn:hover { background: #ffe4e6; }
+    .view-btn {
+      border: 1px solid #0f766e;
+      color: #0f766e;
+      background: #f0fdfa;
+      border-radius: 8px;
+      padding: 6px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-right: 6px;
+    }
+    .view-btn:hover { background: #ccfbf1; }
+    .lead-click {
+      cursor: pointer;
+    }
+    .lead-click:hover {
+      background: #f8fafc;
+    }
+    .lead-detail {
+      margin-top: 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 12px;
+      background: #f8fafc;
+      display: grid;
+      gap: 8px;
+    }
+    .lead-detail h4 {
+      margin: 0;
+      font-size: 15px;
+    }
+    .lead-provider-item {
+      border: 1px solid #dbeafe;
+      background: #eff6ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      display: grid;
+      gap: 4px;
+    }
     .chip-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .chip { background: #eff6ff; border: 1px solid #dbeafe; color: #1d4ed8; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
     .note { color: #475569; font-size: 14px; margin-top: 6px; }
@@ -147,11 +187,14 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
                   <th>ZIP</th>
                   <th>Submitted By</th>
                   <th>Requested Care</th>
-                  <th>Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="recent-leads-body"></tbody>
             </table>
+          </div>
+          <div id="lead-detail" class="lead-detail">
+            <h4>Select a recent client to view notified providers.</h4>
           </div>
         </div>
       </div>
@@ -172,6 +215,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     const submittedBarsEl = document.getElementById('submitted-bars');
     const topZipsEl = document.getElementById('top-zips');
     const recentBody = document.getElementById('recent-leads-body');
+    const leadDetailEl = document.getElementById('lead-detail');
     const leadSearchInput = document.getElementById('lead-search');
     const rangeLabel = document.getElementById('range-label');
     let adminToken = '';
@@ -179,6 +223,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     let heatLayer = null;
     let currentRecentLeads = [];
     let filteredRecentLeads = [];
+    let selectedLeadId = '';
 
     function refreshLeadMapLayout() {
       if (!leadMap) return;
@@ -282,18 +327,32 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       recentBody.innerHTML = '';
       if (!recentLeads.length) {
         recentBody.innerHTML = '<tr><td colspan="5">No recent leads for this range.</td></tr>';
+        selectedLeadId = '';
+        leadDetailEl.innerHTML = '<h4>Select a recent client to view notified providers.</h4>';
         return;
       }
       recentLeads.forEach((l) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${new Date(l.createdAt).toLocaleString()}</td>
-          <td>${l.zip || '-'}</td>
-          <td>${prettySubmittedBy(l.submittedBy)}</td>
-          <td>${parseCareTypeLabel(l.services)}</td>
-          <td><button class="danger-btn" data-lead-id="${l.id}">Delete</button></td>
+          <td class="lead-click" data-lead-id="${l.id}">${new Date(l.createdAt).toLocaleString()}</td>
+          <td class="lead-click" data-lead-id="${l.id}">${l.zip || '-'}</td>
+          <td class="lead-click" data-lead-id="${l.id}">${prettySubmittedBy(l.submittedBy)}</td>
+          <td class="lead-click" data-lead-id="${l.id}">${parseCareTypeLabel(l.services)}</td>
+          <td>
+            <button class="view-btn" data-lead-id="${l.id}">View</button>
+            <button class="danger-btn" data-lead-id="${l.id}">Delete</button>
+          </td>
         `;
         recentBody.appendChild(tr);
+      });
+
+      recentBody.querySelectorAll('.lead-click, .view-btn').forEach((el) => {
+        el.addEventListener('click', () => {
+          const leadId = el.getAttribute('data-lead-id');
+          if (!leadId) return;
+          selectedLeadId = leadId;
+          renderSelectedLeadDetails();
+        });
       });
 
       recentBody.querySelectorAll('.danger-btn').forEach((btn) => {
@@ -321,6 +380,43 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       });
     }
 
+    function renderSelectedLeadDetails() {
+      const lead = currentRecentLeads.find((l) => l.id === selectedLeadId);
+      if (!lead) {
+        leadDetailEl.innerHTML = '<h4>Select a recent client to view notified providers.</h4>';
+        return;
+      }
+
+      const clientHeader = `
+        <h4>Client: ${lead.clientName || 'Unknown'}</h4>
+        <div class="note">Created: ${new Date(lead.createdAt).toLocaleString()} · ZIP: ${lead.zip || '-'} · Submitted by: ${prettySubmittedBy(lead.submittedBy)}</div>
+        <div class="note">Email: ${lead.clientEmail || '-'} · Phone: ${lead.clientPhone || '-'}</div>
+      `;
+      const notifications = Array.isArray(lead.notifications) ? lead.notifications : [];
+      if (!notifications.length) {
+        leadDetailEl.innerHTML = `${clientHeader}<div class="note">No provider notifications recorded for this client.</div>`;
+        return;
+      }
+
+      const providersHtml = notifications.map((n) => {
+        const provider = n.provider || {};
+        const status = String(n.status || '').toUpperCase();
+        const sentAt = n.sentAt ? new Date(n.sentAt).toLocaleString() : '-';
+        const location = [provider.city || '', provider.state || ''].filter(Boolean).join(', ');
+        return `
+          <div class="lead-provider-item">
+            <div><strong>${provider.name || 'Unknown provider'}</strong></div>
+            <div>Status: ${status} · Notified: ${sentAt}</div>
+            <div>Email: ${provider.email || '-'} · Phone: ${provider.phone || '-'}</div>
+            <div>Location: ${location || '-'}</div>
+            ${n.errorMessage ? `<div>Error: ${n.errorMessage}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      leadDetailEl.innerHTML = `${clientHeader}${providersHtml}`;
+    }
+
     function applyLeadSearch() {
       const term = String(leadSearchInput?.value || '').trim().toLowerCase();
       if (!term) {
@@ -342,6 +438,10 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         });
       }
       renderRecent(filteredRecentLeads);
+      if (selectedLeadId && !filteredRecentLeads.some((l) => l.id === selectedLeadId)) {
+        selectedLeadId = '';
+      }
+      renderSelectedLeadDetails();
     }
 
     function ensureMap() {
@@ -415,6 +515,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       ]);
       renderTopZips((data.breakdowns && data.breakdowns.topZips) || []);
       currentRecentLeads = data.recentLeads || [];
+      if (selectedLeadId && !currentRecentLeads.some((l) => l.id === selectedLeadId)) {
+        selectedLeadId = '';
+      }
       applyLeadSearch();
       renderHeat(data.heatPoints || []);
     }
