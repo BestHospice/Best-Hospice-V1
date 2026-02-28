@@ -39,6 +39,12 @@ const normalizePlanTier = (value) => {
   if (tier === 'growth' || tier === 'starter') return 'verified';
   return 'verified';
 };
+const normalizeCheckoutPlan = (value) => {
+  const plan = String(value || '').trim().toLowerCase();
+  if (plan === 'verified' || plan === 'featured' || plan === 'priority') return plan;
+  if (plan === '5locenterprise' || plan === 'enterprise' || plan === 'enterprise5' || plan === '5loc') return '5locenterprise';
+  return 'verified';
+};
 const normalizeCareType = (value) => {
   const type = String(value || '').trim().toLowerCase();
   if (type === 'hospice' || type === 'hospice-care') return 'hospice';
@@ -1157,9 +1163,10 @@ app.post('/api/providers/email/checkout', async (req, res) => {
     const planPrices = {
       verified: process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
       featured: process.env.STRIPE_PRICE_ID_FEATURED || process.env.STRIPE_PRICE_ID_ADVANCED,
-      priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER
+      priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER,
+      '5locenterprise': process.env.STRIPE_PRICE_ID_5LOCEnterprise
     };
-    const normalizedPlan = normalizePlanTier(plan);
+    const normalizedPlan = normalizeCheckoutPlan(plan);
     const priceId = planPrices[normalizedPlan] || process.env.STRIPE_PRICE_ID;
     if (!priceId) {
       return res.status(500).json({ error: 'Stripe price is not configured.' });
@@ -1232,9 +1239,10 @@ app.post('/api/providers/:id/checkout', async (req, res) => {
     const planPrices = {
       verified: process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
       featured: process.env.STRIPE_PRICE_ID_FEATURED || process.env.STRIPE_PRICE_ID_ADVANCED,
-      priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER
+      priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER,
+      '5locenterprise': process.env.STRIPE_PRICE_ID_5LOCEnterprise
     };
-    const normalizedPlan = normalizePlanTier(plan);
+    const normalizedPlan = normalizeCheckoutPlan(plan);
     const priceId = planPrices[normalizedPlan] || process.env.STRIPE_PRICE_ID;
     if (!priceId) {
       return res.status(500).json({ error: 'Stripe price is not configured.' });
