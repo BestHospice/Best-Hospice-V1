@@ -60,6 +60,42 @@ function stateSort(a, b) {
   return a.localeCompare(b, 'en', { sensitivity: 'base' });
 }
 
+async function loadProvidersFromExistingCityPages(cityDir) {
+  const files = (await fs.readdir(cityDir)).filter((name) => name.endsWith('.html'));
+  const providers = [];
+
+  for (const file of files) {
+    const html = await fs.readFile(path.join(cityDir, file), 'utf8');
+    const cityStateMatch = html.match(/Providers Serving ([^<]+)<\/h2>/i);
+    if (!cityStateMatch) continue;
+    const [cityRaw, stateRaw] = cityStateMatch[1].split(',').map((s) => String(s || '').trim());
+    if (!cityRaw || !stateRaw) continue;
+
+    const articleRegex = /<article class="lead-item"[\s\S]*?<\/article>/gi;
+    const articleMatches = html.match(articleRegex) || [];
+    for (const article of articleMatches) {
+      const nameMatch = article.match(/<h3[^>]*>([^<]+)<\/h3>/i);
+      const careTypeMatch = article.match(/<strong>Care Type:<\/strong>\s*([^<]+)<\/p>/i);
+      const addressMatch = article.match(/<p style="margin:0 0 6px;">([^<]+)<\/p>/i);
+      const phoneMatch = article.match(/Phone:\s*([^<]+)<\/p>/i);
+      const websiteMatch = article.match(/<a href="([^"]+)"/i);
+
+      providers.push({
+        id: `${slugify(cityRaw)}-${slugify(stateRaw)}-${slugify(nameMatch?.[1] || 'provider')}-${providers.length + 1}`,
+        name: (nameMatch?.[1] || 'Provider').trim(),
+        address: (addressMatch?.[1] || `${cityRaw}, ${stateRaw}`).trim(),
+        city: cityRaw,
+        state: stateRaw,
+        phone: (phoneMatch?.[1] || '').trim(),
+        website: (websiteMatch?.[1] || '').trim(),
+        careType: normalizeCareTypeKey(careTypeMatch?.[1] || 'hospice')
+      });
+    }
+  }
+
+  return providers;
+}
+
 function navHtml() {
   return `
     <div class="hero-top">
@@ -174,25 +210,58 @@ function breadcrumbSchema(items) {
   };
 }
 
-function cityFaqSchema(city, state) {
-  const qs = [
+function cityCareTypeSummary(careTypeCounts) {
+  const parts = [];
+  if (careTypeCounts.hospice) parts.push(`${careTypeCounts.hospice} hospice`);
+  if (careTypeCounts.palliative) parts.push(`${careTypeCounts.palliative} palliative`);
+  if (careTypeCounts.home) parts.push(`${careTypeCounts.home} home care`);
+  if (!parts.length) return 'local providers';
+  if (parts.length === 1) return `${parts[0]} provider${parts[0].startsWith('1 ') ? '' : 's'}`;
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]} providers`;
+}
+
+function buildCityFaqData(cityData) {
+  const city = cityData.city;
+  const state = cityData.state;
+  const providerCount = cityData.providers.length;
+  const careTypeCounts = { hospice: 0, palliative: 0, home: 0 };
+  for (const p of cityData.providers) {
+    if (careTypeCounts[p.careType] !== undefined) careTypeCounts[p.careType] += 1;
+  }
+  const careMixText = cityCareTypeSummary(careTypeCounts);
+  const providerExamples = cityData.providers.slice(0, 2).map((p) => p.name).join(' and ');
+  const alternativesCount = Math.max(providerCount - 1, 0);
+
+  return [
     {
       q: `How much does hospice cost in ${state}?`,
-      a: `Hospice in ${state} is often covered by Medicare when eligibility criteria are met. Costs for home care and palliative care can vary by service type and insurance plan.`
+      a: `In ${state}, Medicare hospice benefits usually cover core hospice services when eligibility criteria are met. In ${city}, families often compare payer coverage, medication needs, and care setting details with local agencies before choosing a provider.`
     },
     {
       q: `What does Medicare cover for hospice in ${city}?`,
-      a: 'Medicare typically covers core hospice services such as nursing support, comfort medications related to the terminal diagnosis, and medical equipment when patients qualify.'
+      a: `Medicare generally covers nursing visits, comfort medications tied to terminal diagnosis, medical equipment, and interdisciplinary hospice support. Families in ${city} can confirm exact coverage directly with providers and review quality information on Medicare Care Compare.`
+    },
+    {
+      q: `How many provider options are available in ${city}?`,
+      a: `Best Hospice and Home Health currently lists ${providerCount} verified providers in or serving ${city}, including ${careMixText}.`
     },
     {
       q: `How do I know if a provider in ${city} is legitimate?`,
-      a: 'Verify state licensing, Medicare certification where applicable, service area fit, and response reliability. Ask each provider to confirm credentials and accepted payers.'
+      a: providerExamples
+        ? `Start by confirming state licensing, Medicare certification where applicable, and accepted insurance. In ${city}, families can compare agencies such as ${providerExamples} and ask each provider to confirm intake timelines and service boundaries.`
+        : `Confirm state licensing, Medicare certification where applicable, and accepted insurance. Ask each provider to verify intake timelines and exact service boundaries for ${city}.`
     },
     {
       q: `Can I switch hospice providers in ${state}?`,
-      a: 'Yes. Families can generally change providers if the current fit is not meeting care expectations.'
+      a: alternativesCount > 0
+        ? `Yes. Families can generally switch hospice providers if care fit is not meeting expectations. In ${city}, there are ${alternativesCount} additional listed options to compare if you need to transition.`
+        : `Yes. Families can generally switch hospice providers if care fit is not meeting expectations.`
     }
   ];
+}
+
+function cityFaqSchema(cityData) {
+  const qs = buildCityFaqData(cityData);
   return {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -212,29 +281,39 @@ async function generateStaticPages() {
   await fs.mkdir(stateOutputDir, { recursive: true });
   await fs.mkdir(blogOutputDir, { recursive: true });
 
-  const providers = await prisma.provider.findMany({
-    select: {
-      id: true,
-      name: true,
-      address: true,
-      city: true,
-      state: true,
-      phone: true,
-      website: true
-    },
-    orderBy: [{ state: 'asc' }, { city: 'asc' }, { name: 'asc' }]
-  });
+  let providers = [];
+  let loadedFromDatabase = true;
+  try {
+    providers = await prisma.provider.findMany({
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        state: true,
+        phone: true,
+        website: true
+      },
+      orderBy: [{ state: 'asc' }, { city: 'asc' }, { name: 'asc' }]
+    });
+  } catch (err) {
+    loadedFromDatabase = false;
+    console.warn('Database unavailable, using existing city HTML files as source:', err?.message || err);
+    providers = await loadProvidersFromExistingCityPages(cityOutputDir);
+  }
 
   const careTypeByProviderId = new Map();
-  try {
-    const careTypeRows = await prisma.$queryRawUnsafe('SELECT "id", "careType" FROM "Provider"');
-    if (Array.isArray(careTypeRows)) {
-      for (const row of careTypeRows) {
-        careTypeByProviderId.set(String(row.id), normalizeCareTypeKey(row.careType));
+  if (loadedFromDatabase) {
+    try {
+      const careTypeRows = await prisma.$queryRawUnsafe('SELECT "id", "careType" FROM "Provider"');
+      if (Array.isArray(careTypeRows)) {
+        for (const row of careTypeRows) {
+          careTypeByProviderId.set(String(row.id), normalizeCareTypeKey(row.careType));
+        }
       }
+    } catch (_err) {
+      // Use hospice fallback if column/model is unavailable.
     }
-  } catch (_err) {
-    // Use hospice fallback if column/model is unavailable.
   }
 
   const cityMap = new Map();
@@ -243,7 +322,7 @@ async function generateStaticPages() {
     const city = String(p.city || '').trim();
     const stateName = normalizeState(p.state || '');
     if (!city || !stateName) continue;
-    const careType = careTypeByProviderId.get(String(p.id)) || 'hospice';
+    const careType = p.careType || careTypeByProviderId.get(String(p.id)) || 'hospice';
 
     const cityKey = `${city.toLowerCase()}|${stateName.toLowerCase()}`;
     if (!cityMap.has(cityKey)) {
@@ -316,6 +395,8 @@ async function generateStaticPages() {
 
     const breadcrumbHtml = `<nav aria-label="Breadcrumb" style="margin:0 0 12px;"><a href="/">Home</a> &gt; <a href="/cities.html">Browse Cities</a> &gt; <a href="/states/${stateFile}">${esc(cityData.state)}</a> &gt; <span>${esc(cityData.city)}</span></nav>`;
 
+    const cityFaq = buildCityFaqData(cityData);
+
     const body = `
       <section class="card" style="padding:18px;">
         ${breadcrumbHtml}
@@ -341,10 +422,7 @@ async function generateStaticPages() {
 
       <section class="card" style="padding:18px; margin-top:14px;">
         <h2 style="margin:0 0 8px;">Frequently Asked Questions</h2>
-        <p style="margin:0 0 8px;"><strong>How much does hospice cost in ${esc(cityData.state)}?</strong><br>Hospice is often covered by Medicare when eligibility criteria are met; additional costs depend on care setting and payer details.</p>
-        <p style="margin:0 0 8px;"><strong>What does Medicare cover for hospice in ${esc(cityData.city)}?</strong><br>Medicare generally covers core hospice services such as nursing care, comfort medications tied to terminal diagnosis, and medical equipment.</p>
-        <p style="margin:0 0 8px;"><strong>How do I know if a provider in ${esc(cityData.city)} is legitimate?</strong><br>Verify licensing, coverage area, response reliability, and accepted insurance before enrolling.</p>
-        <p style="margin:0;"><strong>Can I switch hospice providers in ${esc(cityData.state)}?</strong><br>Yes, families can generally switch providers if care fit is not meeting expectations.</p>
+        ${cityFaq.map((item, idx) => `<p style="margin:${idx === cityFaq.length - 1 ? '0' : '0 0 8px'};"><strong>${esc(item.q)}</strong><br>${esc(item.a)}</p>`).join('\n')}
       </section>
 
       <section class="card" style="padding:18px; margin-top:14px;">
@@ -356,7 +434,7 @@ async function generateStaticPages() {
       </section>
     `;
 
-    const schemas = [breadcrumbSchema(breadcrumbs), cityFaqSchema(cityData.city, cityData.state)];
+    const schemas = [breadcrumbSchema(breadcrumbs), cityFaqSchema(cityData)];
     const extraHead = `<script type="application/ld+json">${JSON.stringify(schemas)}</script>`;
 
     const html = baseLayout({
