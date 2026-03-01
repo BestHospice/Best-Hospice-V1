@@ -291,6 +291,10 @@ const EASTERN_HOUR_FORMATTER = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
   hour12: false
 });
+const EASTERN_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  weekday: 'short'
+});
 
 function getEasternHalfHourSlot(dateValue) {
   if (!dateValue) return null;
@@ -304,6 +308,15 @@ function getEasternHalfHourSlot(dateValue) {
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
   if (!Number.isFinite(minute) || minute < 0 || minute > 59) return null;
   return (hour * 2) + (minute >= 30 ? 1 : 0);
+}
+
+function getEasternWeekdayIndex(dateValue) {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+  const day = EASTERN_WEEKDAY_FORMATTER.format(date);
+  const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[day] ?? null;
 }
 
 function formatDateISO(dt = new Date()) {
@@ -1806,9 +1819,20 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         })
       : [];
     const clientNeedTimesAllTime = Array.from({ length: 48 }, (_, slot) => ({ slot, count: 0 }));
+    const clientNeedDaysAllTime = [
+      { day: 'Sun', count: 0 },
+      { day: 'Mon', count: 0 },
+      { day: 'Tue', count: 0 },
+      { day: 'Wed', count: 0 },
+      { day: 'Thu', count: 0 },
+      { day: 'Fri', count: 0 },
+      { day: 'Sat', count: 0 }
+    ];
     allTimeLeadsForHours.forEach((row) => {
       const slot = getEasternHalfHourSlot(row.createdAt);
       if (slot >= 0 && slot <= 47) clientNeedTimesAllTime[slot].count += 1;
+      const weekdayIdx = getEasternWeekdayIndex(row.createdAt);
+      if (weekdayIdx >= 0 && weekdayIdx <= 6) clientNeedDaysAllTime[weekdayIdx].count += 1;
     });
 
     const providerClientMap = new Map();
@@ -1955,6 +1979,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         submittedBy: submittedByMap,
         topZips,
         clientNeedTimesAllTime,
+        clientNeedDaysAllTime,
         providerClientRanking
       },
       timeline,

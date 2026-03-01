@@ -180,6 +180,11 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
             <p class="chart-note">All-time client submissions by 30-minute intervals (Eastern Time), aggregated across all dates.</p>
             <svg id="need-times-chart" class="need-chart" viewBox="0 0 760 200" preserveAspectRatio="none" aria-label="Average client need times chart"></svg>
           </div>
+          <div class="need-times-wrap">
+            <h3>Average Client Need Days</h3>
+            <p class="chart-note">All-time client submissions by day of week (Eastern Time), aggregated across all dates.</p>
+            <svg id="need-days-chart" class="need-chart" viewBox="0 0 760 200" preserveAspectRatio="none" aria-label="Average client need days chart"></svg>
+          </div>
         </div>
         <div class="card">
           <h2>Top ZIP Codes</h2>
@@ -245,6 +250,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     const leadSearchInput = document.getElementById('lead-search');
     const rangeLabel = document.getElementById('range-label');
     const needTimesChartEl = document.getElementById('need-times-chart');
+    const needDaysChartEl = document.getElementById('need-days-chart');
     const providerRankingBody = document.getElementById('provider-ranking-body');
     let adminToken = '';
     let leadMap = null;
@@ -388,6 +394,63 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         .join('');
 
       needTimesChartEl.innerHTML = `
+        <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"></rect>
+        ${yTicks}
+        <line x1="${left}" y1="${top + chartH}" x2="${width - right}" y2="${top + chartH}" stroke="#94a3b8" stroke-width="1.2"></line>
+        <line x1="${left}" y1="${top}" x2="${left}" y2="${top + chartH}" stroke="#94a3b8" stroke-width="1.2"></line>
+        ${bars}
+        ${xTicks}
+      `;
+    }
+
+    function renderNeedDaysChart(dayRows) {
+      const defaultRows = [
+        { day: 'Sun', count: 0 },
+        { day: 'Mon', count: 0 },
+        { day: 'Tue', count: 0 },
+        { day: 'Wed', count: 0 },
+        { day: 'Thu', count: 0 },
+        { day: 'Fri', count: 0 },
+        { day: 'Sat', count: 0 }
+      ];
+      const rows = Array.isArray(dayRows) && dayRows.length === 7 ? dayRows : defaultRows;
+      const maxCount = Math.max(1, ...rows.map((r) => Number(r.count || 0)));
+
+      const width = 760;
+      const height = 200;
+      const left = 42;
+      const right = 12;
+      const top = 10;
+      const bottom = 28;
+      const chartW = width - left - right;
+      const chartH = height - top - bottom;
+      const barCount = 7;
+      const barW = chartW / barCount;
+      const yFor = (count) => top + chartH - (count / maxCount) * chartH;
+
+      const bars = rows.map((r, idx) => {
+        const count = Number(r.count || 0);
+        const x = left + (idx * barW);
+        const y = yFor(count);
+        const h = Math.max(1, (top + chartH) - y);
+        return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${Math.max(1, barW - 6).toFixed(2)}" height="${h.toFixed(2)}" fill="#0f766e"></rect>`;
+      }).join('');
+
+      const xTicks = rows
+        .map((r, idx) => {
+          const x = left + (idx * barW) + (barW / 2);
+          return `<text x="${x.toFixed(2)}" y="${height - 8}" text-anchor="middle" font-size="11" fill="#475569">${r.day}</text>`;
+        })
+        .join('');
+
+      const yTicks = [0, Math.ceil(maxCount / 2), maxCount]
+        .map((v) => {
+          const y = yFor(v).toFixed(2);
+          return `<g><line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" stroke="#e2e8f0" stroke-width="1" /><text x="${left - 6}" y="${Number(y) + 3}" text-anchor="end" font-size="10" fill="#475569">${v}</text></g>`;
+        })
+        .join('');
+
+      needDaysChartEl.innerHTML = `
         <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"></rect>
         ${yTicks}
         <line x1="${left}" y1="${top + chartH}" x2="${width - right}" y2="${top + chartH}" stroke="#94a3b8" stroke-width="1.2"></line>
@@ -621,6 +684,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       ]);
       renderTopZips((data.breakdowns && data.breakdowns.topZips) || []);
       renderNeedTimesChart((data.breakdowns && data.breakdowns.clientNeedTimesAllTime) || []);
+      renderNeedDaysChart((data.breakdowns && data.breakdowns.clientNeedDaysAllTime) || []);
       renderProviderRanking((data.breakdowns && data.breakdowns.providerClientRanking) || []);
       currentRecentLeads = data.recentLeads || [];
       if (selectedLeadId && !currentRecentLeads.some((l) => l.id === selectedLeadId)) {
