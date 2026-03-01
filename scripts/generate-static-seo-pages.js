@@ -293,7 +293,7 @@ async function generateStaticPages() {
 
     const providerListHtml = cityData.providers
       .map((p) => {
-        const websiteBlock = p.website ? `<p><a href="${esc(p.website)}" target="_blank" rel="noopener">Website - click here</a></p>` : '';
+        const websiteBlock = p.website ? `<p><a href="${esc(p.website)}" target="_blank" rel="noopener" style="color:#1d4ed8; text-decoration:underline;">Website - click here</a></p>` : '';
         const phoneBlock = p.phone ? `<p>Phone: ${esc(p.phone)}</p>` : '';
         return `
           <article class="lead-item" style="padding:16px; margin-bottom:10px;">
