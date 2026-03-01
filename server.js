@@ -1702,6 +1702,23 @@ app.get('/api/admin/main/analytics', async (req, res) => {
     const impressionsRange = leadIds.length
       ? await prisma.providerImpression.count({ where: { leadId: { in: leadIds } } })
       : 0;
+    const sentJobsRange = leadIds.length
+      ? await prisma.notificationJob.findMany({
+          where: { leadId: { in: leadIds }, status: 'sent' },
+          select: { payload: true }
+        })
+      : [];
+    let initialEmailsSentInRange = 0;
+    let additionalEmailsSentInRange = 0;
+    sentJobsRange.forEach((job) => {
+      const mode = String(job?.payload?.notificationType || 'initial').toLowerCase();
+      if (mode === 'details' || mode === 'additional') additionalEmailsSentInRange += 1;
+      else initialEmailsSentInRange += 1;
+    });
+    if (!sentJobsRange.length && notificationsRange > 0) {
+      initialEmailsSentInRange = notificationsRange;
+      additionalEmailsSentInRange = 0;
+    }
 
     const timelineMap = new Map();
     const careTypeMap = { hospice: 0, palliative: 0, home: 0, notSure: 0 };
@@ -1743,11 +1760,20 @@ app.get('/api/admin/main/analytics', async (req, res) => {
           where: { leadId: { in: leadIds } },
           select: {
             leadId: true,
+            sentAt: true,
+            createdAt: true,
             lead: { select: { zip: true } },
             provider: { select: { lat: true, lon: true } }
           }
         })
       : [];
+    const notificationHours = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
+    notifsForCentroid.forEach((row) => {
+      const dt = row.sentAt || row.createdAt;
+      if (!dt) return;
+      const hour = new Date(dt).getUTCHours();
+      if (hour >= 0 && hour <= 23) notificationHours[hour].count += 1;
+    });
 
     const leadCentroidMap = new Map();
     for (const row of notifsForCentroid) {
@@ -1857,13 +1883,16 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         leadsAllTime: totalLeadsAllTime,
         leadsInRange: leadsRange.length,
         notificationsSentInRange: notificationsRange,
+        initialEmailsSentInRange,
+        additionalEmailsSentInRange,
         impressionsInRange: impressionsRange,
         avgNotificationsPerLead: leadsRange.length ? Number((notificationsRange / leadsRange.length).toFixed(2)) : 0
       },
       breakdowns: {
         careTypes: careTypeMap,
         submittedBy: submittedByMap,
-        topZips
+        topZips,
+        notificationHours
       },
       timeline,
       heatPoints,

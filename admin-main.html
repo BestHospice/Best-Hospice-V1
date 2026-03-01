@@ -40,6 +40,10 @@
     .timeline { display: grid; gap: 8px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
     .timeline-row { display: grid; grid-template-columns: 110px 1fr 34px; gap: 8px; align-items: center; font-size: 13px; }
     .map-box { height: 360px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .need-times-wrap { margin-top: 12px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; background: #f8fafc; }
+    .need-times-wrap h3 { margin: 0 0 6px; font-size: 15px; }
+    .chart-note { margin: 0 0 6px; color: #64748b; font-size: 12px; }
+    .need-chart { width: 100%; height: 200px; display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
     .table-wrap { max-height: 320px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 10px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
@@ -171,6 +175,11 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <h2>Lead Heat Map</h2>
           <p class="note">Weighted by lead count per ZIP centroid from provider notifications.</p>
           <div id="lead-map" class="map-box"></div>
+          <div class="need-times-wrap">
+            <h3>Average Client Need Times</h3>
+            <p class="chart-note">Hour of day (UTC) on the x-axis and number of sent notifications on the y-axis.</p>
+            <svg id="need-times-chart" class="need-chart" viewBox="0 0 760 200" preserveAspectRatio="none" aria-label="Average client need times chart"></svg>
+          </div>
         </div>
         <div class="card">
           <h2>Top ZIP Codes</h2>
@@ -218,6 +227,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     const leadDetailEl = document.getElementById('lead-detail');
     const leadSearchInput = document.getElementById('lead-search');
     const rangeLabel = document.getElementById('range-label');
+    const needTimesChartEl = document.getElementById('need-times-chart');
     let adminToken = '';
     let leadMap = null;
     let heatLayer = null;
@@ -296,7 +306,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       const cards = [
         ['Clients Generated (All Time)', fmtNum(totals.leadsAllTime)],
         ['Clients In Range', fmtNum(totals.leadsInRange)],
-        ['Notifications Sent', fmtNum(totals.notificationsSentInRange)],
+        ['Initial Emails Sent', fmtNum(totals.initialEmailsSentInRange)],
+        ['Additional Emails Sent', fmtNum(totals.additionalEmailsSentInRange)],
+        ['Notifications Sent (Total)', fmtNum(totals.notificationsSentInRange)],
         ['Provider Impressions', fmtNum(totals.impressionsInRange)],
         ['Avg Notifications / Client', String(totals.avgNotificationsPerLead || 0)],
         ['Active Lead Days', fmtNum(daysActive)],
@@ -307,6 +319,45 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       statsGrid.innerHTML = cards.map(([k, v]) => (
         `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`
       )).join('');
+    }
+
+    function renderNeedTimesChart(hourRows) {
+      const rows = Array.isArray(hourRows) && hourRows.length === 24
+        ? hourRows
+        : Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+      const maxCount = Math.max(1, ...rows.map((r) => Number(r.count || 0)));
+
+      const width = 760;
+      const height = 200;
+      const left = 42;
+      const right = 12;
+      const top = 10;
+      const bottom = 28;
+      const chartW = width - left - right;
+      const chartH = height - top - bottom;
+      const xFor = (hour) => left + (hour / 23) * chartW;
+      const yFor = (count) => top + chartH - (count / maxCount) * chartH;
+
+      const points = rows.map((r) => `${xFor(Number(r.hour || 0)).toFixed(2)},${yFor(Number(r.count || 0)).toFixed(2)}`).join(' ');
+      const xTicks = [0, 4, 8, 12, 16, 20, 23]
+        .map((h) => `<text x="${xFor(h).toFixed(2)}" y="${height - 8}" text-anchor="middle" font-size="10" fill="#475569">${String(h).padStart(2, '0')}:00</text>`)
+        .join('');
+      const yTicks = [0, Math.ceil(maxCount / 2), maxCount]
+        .map((v) => {
+          const y = yFor(v).toFixed(2);
+          return `<g><line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" stroke="#e2e8f0" stroke-width="1" /><text x="${left - 6}" y="${Number(y) + 3}" text-anchor="end" font-size="10" fill="#475569">${v}</text></g>`;
+        })
+        .join('');
+
+      needTimesChartEl.innerHTML = `
+        <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"></rect>
+        ${yTicks}
+        <line x1="${left}" y1="${top + chartH}" x2="${width - right}" y2="${top + chartH}" stroke="#94a3b8" stroke-width="1.2"></line>
+        <line x1="${left}" y1="${top}" x2="${left}" y2="${top + chartH}" stroke="#94a3b8" stroke-width="1.2"></line>
+        <polyline fill="none" stroke="#0f766e" stroke-width="2.5" points="${points}"></polyline>
+        ${rows.map((r) => `<circle cx="${xFor(Number(r.hour || 0)).toFixed(2)}" cy="${yFor(Number(r.count || 0)).toFixed(2)}" r="2.5" fill="#0ea5a5"></circle>`).join('')}
+        ${xTicks}
+      `;
     }
 
     function renderTopZips(topZips) {
@@ -514,6 +565,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         { label: 'Other', value: submittedBy.Other || 0 }
       ]);
       renderTopZips((data.breakdowns && data.breakdowns.topZips) || []);
+      renderNeedTimesChart((data.breakdowns && data.breakdowns.notificationHours) || []);
       currentRecentLeads = data.recentLeads || [];
       if (selectedLeadId && !currentRecentLeads.some((l) => l.id === selectedLeadId)) {
         selectedLeadId = '';
