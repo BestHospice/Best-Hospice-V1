@@ -177,7 +177,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <div id="lead-map" class="map-box"></div>
           <div class="need-times-wrap">
             <h3>Average Client Need Times</h3>
-            <p class="chart-note">All-time client submissions by hour of day (Eastern Time), aggregated across all dates.</p>
+            <p class="chart-note">All-time client submissions by 30-minute intervals (Eastern Time), aggregated across all dates.</p>
             <svg id="need-times-chart" class="need-chart" viewBox="0 0 760 200" preserveAspectRatio="none" aria-label="Average client need times chart"></svg>
           </div>
         </div>
@@ -339,10 +339,17 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       )).join('');
     }
 
-    function renderNeedTimesChart(hourRows) {
-      const rows = Array.isArray(hourRows) && hourRows.length === 24
-        ? hourRows
-        : Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+    function formatSlotLabel(slot) {
+      const safeSlot = Math.max(0, Math.min(47, Number(slot || 0)));
+      const hour = Math.floor(safeSlot / 2);
+      const minute = safeSlot % 2 === 0 ? '00' : '30';
+      return `${String(hour).padStart(2, '0')}:${minute}`;
+    }
+
+    function renderNeedTimesChart(slotRows) {
+      const rows = Array.isArray(slotRows) && slotRows.length === 48
+        ? slotRows
+        : Array.from({ length: 48 }, (_, slot) => ({ slot, count: 0 }));
       const maxCount = Math.max(1, ...rows.map((r) => Number(r.count || 0)));
 
       const width = 760;
@@ -353,12 +360,25 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       const bottom = 28;
       const chartW = width - left - right;
       const chartH = height - top - bottom;
-      const xFor = (hour) => left + (hour / 23) * chartW;
+      const barCount = 48;
+      const barW = chartW / barCount;
       const yFor = (count) => top + chartH - (count / maxCount) * chartH;
 
-      const points = rows.map((r) => `${xFor(Number(r.hour || 0)).toFixed(2)},${yFor(Number(r.count || 0)).toFixed(2)}`).join(' ');
-      const xTicks = [0, 4, 8, 12, 16, 20, 23]
-        .map((h) => `<text x="${xFor(h).toFixed(2)}" y="${height - 8}" text-anchor="middle" font-size="10" fill="#475569">${String(h).padStart(2, '0')}:00</text>`)
+      const bars = rows.map((r) => {
+        const slot = Number(r.slot || 0);
+        const count = Number(r.count || 0);
+        const x = left + (slot * barW);
+        const y = yFor(count);
+        const h = Math.max(1, (top + chartH) - y);
+        return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${Math.max(1, barW - 1).toFixed(2)}" height="${h.toFixed(2)}" fill="#0f766e"></rect>`;
+      }).join('');
+
+      const xTickSlots = [0, 8, 16, 24, 32, 40, 47];
+      const xTicks = xTickSlots
+        .map((slot) => {
+          const x = left + (slot * barW) + (barW / 2);
+          return `<text x="${x.toFixed(2)}" y="${height - 8}" text-anchor="middle" font-size="10" fill="#475569">${formatSlotLabel(slot)}</text>`;
+        })
         .join('');
       const yTicks = [0, Math.ceil(maxCount / 2), maxCount]
         .map((v) => {
@@ -372,8 +392,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         ${yTicks}
         <line x1="${left}" y1="${top + chartH}" x2="${width - right}" y2="${top + chartH}" stroke="#94a3b8" stroke-width="1.2"></line>
         <line x1="${left}" y1="${top}" x2="${left}" y2="${top + chartH}" stroke="#94a3b8" stroke-width="1.2"></line>
-        <polyline fill="none" stroke="#0f766e" stroke-width="2.5" points="${points}"></polyline>
-        ${rows.map((r) => `<circle cx="${xFor(Number(r.hour || 0)).toFixed(2)}" cy="${yFor(Number(r.count || 0)).toFixed(2)}" r="2.5" fill="#0ea5a5"></circle>`).join('')}
+        ${bars}
         ${xTicks}
       `;
     }
@@ -601,7 +620,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         { label: 'Other', value: submittedBy.Other || 0 }
       ]);
       renderTopZips((data.breakdowns && data.breakdowns.topZips) || []);
-      renderNeedTimesChart((data.breakdowns && data.breakdowns.clientNeedHoursAllTime) || []);
+      renderNeedTimesChart((data.breakdowns && data.breakdowns.clientNeedTimesAllTime) || []);
       renderProviderRanking((data.breakdowns && data.breakdowns.providerClientRanking) || []);
       currentRecentLeads = data.recentLeads || [];
       if (selectedLeadId && !currentRecentLeads.some((l) => l.id === selectedLeadId)) {

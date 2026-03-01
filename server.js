@@ -288,17 +288,22 @@ const stateNameMap = {
 const EASTERN_HOUR_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York',
   hour: '2-digit',
+  minute: '2-digit',
   hour12: false
 });
 
-function getEasternHour(dateValue) {
+function getEasternHalfHourSlot(dateValue) {
   if (!dateValue) return null;
   const date = new Date(dateValue);
   if (Number.isNaN(date.getTime())) return null;
-  const hourText = EASTERN_HOUR_FORMATTER.format(date);
+  const parts = EASTERN_HOUR_FORMATTER.formatToParts(date);
+  const hourText = parts.find((p) => p.type === 'hour')?.value || '';
+  const minuteText = parts.find((p) => p.type === 'minute')?.value || '';
   const hour = Number.parseInt(hourText, 10);
+  const minute = Number.parseInt(minuteText, 10);
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
-  return hour;
+  if (!Number.isFinite(minute) || minute < 0 || minute > 59) return null;
+  return (hour * 2) + (minute >= 30 ? 1 : 0);
 }
 
 function formatDateISO(dt = new Date()) {
@@ -1800,10 +1805,10 @@ app.get('/api/admin/main/analytics', async (req, res) => {
           }
         })
       : [];
-    const clientNeedHoursAllTime = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
+    const clientNeedTimesAllTime = Array.from({ length: 48 }, (_, slot) => ({ slot, count: 0 }));
     allTimeLeadsForHours.forEach((row) => {
-      const hour = getEasternHour(row.createdAt);
-      if (hour >= 0 && hour <= 23) clientNeedHoursAllTime[hour].count += 1;
+      const slot = getEasternHalfHourSlot(row.createdAt);
+      if (slot >= 0 && slot <= 47) clientNeedTimesAllTime[slot].count += 1;
     });
 
     const providerClientMap = new Map();
@@ -1949,7 +1954,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         careTypes: careTypeMap,
         submittedBy: submittedByMap,
         topZips,
-        clientNeedHoursAllTime,
+        clientNeedTimesAllTime,
         providerClientRanking
       },
       timeline,
