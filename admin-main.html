@@ -177,7 +177,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <div id="lead-map" class="map-box"></div>
           <div class="need-times-wrap">
             <h3>Average Client Need Times</h3>
-            <p class="chart-note">All-time client submissions by hour of day (UTC), aggregated across all dates.</p>
+            <p class="chart-note">All-time client submissions by hour of day (Eastern Time), aggregated across all dates.</p>
             <svg id="need-times-chart" class="need-chart" viewBox="0 0 760 200" preserveAspectRatio="none" aria-label="Average client need times chart"></svg>
           </div>
         </div>
@@ -216,6 +216,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
               <tr>
                 <th>Rank</th>
                 <th>Provider</th>
+                <th>Phone</th>
                 <th>Clients Generated</th>
               </tr>
             </thead>
@@ -380,7 +381,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     function renderProviderRanking(rows) {
       const list = Array.isArray(rows) ? rows : [];
       if (!list.length) {
-        providerRankingBody.innerHTML = '<tr><td colspan="3">No provider client data yet.</td></tr>';
+        providerRankingBody.innerHTML = '<tr><td colspan="4">No provider client data yet.</td></tr>';
         return;
       }
       providerRankingBody.innerHTML = list
@@ -388,6 +389,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <tr>
             <td>${idx + 1}</td>
             <td>${row.providerName || 'Unknown provider'}</td>
+            <td>${row.providerPhone || '-'}</td>
             <td>${fmtNum(row.clientsGenerated || 0)}</td>
           </tr>
         `)

@@ -285,6 +285,22 @@ const stateNameMap = {
   ut: 'Utah', vt: 'Vermont', va: 'Virginia', wa: 'Washington', wv: 'West Virginia', wi: 'Wisconsin', wy: 'Wyoming'
 };
 
+const EASTERN_HOUR_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  hour: '2-digit',
+  hour12: false
+});
+
+function getEasternHour(dateValue) {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+  const hourText = EASTERN_HOUR_FORMATTER.format(date);
+  const hour = Number.parseInt(hourText, 10);
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
+  return hour;
+}
+
 function formatDateISO(dt = new Date()) {
   return dt.toISOString().split('T')[0];
 }
@@ -1704,7 +1720,8 @@ app.get('/api/admin/main/analytics', async (req, res) => {
           provider: {
             select: {
               id: true,
-              name: true
+              name: true,
+              phone: true
             }
           }
         }
@@ -1785,9 +1802,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       : [];
     const clientNeedHoursAllTime = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
     allTimeLeadsForHours.forEach((row) => {
-      const dt = row.createdAt;
-      if (!dt) return;
-      const hour = new Date(dt).getUTCHours();
+      const hour = getEasternHour(row.createdAt);
       if (hour >= 0 && hour <= 23) clientNeedHoursAllTime[hour].count += 1;
     });
 
@@ -1798,8 +1813,10 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       const current = providerClientMap.get(row.providerId) || {
         providerId: row.providerId,
         providerName,
+        providerPhone: row.provider?.phone || '',
         leadIds: new Set()
       };
+      if (!current.providerPhone && row.provider?.phone) current.providerPhone = row.provider.phone;
       if (row.leadId) current.leadIds.add(row.leadId);
       providerClientMap.set(row.providerId, current);
     });
@@ -1807,6 +1824,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       .map((entry) => ({
         providerId: entry.providerId,
         providerName: entry.providerName,
+        providerPhone: entry.providerPhone || '',
         clientsGenerated: entry.leadIds.size
       }))
       .sort((a, b) => {
