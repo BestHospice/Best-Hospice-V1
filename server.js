@@ -1676,7 +1676,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       return res.status(400).json({ error: 'Invalid date range' });
     }
 
-    const [totalLeadsAllTime, leadsRange] = await Promise.all([
+    const [totalLeadsAllTime, leadsRange, allTimeLeadsForHours, allTimeSentNotifications] = await Promise.all([
       prisma.lead.count(),
       prisma.lead.findMany({
         where: { createdAt: { gte: from, lte: to } },
@@ -1691,6 +1691,22 @@ app.get('/api/admin/main/analytics', async (req, res) => {
           clientPhone: true,
           firstName: true,
           lastName: true
+        }
+      }),
+      prisma.lead.findMany({
+        select: { createdAt: true }
+      }),
+      prisma.leadNotification.findMany({
+        where: { status: 'sent' },
+        select: {
+          providerId: true,
+          leadId: true,
+          provider: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
         }
       })
     ]);
@@ -1767,13 +1783,36 @@ app.get('/api/admin/main/analytics', async (req, res) => {
           }
         })
       : [];
-    const notificationHours = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
-    notifsForCentroid.forEach((row) => {
-      const dt = row.sentAt || row.createdAt;
+    const clientNeedHoursAllTime = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
+    allTimeLeadsForHours.forEach((row) => {
+      const dt = row.createdAt;
       if (!dt) return;
       const hour = new Date(dt).getUTCHours();
-      if (hour >= 0 && hour <= 23) notificationHours[hour].count += 1;
+      if (hour >= 0 && hour <= 23) clientNeedHoursAllTime[hour].count += 1;
     });
+
+    const providerClientMap = new Map();
+    allTimeSentNotifications.forEach((row) => {
+      if (!row.providerId) return;
+      const providerName = row.provider?.name || 'Unknown provider';
+      const current = providerClientMap.get(row.providerId) || {
+        providerId: row.providerId,
+        providerName,
+        leadIds: new Set()
+      };
+      if (row.leadId) current.leadIds.add(row.leadId);
+      providerClientMap.set(row.providerId, current);
+    });
+    const providerClientRanking = Array.from(providerClientMap.values())
+      .map((entry) => ({
+        providerId: entry.providerId,
+        providerName: entry.providerName,
+        clientsGenerated: entry.leadIds.size
+      }))
+      .sort((a, b) => {
+        if (b.clientsGenerated !== a.clientsGenerated) return b.clientsGenerated - a.clientsGenerated;
+        return a.providerName.localeCompare(b.providerName);
+      });
 
     const leadCentroidMap = new Map();
     for (const row of notifsForCentroid) {
@@ -1892,7 +1931,8 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         careTypes: careTypeMap,
         submittedBy: submittedByMap,
         topZips,
-        notificationHours
+        clientNeedHoursAllTime,
+        providerClientRanking
       },
       timeline,
       heatPoints,

@@ -177,7 +177,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           <div id="lead-map" class="map-box"></div>
           <div class="need-times-wrap">
             <h3>Average Client Need Times</h3>
-            <p class="chart-note">Hour of day (UTC) on the x-axis and number of sent notifications on the y-axis.</p>
+            <p class="chart-note">All-time client submissions by hour of day (UTC), aggregated across all dates.</p>
             <svg id="need-times-chart" class="need-chart" viewBox="0 0 760 200" preserveAspectRatio="none" aria-label="Average client need times chart"></svg>
           </div>
         </div>
@@ -207,6 +207,22 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           </div>
         </div>
       </div>
+
+      <div class="card">
+        <h2>Provider Client Ranking (All Time)</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Provider</th>
+                <th>Clients Generated</th>
+              </tr>
+            </thead>
+            <tbody id="provider-ranking-body"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -228,6 +244,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     const leadSearchInput = document.getElementById('lead-search');
     const rangeLabel = document.getElementById('range-label');
     const needTimesChartEl = document.getElementById('need-times-chart');
+    const providerRankingBody = document.getElementById('provider-ranking-body');
     let adminToken = '';
     let leadMap = null;
     let heatLayer = null;
@@ -358,6 +375,23 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         ${rows.map((r) => `<circle cx="${xFor(Number(r.hour || 0)).toFixed(2)}" cy="${yFor(Number(r.count || 0)).toFixed(2)}" r="2.5" fill="#0ea5a5"></circle>`).join('')}
         ${xTicks}
       `;
+    }
+
+    function renderProviderRanking(rows) {
+      const list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        providerRankingBody.innerHTML = '<tr><td colspan="3">No provider client data yet.</td></tr>';
+        return;
+      }
+      providerRankingBody.innerHTML = list
+        .map((row, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${row.providerName || 'Unknown provider'}</td>
+            <td>${fmtNum(row.clientsGenerated || 0)}</td>
+          </tr>
+        `)
+        .join('');
     }
 
     function renderTopZips(topZips) {
@@ -565,7 +599,8 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         { label: 'Other', value: submittedBy.Other || 0 }
       ]);
       renderTopZips((data.breakdowns && data.breakdowns.topZips) || []);
-      renderNeedTimesChart((data.breakdowns && data.breakdowns.notificationHours) || []);
+      renderNeedTimesChart((data.breakdowns && data.breakdowns.clientNeedHoursAllTime) || []);
+      renderProviderRanking((data.breakdowns && data.breakdowns.providerClientRanking) || []);
       currentRecentLeads = data.recentLeads || [];
       if (selectedLeadId && !currentRecentLeads.some((l) => l.id === selectedLeadId)) {
         selectedLeadId = '';
