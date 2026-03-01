@@ -265,7 +265,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     }
 
     function prettySubmittedBy(v) {
-      if (v === 'TheClient') return 'The client';
+      if (v === 'TheClient') return 'Self';
       if (v === 'A_Loved_One') return 'Loved one';
       return 'Other';
     }
@@ -596,7 +596,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         { label: 'Not Sure', value: careTypes.notSure || 0 }
       ]);
       renderBars(submittedBarsEl, [
-        { label: 'The client', value: submittedBy.TheClient || 0 },
+        { label: 'Self', value: submittedBy.TheClient || 0 },
         { label: 'Loved one', value: submittedBy.A_Loved_One || 0 },
         { label: 'Other', value: submittedBy.Other || 0 }
       ]);
