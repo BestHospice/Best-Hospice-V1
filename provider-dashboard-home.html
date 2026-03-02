@@ -399,21 +399,8 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       document.getElementById('lead-search').value = '';
       loadLeadKPIs();
     });
-    document.getElementById('billing').addEventListener('click', async () => {
-      try {
-        const monthlySubscription = Math.max(
-          0,
-          parseInt(document.getElementById('roi-monthly').value || '250', 10) || 250
-        );
-        const data = await callApi('/api/provider/billing', 'POST', { monthlySubscription });
-        if (data.url) {
-          window.location.href = data.url;
-        } else {
-          setStatus(data.error || 'Billing not available.');
-        }
-      } catch (err) {
-        setStatus(err.message);
-      }
+    document.getElementById('billing').addEventListener('click', () => {
+      window.location.href = 'provider-billing.html';
     });
     document.getElementById('calc-converted').addEventListener('click', () => {
       const num = Math.max(0, parseInt(document.getElementById('converted-leads').value || '0', 10));
