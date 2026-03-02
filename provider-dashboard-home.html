@@ -269,14 +269,20 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         document.getElementById('provider-label').textContent = data.provider ? data.provider.name + ' — ' + data.provider.email : '';
         document.getElementById('welcome').textContent = data.provider ? `Welcome to ${data.provider.name} Dashboard` : 'Welcome to your Dashboard';
         if (data.provider) {
-          const radiusMiles = Number(data.provider.serviceRadiusKm || 0) > 0
-            ? `${(Number(data.provider.serviceRadiusKm) / 1.60934).toFixed(1)} mi radius`
+          const radiusKm = Number(data.provider.serviceRadiusKm || 0);
+          const hasRadius = radiusKm > 0;
+          const radiusMiles = hasRadius
+            ? `${(radiusKm / 1.60934).toFixed(1)} mi radius`
             : 'No radius set';
-          const zipList = String(data.provider.serviceZipCodes || '').trim();
-          const zipCount = zipList ? zipList.split(',').map((z) => z.trim()).filter(Boolean).length : 0;
-          const coverageText = zipCount > 0
-            ? `${radiusMiles} OR ${zipCount} service ZIP code${zipCount === 1 ? '' : 's'}`
-            : radiusMiles;
+          const zipValues = String(data.provider.serviceZipCodes || '')
+            .split(',')
+            .map((z) => z.trim())
+            .filter(Boolean);
+          const zipCount = zipValues.length;
+          const zipListText = zipCount ? zipValues.join(', ') : '';
+          const coverageText = hasRadius
+            ? (zipCount ? `${radiusMiles} OR ${zipCount} service ZIP code${zipCount === 1 ? '' : 's'}` : radiusMiles)
+            : (zipCount ? `ZIP-based only: ${zipListText}` : radiusMiles);
           document.getElementById('coverage-label').textContent = `Coverage: ${coverageText}`;
           document.getElementById('coverage-summary').textContent = coverageText;
         }
