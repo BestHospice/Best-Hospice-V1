@@ -3180,7 +3180,12 @@ app.post('/api/provider/billing', requireProviderAuth, async (req, res) => {
   try {
     const ctx = await getProviderContext(req.providerUserId);
     if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
-    const planTier = normalizePlanTier(ctx.provider?.planTier || 'verified');
+    const enteredMonthly = Number.parseInt(String(req.body?.monthlySubscription || ''), 10);
+    let planTier = 'verified';
+    if (enteredMonthly === 375) planTier = 'featured';
+    else if (enteredMonthly === 500) planTier = 'priority';
+    else if (enteredMonthly === 250) planTier = 'verified';
+    else planTier = 'verified';
     const priceMap = {
       verified: process.env.STRIPE_PRICE_ID_VERIFIED,
       featured: process.env.STRIPE_PRICE_ID_FEATURED,

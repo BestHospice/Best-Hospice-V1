@@ -401,7 +401,11 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     });
     document.getElementById('billing').addEventListener('click', async () => {
       try {
-        const data = await callApi('/api/provider/billing', 'POST');
+        const monthlySubscription = Math.max(
+          0,
+          parseInt(document.getElementById('roi-monthly').value || '250', 10) || 250
+        );
+        const data = await callApi('/api/provider/billing', 'POST', { monthlySubscription });
         if (data.url) {
           window.location.href = data.url;
         } else {
