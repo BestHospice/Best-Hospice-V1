@@ -128,11 +128,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
               <input id="roi-months" type="number" min="1" value="1" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px; width:120px;">
             </label>
             <label style="font-weight:700;">Monthly subscription:
-              <select id="roi-monthly" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
-                <option value="250">$250</option>
-                <option value="375">$375</option>
-                <option value="500">$500</option>
-              </select>
+              <input id="roi-monthly" type="number" min="0" step="1" value="250" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px; width:120px;">
             </label>
             <label style="font-weight:700;">Revenue per client per month:
               <select id="roi-revenue-per-client" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
@@ -375,9 +371,11 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
 
     function updateBillingCards() {
       const revenuePerClient = Math.max(0, parseInt(document.getElementById('roi-revenue-per-client').value || '8000', 10));
+      const enteredMonthly = Math.max(0, parseInt(document.getElementById('roi-monthly').value || String(planMonthly), 10) || 0);
+      planMonthly = enteredMonthly;
       const revenue = totalNotificationsCache * revenuePerClient;
       document.getElementById('bill-revenue').textContent = revenue ? `$${revenue.toLocaleString()}` : '$0';
-      document.getElementById('bill-monthly').textContent = `$${planMonthly}`;
+      document.getElementById('bill-monthly').textContent = `$${enteredMonthly.toLocaleString()}`;
     }
 
     document.getElementById('logout').addEventListener('click', ()=>{
@@ -426,6 +424,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     });
 
     document.getElementById('roi-monthly').addEventListener('change', () => {
+      updateBillingCards();
+    });
+    document.getElementById('roi-monthly').addEventListener('input', () => {
       updateBillingCards();
     });
     document.getElementById('roi-revenue-per-client').addEventListener('change', () => {
