@@ -617,6 +617,36 @@ a {
   font-size: 14px;
 }
 
+.consent-row {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.consent-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.consent-checkbox {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.consent-label a {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
 .trust-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
