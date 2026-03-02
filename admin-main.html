@@ -229,6 +229,74 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           </table>
         </div>
       </div>
+
+      <div class="split">
+        <div class="card">
+          <h2>Conversion Rate by Provider</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Leads</th>
+                  <th>Admitted</th>
+                  <th>Conversion %</th>
+                </tr>
+              </thead>
+              <tbody id="provider-conversion-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Admit Rates by Care Type</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Care Type</th>
+                  <th>Leads</th>
+                  <th>Admitted</th>
+                  <th>Admit %</th>
+                </tr>
+              </thead>
+              <tbody id="caretype-admit-body"></tbody>
+            </table>
+          </div>
+          <h3 style="margin-top:14px;">Admit Rates by Geography</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>State</th>
+                  <th>Leads</th>
+                  <th>Admitted</th>
+                  <th>Admit %</th>
+                </tr>
+              </thead>
+              <tbody id="geo-admit-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Leads with No Updates (7+ Days)</h2>
+        <p class="note">These leads are still marked as New and are candidates for reminder automation.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Lead ID</th>
+                <th>ZIP</th>
+                <th>Provider</th>
+                <th>State</th>
+                <th>Age (days)</th>
+              </tr>
+            </thead>
+            <tbody id="no-update-body"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -252,6 +320,10 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     const needTimesChartEl = document.getElementById('need-times-chart');
     const needDaysChartEl = document.getElementById('need-days-chart');
     const providerRankingBody = document.getElementById('provider-ranking-body');
+    const providerConversionBody = document.getElementById('provider-conversion-body');
+    const caretypeAdmitBody = document.getElementById('caretype-admit-body');
+    const geoAdmitBody = document.getElementById('geo-admit-body');
+    const noUpdateBody = document.getElementById('no-update-body');
     let adminToken = '';
     let leadMap = null;
     let heatLayer = null;
@@ -338,7 +410,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         ['Active Lead Days', fmtNum(daysActive)],
         ['Peak Day', peakDay.date],
         ['Peak Leads (Single Day)', fmtNum(peakDay.count)],
-        ['Top ZIPs Counted', fmtNum(uniqueZips)]
+        ['Top ZIPs Counted', fmtNum(uniqueZips)],
+        ['Avg Time to First Contact (hrs)', totals.avgTimeToFirstContactHours == null ? '-' : totals.avgTimeToFirstContactHours],
+        ['Leads with No Updates (7+ days)', fmtNum(totals.noUpdateLeadsCount || 0)]
       ];
       statsGrid.innerHTML = cards.map(([k, v]) => (
         `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`
@@ -478,6 +552,64 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         .join('');
     }
 
+    function renderProviderConversion(rows) {
+      const list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        providerConversionBody.innerHTML = '<tr><td colspan="4">No conversion data yet.</td></tr>';
+        return;
+      }
+      providerConversionBody.innerHTML = list
+        .slice(0, 200)
+        .map((row) => `
+          <tr>
+            <td>${row.providerName || 'Unknown provider'}</td>
+            <td>${fmtNum(row.leads || 0)}</td>
+            <td>${fmtNum(row.admitted || 0)}</td>
+            <td>${row.conversionRatePct || 0}%</td>
+          </tr>
+        `)
+        .join('');
+    }
+
+    function renderAdmitRates(rows, root, emptyText, labelKey) {
+      const list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        root.innerHTML = `<tr><td colspan="4">${emptyText}</td></tr>`;
+        return;
+      }
+      root.innerHTML = list
+        .slice(0, 200)
+        .map((row) => `
+          <tr>
+            <td>${row[labelKey] || '-'}</td>
+            <td>${fmtNum(row.leads || 0)}</td>
+            <td>${fmtNum(row.admitted || 0)}</td>
+            <td>${row.admitRatePct || 0}%</td>
+          </tr>
+        `)
+        .join('');
+    }
+
+    function renderNoUpdateLeads(rows) {
+      const list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        noUpdateBody.innerHTML = '<tr><td colspan="5">No stale leads right now.</td></tr>';
+        return;
+      }
+      noUpdateBody.innerHTML = list
+        .slice(0, 300)
+        .map((row) => `
+          <tr>
+            <td>${row.leadId || '-'}</td>
+            <td>${row.zip || '-'}</td>
+            <td>${row.providerName || 'Unknown provider'}</td>
+            <td>${row.providerState || '-'}</td>
+            <td>${fmtNum(row.ageDays || 0)}</td>
+          </tr>
+        `)
+        .join('');
+    }
+
     function renderTopZips(topZips) {
       topZipsEl.innerHTML = '';
       if (!topZips.length) {
@@ -575,7 +707,8 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         return `
           <div class="lead-provider-item">
             <div><strong>${provider.name || 'Unknown provider'}</strong></div>
-            <div>Status: ${status} · Notified: ${sentAt}</div>
+            <div>Email delivery: ${status} · Notified: ${sentAt}</div>
+            <div>Lead outcome: ${n.outcomeStatusLabel || 'New'}${n.outcomeUpdatedAt ? ` · Updated: ${new Date(n.outcomeUpdatedAt).toLocaleString()}` : ''}</div>
             <div>Email: ${provider.email || '-'} · Phone: ${provider.phone || '-'}</div>
             <div>Location: ${location || '-'}</div>
             ${n.errorMessage ? `<div>Error: ${n.errorMessage}</div>` : ''}
@@ -686,6 +819,10 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       renderNeedTimesChart((data.breakdowns && data.breakdowns.clientNeedTimesAllTime) || []);
       renderNeedDaysChart((data.breakdowns && data.breakdowns.clientNeedDaysAllTime) || []);
       renderProviderRanking((data.breakdowns && data.breakdowns.providerClientRanking) || []);
+      renderProviderConversion((data.breakdowns && data.breakdowns.conversionByProvider) || []);
+      renderAdmitRates((data.breakdowns && data.breakdowns.admitRateByCareType) || [], caretypeAdmitBody, 'No admit data by care type yet.', 'label');
+      renderAdmitRates((data.breakdowns && data.breakdowns.admitRateByGeography) || [], geoAdmitBody, 'No admit data by geography yet.', 'geography');
+      renderNoUpdateLeads((data.breakdowns && data.breakdowns.noUpdateLeads) || []);
       currentRecentLeads = data.recentLeads || [];
       if (selectedLeadId && !currentRecentLeads.some((l) => l.id === selectedLeadId)) {
         selectedLeadId = '';

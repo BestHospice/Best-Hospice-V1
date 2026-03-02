@@ -3,82 +3,114 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model Provider {
-  id              String   @id @default(uuid())
-  name            String
-  email           String
+  id                    String   @id @default(uuid())
+  name                  String
+  email                 String
   secondaryContactEmail String?
-  serviceZipCodes String?
-  providerLoginEmail String?
-  phone           String?
-  website         String?
-  address         String
-  city            String
-  state           String
-  zip             String
-  lat             Float
-  lon             Float
-  serviceRadiusKm Float
-  featured        Boolean  @default(false)
-  planTier        String   @default("verified")
-  careType        String   @default("hospice")
-  leadCount       Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  notifications   LeadNotification[]
-  impressions     ProviderImpression[]
-  users           ProviderUserProvider[]
-  activeUsers     ProviderUser[] @relation("ActiveProvider")
-}
-
-model Lead {
-  id            String   @id @default(uuid())
-  zip           String
-  submittedBy   String
-  careDays      String?
-  careTimes     String?
-  services      String?
-  clientEmail   String?
-  clientPhone   String?
-  firstName     String?
-  lastName      String?
-  createdAt     DateTime @default(now())
+  serviceZipCodes       String?
+  providerLoginEmail    String?
+  phone                 String?
+  website               String?
+  address               String
+  city                  String
+  state                 String
+  zip                   String
+  lat                   Float
+  lon                   Float
+  serviceRadiusKm       Float
+  featured              Boolean  @default(false)
+  planTier              String   @default("verified")
+  careType              String   @default("hospice")
+  leadCount             Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   notifications LeadNotification[]
   impressions   ProviderImpression[]
+  users         ProviderUserProvider[]
+  activeUsers   ProviderUser[]         @relation("ActiveProvider")
+  outcomes      LeadOutcome[]
+}
+
+model Lead {
+  id          String   @id @default(uuid())
+  zip         String
+  submittedBy String
+  careDays    String?
+  careTimes   String?
+  services    String?
+  clientEmail String?
+  clientPhone String?
+  firstName   String?
+  lastName    String?
+  createdAt   DateTime @default(now())
+
+  notifications LeadNotification[]
+  impressions   ProviderImpression[]
+  outcomes      LeadOutcome[]
 }
 
 model LeadNotification {
-  id                 String                 @id @default(uuid())
-  lead               Lead                   @relation(fields: [leadId], references: [id])
-  leadId             String
-  provider           Provider               @relation(fields: [providerId], references: [id])
-  providerId         String
-  status             String
-  sendgridMessageId  String?
-  errorMessage       String?
-  sentAt             DateTime?
-  createdAt          DateTime               @default(now())
+  id                String    @id @default(uuid())
+  lead              Lead      @relation(fields: [leadId], references: [id])
+  leadId            String
+  provider          Provider  @relation(fields: [providerId], references: [id])
+  providerId        String
+  status            String
+  sendgridMessageId String?
+  errorMessage      String?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+}
+
+model LeadOutcome {
+  id                  String             @id @default(uuid())
+  lead                Lead               @relation(fields: [leadId], references: [id])
+  leadId              String
+  provider            Provider           @relation(fields: [providerId], references: [id])
+  providerId          String
+  status              String             @default("new")
+  firstResponseAt     DateTime?
+  lastStatusChangedAt DateTime           @default(now())
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  events              LeadOutcomeEvent[]
+
+  @@unique([leadId, providerId])
+  @@index([providerId, status])
+  @@index([leadId])
+}
+
+model LeadOutcomeEvent {
+  id            String      @id @default(uuid())
+  leadOutcome   LeadOutcome @relation(fields: [leadOutcomeId], references: [id])
+  leadOutcomeId String
+  fromStatus    String?
+  toStatus      String
+  changedBy     String      @default("provider")
+  changedAt     DateTime    @default(now())
+
+  @@index([leadOutcomeId, changedAt])
 }
 
 model NotificationJob {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   leadId     String
   providerId String
   runAt      DateTime
-  status     String   @default("pending")
-  attempts   Int      @default(0)
+  status     String    @default("pending")
+  attempts   Int       @default(0)
   lastError  String?
   lockedAt   DateTime?
   payload    Json
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([status, runAt])
   @@index([lockedAt])
@@ -97,13 +129,13 @@ model ProviderImpression {
 }
 
 model BlogPost {
-  id          String      @id @default(uuid())
+  id          String        @id @default(uuid())
   title       String
   body        String
   authorEmail String
   authorCity  String
   authorState String
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime      @default(now())
   comments    BlogComment[]
 }
 
@@ -119,28 +151,28 @@ model BlogComment {
 }
 
 model BlogEmailVerification {
-  id          String   @id @default(uuid())
-  email       String
-  city        String
-  state       String
-  code        String
-  expiresAt   DateTime
-  verifiedAt  DateTime?
-  createdAt   DateTime @default(now())
+  id         String    @id @default(uuid())
+  email      String
+  city       String
+  state      String
+  code       String
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   @@index([email, code])
   @@index([email, verifiedAt])
 }
 
 model AdminAuditLog {
-  id              String     @id @default(uuid())
+  id              String   @id @default(uuid())
   adminIdentifier String
   action          String
   targetType      String
   targetId        String?
   metadataJson    String?
   ipHash          String?
-  createdAt       DateTime   @default(now())
+  createdAt       DateTime @default(now())
 }
 
 model RateLimitEvent {
@@ -150,25 +182,25 @@ model RateLimitEvent {
 }
 
 model ProviderUser {
-  id                   String    @id @default(uuid())
-  email                String    @unique
-  passwordHash         String
-  emailVerifiedAt      DateTime?
-  verifyCode           String?
-  verifyCodeExpiresAt  DateTime?
-  activeProvider       Provider? @relation("ActiveProvider", fields: [activeProviderId], references: [id])
-  activeProviderId     String?
-  links                ProviderUserProvider[]
-  createdAt            DateTime  @default(now())
+  id                  String                 @id @default(uuid())
+  email               String                 @unique
+  passwordHash        String
+  emailVerifiedAt     DateTime?
+  verifyCode          String?
+  verifyCodeExpiresAt DateTime?
+  activeProvider      Provider?              @relation("ActiveProvider", fields: [activeProviderId], references: [id])
+  activeProviderId    String?
+  links               ProviderUserProvider[]
+  createdAt           DateTime               @default(now())
 }
 
 model ProviderUserProvider {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   providerUser   ProviderUser @relation(fields: [providerUserId], references: [id])
   providerUserId String
-  provider       Provider @relation(fields: [providerId], references: [id])
+  provider       Provider     @relation(fields: [providerId], references: [id])
   providerId     String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
 
   @@unique([providerUserId, providerId])
 }

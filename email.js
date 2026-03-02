@@ -161,6 +161,72 @@ async function sendProviderNotifications({
   return results;
 }
 
+function buildLeadStatusNudgeHtml({ lead, statusLinks }) {
+  const linksHtml = (statusLinks || [])
+    .map((item) => `<li style="margin: 6px 0;"><a href="${item.url}" target="_blank" rel="noopener">${item.label}</a></li>`)
+    .join('');
+
+  return `
+<div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #222;">
+  <p>Any update on this lead?</p>
+  <hr />
+  <p><strong>LEAD SUMMARY:</strong><br />
+  ZIP Code: ${toDisplay(lead?.zip)}<br />
+  Timeline: ${toDisplay(lead?.timeline, 'Not specified')}<br />
+  Contact Email: ${toDisplay(lead?.clientEmail)}<br />
+  Contact Phone: ${toDisplay(lead?.clientPhone)}</p>
+  <p><strong>One-click status update:</strong></p>
+  <ul style="padding-left: 18px; margin: 0 0 12px;">
+    ${linksHtml}
+  </ul>
+  <p>Or update this lead directly in your dashboard: <a href="https://www.besthospice.com/provider-dashboard-home.html">Provider Dashboard</a></p>
+  ${sharedSignatureBlock()}
+  <hr />
+  <p style="font-size:12px; color:#666;">This message contains confidential referral information.</p>
+</div>
+`;
+}
+
+async function sendLeadStatusNudgeEmail({ providers, lead, statusLinks }) {
+  if (!initSendGrid()) {
+    throw new Error('SendGrid not configured');
+  }
+  const from = process.env.SENDGRID_FROM_EMAIL;
+  const replyTo = process.env.SENDGRID_REPLY_TO || from;
+  const leadMonitorEmail = String(process.env.LEAD_EMAIL_MONITOR || 'contact@besthospice.com').trim();
+  const subject = `Any update on this lead? - ${toDisplay(lead?.zip, 'Unknown ZIP')} - Best Hospice and Home Health`;
+  const html = buildLeadStatusNudgeHtml({ lead, statusLinks });
+
+  const results = [];
+  for (const provider of providers || []) {
+    const recipientEmails = Array.isArray(provider.emails)
+      ? provider.emails.map((e) => String(e || '').trim()).filter(Boolean)
+      : [String(provider.email || '').trim()].filter(Boolean);
+    for (const recipient of recipientEmails) {
+      const msg = {
+        to: recipient,
+        from,
+        replyTo,
+        subject,
+        html
+      };
+      if (leadMonitorEmail && leadMonitorEmail.toLowerCase() !== String(recipient).toLowerCase()) {
+        msg.bcc = leadMonitorEmail;
+      }
+      try {
+        const [resp] = await sgMail.send(msg);
+        const messageId = resp?.headers?.['x-message-id'] || resp?.headers?.['X-Message-Id'];
+        results.push({ email: recipient, providerId: provider.id, status: 'sent', messageId });
+      } catch (error) {
+        console.error('SendGrid nudge send failed for', recipient, error?.response?.body || error);
+        results.push({ email: recipient, providerId: provider.id, status: 'failed', error: error.message || 'unknown error' });
+      }
+    }
+  }
+
+  return results;
+}
+
 async function sendGenericEmail(to, subject, html) {
   if (!initSendGrid()) throw new Error('SendGrid not configured');
   const msg = {
@@ -177,4 +243,4 @@ async function sendTestEmail(to) {
   return sendGenericEmail(to, 'Best Hospice and Home Health test email', '<p>This is a test email from Best Hospice and Home Health backend.</p>');
 }
 
-module.exports = { sendProviderNotifications, sendTestEmail, sendGenericEmail, emailEnabled };
+module.exports = { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, emailEnabled };

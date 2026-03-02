@@ -6,7 +6,7 @@ const fs = require('fs');
 const { v4: uuid } = require('uuid');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { PrismaClient } = require('@prisma/client');
-const { sendProviderNotifications, sendTestEmail, sendGenericEmail, emailEnabled } = require('./email');
+const { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, emailEnabled } = require('./email');
 const { sendProviderSms, smsEnabled } = require('./sms');
 const Stripe = require('stripe');
 const bcrypt = require('bcryptjs');
@@ -72,6 +72,17 @@ const JOB_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const JOB_MAX_ATTEMPTS = 3;
 const JOB_RETRY_DELAY_MS = 5 * 60 * 1000;
 const BLOG_VERIFICATION_WINDOW_MS = 24 * 60 * 60 * 1000;
+const LEAD_STATUS_SIGNING_SECRET = process.env.LEAD_STATUS_SIGNING_SECRET || PROVIDER_JWT_SECRET;
+const LEAD_STATUS_NUDGE_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
+const LEAD_OUTCOME_VALUES = ['new', 'contacted', 'qualified', 'admitted', 'not_a_fit', 'no_response'];
+const LEAD_OUTCOME_LABELS = {
+  new: 'New',
+  contacted: 'Contacted',
+  qualified: 'Qualified',
+  admitted: 'Admitted',
+  not_a_fit: 'Not a Fit',
+  no_response: 'No Response'
+};
 
 // --- SEO / programmatic helpers ---
 const slugify = (str) =>
@@ -427,6 +438,83 @@ function buildClientName(first, last) {
   return [first || '', last || ''].filter(Boolean).join(' ').trim() || 'Not provided';
 }
 
+function normalizeLeadOutcomeStatus(value) {
+  const v = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (v === 'notfit' || v === 'not_a_fit') return 'not_a_fit';
+  if (v === 'noresponse' || v === 'no_response') return 'no_response';
+  if (LEAD_OUTCOME_VALUES.includes(v)) return v;
+  return '';
+}
+
+function leadOutcomeLabel(value) {
+  const key = normalizeLeadOutcomeStatus(value) || 'new';
+  return LEAD_OUTCOME_LABELS[key] || 'New';
+}
+
+function createLeadStatusActionToken({ leadId, providerId, status }) {
+  return jwt.sign(
+    { type: 'lead_status_action', leadId, providerId, status: normalizeLeadOutcomeStatus(status) || 'new' },
+    LEAD_STATUS_SIGNING_SECRET,
+    { expiresIn: '30d' }
+  );
+}
+
+async function upsertLeadOutcomeStatus({ leadId, providerId, nextStatus, changedBy = 'provider' }) {
+  const status = normalizeLeadOutcomeStatus(nextStatus);
+  if (!status) throw new Error('Invalid lead status');
+
+  const existing = await prisma.leadOutcome.findUnique({
+    where: { leadId_providerId: { leadId, providerId } }
+  });
+  const now = new Date();
+
+  if (!existing) {
+    const firstResponseAt = status === 'new' ? null : now;
+    const created = await prisma.leadOutcome.create({
+      data: {
+        id: uuid(),
+        leadId,
+        providerId,
+        status,
+        firstResponseAt,
+        lastStatusChangedAt: now,
+        events: {
+          create: {
+            id: uuid(),
+            fromStatus: null,
+            toStatus: status,
+            changedBy,
+            changedAt: now
+          }
+        }
+      }
+    });
+    return created;
+  }
+
+  if (existing.status === status) return existing;
+
+  const firstResponseAt = existing.firstResponseAt || (status === 'new' ? null : now);
+  const updated = await prisma.leadOutcome.update({
+    where: { id: existing.id },
+    data: {
+      status,
+      firstResponseAt,
+      lastStatusChangedAt: now,
+      events: {
+        create: {
+          id: uuid(),
+          fromStatus: existing.status,
+          toStatus: status,
+          changedBy,
+          changedAt: now
+        }
+      }
+    }
+  });
+  return updated;
+}
+
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
@@ -482,12 +570,76 @@ async function claimNotificationJobs(limit = 10) {
 
 async function processNotificationJob(job) {
   const payload = job.payload || {};
+  const isStatusNudge = String(payload.jobType || '').toLowerCase() === 'lead_status_nudge';
   const providerEmail = payload.providerEmail;
   const providerEmails = Array.isArray(payload.providerEmails)
     ? payload.providerEmails.map((e) => String(e || '').trim()).filter(Boolean)
     : (providerEmail ? [String(providerEmail).trim()] : []);
   const providerPhone = payload.providerPhone;
   let emailResult = { status: 'failed', error: 'Missing provider email' };
+
+  if (isStatusNudge) {
+    if (!providerEmails.length) {
+      emailResult = { status: 'failed', error: 'Missing provider email' };
+    } else {
+      try {
+        const statusLinks = LEAD_OUTCOME_VALUES.filter((s) => s !== 'new').map((status) => ({
+          status,
+          label: leadOutcomeLabel(status),
+          url: `${CANONICAL_DOMAIN}/api/provider/lead-status/quick?token=${encodeURIComponent(
+            createLeadStatusActionToken({ leadId: job.leadId, providerId: job.providerId, status })
+          )}`
+        }));
+        const nudgeResults = await sendLeadStatusNudgeEmail({
+          providers: [{ id: job.providerId, emails: providerEmails }],
+          lead: {
+            zip: payload.clientZip,
+            timeline: payload.timeline,
+            clientEmail: payload.clientEmail,
+            clientPhone: payload.clientPhone
+          },
+          statusLinks
+        });
+        const sent = (nudgeResults || []).find((r) => r.status === 'sent');
+        emailResult = sent || (nudgeResults || [])[0] || { status: 'failed', error: 'No result from nudge email send' };
+      } catch (err) {
+        console.error('Lead status nudge send failed', err);
+        emailResult = { status: 'failed', error: err.message || 'nudge send failed' };
+      }
+    }
+
+    if (emailResult.status === 'sent') {
+      await prisma.notificationJob.update({
+        where: { id: job.id },
+        data: { status: 'sent', lastError: null }
+      });
+      return;
+    }
+
+    const nextAttempts = (job.attempts || 0) + 1;
+    if (nextAttempts < JOB_MAX_ATTEMPTS) {
+      await prisma.notificationJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'pending',
+          attempts: nextAttempts,
+          lastError: emailResult.error || 'send failed',
+          lockedAt: null,
+          runAt: new Date(Date.now() + JOB_RETRY_DELAY_MS)
+        }
+      });
+    } else {
+      await prisma.notificationJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'failed',
+          attempts: nextAttempts,
+          lastError: emailResult.error || 'send failed'
+        }
+      });
+    }
+    return;
+  }
 
   if (providerEmails.length) {
     try {
@@ -1482,6 +1634,8 @@ app.delete('/api/providers/:id', async (req, res) => {
     await prisma.$transaction([
       prisma.providerUser.updateMany({ where: { activeProviderId: id }, data: { activeProviderId: null } }),
       prisma.providerUserProvider.deleteMany({ where: { providerId: id } }),
+      prisma.leadOutcomeEvent.deleteMany({ where: { leadOutcome: { providerId: id } } }),
+      prisma.leadOutcome.deleteMany({ where: { providerId: id } }),
       prisma.leadNotification.deleteMany({ where: { providerId: id } }),
       prisma.providerImpression.deleteMany({ where: { providerId: id } }),
       prisma.provider.delete({ where: { id } })
@@ -1655,6 +1809,50 @@ app.post('/api/notify', rateLimit, async (req, res) => {
 
     if (jobs.length) {
       await prisma.notificationJob.createMany({ data: jobs });
+      if (notifyMode === 'initial') {
+        const uniqueProviderIds = Array.from(new Set(jobs.map((j) => j.providerId).filter(Boolean)));
+        if (uniqueProviderIds.length) {
+          const now = new Date();
+          const leadOutcomesData = uniqueProviderIds.map((providerId) => ({
+            id: uuid(),
+            leadId: lead.id,
+            providerId,
+            status: 'new',
+            lastStatusChangedAt: now
+          }));
+          await prisma.leadOutcome.createMany({ data: leadOutcomesData, skipDuplicates: true });
+
+          const createdOutcomes = await prisma.leadOutcome.findMany({
+            where: { leadId: lead.id, providerId: { in: uniqueProviderIds } },
+            select: { id: true }
+          });
+          if (createdOutcomes.length) {
+            await prisma.leadOutcomeEvent.createMany({
+              data: createdOutcomes.map((o) => ({
+                id: uuid(),
+                leadOutcomeId: o.id,
+                fromStatus: null,
+                toStatus: 'new',
+                changedBy: 'system',
+                changedAt: now
+              }))
+            });
+          }
+
+          const nudgeJobs = jobs.map((j) => ({
+            id: uuid(),
+            leadId: j.leadId,
+            providerId: j.providerId,
+            runAt: new Date(Date.now() + LEAD_STATUS_NUDGE_DELAY_MS),
+            status: 'pending',
+            payload: {
+              ...j.payload,
+              jobType: 'lead_status_nudge'
+            }
+          }));
+          await prisma.notificationJob.createMany({ data: nudgeJobs });
+        }
+      }
     }
 
     res.json({ ok: true, queued: true, sent: jobs.length, leadId: lead.id, mode: notifyMode });
@@ -1710,7 +1908,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       return res.status(400).json({ error: 'Invalid date range' });
     }
 
-    const [totalLeadsAllTime, leadsRange, allTimeLeadsForHours, allTimeSentNotifications] = await Promise.all([
+    const [totalLeadsAllTime, leadsRange, allTimeLeadsForHours, allTimeSentNotifications, allLeadOutcomes] = await Promise.all([
       prisma.lead.count(),
       prisma.lead.findMany({
         where: { createdAt: { gte: from, lte: to } },
@@ -1740,6 +1938,26 @@ app.get('/api/admin/main/analytics', async (req, res) => {
               id: true,
               name: true,
               phone: true
+            }
+          }
+        }
+      }),
+      prisma.leadOutcome.findMany({
+        include: {
+          provider: {
+            select: {
+              id: true,
+              name: true,
+              state: true,
+              careType: true
+            }
+          },
+          lead: {
+            select: {
+              id: true,
+              createdAt: true,
+              services: true,
+              zip: true
             }
           }
         }
@@ -1861,6 +2079,105 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         return a.providerName.localeCompare(b.providerName);
       });
 
+    const providerOutcomeMap = new Map();
+    const admitByCareType = {};
+    const admitByGeography = {};
+    const staleNoUpdateLeads = [];
+    let totalFirstContactHours = 0;
+    let totalFirstContactCount = 0;
+    const noUpdateCutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+    const parsePrimaryCareType = (servicesText) => {
+      const lower = String(servicesText || '').toLowerCase();
+      if (lower.includes('care type: hospice')) return 'Hospice';
+      if (lower.includes('care type: palliative')) return 'Palliative';
+      if (lower.includes('care type: home')) return 'Home Care';
+      if (lower.includes('hospice')) return 'Hospice';
+      if (lower.includes('palliative')) return 'Palliative';
+      if (lower.includes('home')) return 'Home Care';
+      return 'Not sure';
+    };
+
+    allLeadOutcomes.forEach((row) => {
+      const providerId = row.providerId;
+      const providerName = row.provider?.name || 'Unknown provider';
+      const providerState = row.provider?.state || 'Unknown';
+      const status = normalizeLeadOutcomeStatus(row.status) || 'new';
+      const current = providerOutcomeMap.get(providerId) || {
+        providerId,
+        providerName,
+        total: 0,
+        admitted: 0
+      };
+      current.total += 1;
+      if (status === 'admitted') current.admitted += 1;
+      providerOutcomeMap.set(providerId, current);
+
+      const careTypeLabel = parsePrimaryCareType(row.lead?.services);
+      if (!admitByCareType[careTypeLabel]) admitByCareType[careTypeLabel] = { total: 0, admitted: 0 };
+      admitByCareType[careTypeLabel].total += 1;
+      if (status === 'admitted') admitByCareType[careTypeLabel].admitted += 1;
+
+      if (!admitByGeography[providerState]) admitByGeography[providerState] = { total: 0, admitted: 0 };
+      admitByGeography[providerState].total += 1;
+      if (status === 'admitted') admitByGeography[providerState].admitted += 1;
+
+      if (row.firstResponseAt && row.lead?.createdAt) {
+        const hours = (new Date(row.firstResponseAt).getTime() - new Date(row.lead.createdAt).getTime()) / (1000 * 60 * 60);
+        if (Number.isFinite(hours) && hours >= 0) {
+          totalFirstContactHours += hours;
+          totalFirstContactCount += 1;
+        }
+      }
+
+      if (status === 'new' && row.lead?.createdAt && new Date(row.lead.createdAt).getTime() <= noUpdateCutoff) {
+        staleNoUpdateLeads.push({
+          leadId: row.leadId,
+          providerId: row.providerId,
+          providerName,
+          providerState,
+          zip: row.lead.zip || '',
+          createdAt: row.lead.createdAt,
+          ageDays: Math.floor((Date.now() - new Date(row.lead.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+        });
+      }
+    });
+
+    const conversionByProvider = Array.from(providerOutcomeMap.values())
+      .map((row) => ({
+        providerId: row.providerId,
+        providerName: row.providerName,
+        leads: row.total,
+        admitted: row.admitted,
+        conversionRatePct: row.total ? Number(((row.admitted / row.total) * 100).toFixed(1)) : 0
+      }))
+      .sort((a, b) => {
+        if (b.conversionRatePct !== a.conversionRatePct) return b.conversionRatePct - a.conversionRatePct;
+        return b.leads - a.leads;
+      });
+
+    const admitRateByCareType = Object.entries(admitByCareType)
+      .map(([label, row]) => ({
+        label,
+        leads: row.total,
+        admitted: row.admitted,
+        admitRatePct: row.total ? Number(((row.admitted / row.total) * 100).toFixed(1)) : 0
+      }))
+      .sort((a, b) => b.admitRatePct - a.admitRatePct);
+
+    const admitRateByGeography = Object.entries(admitByGeography)
+      .map(([state, row]) => ({
+        geography: state,
+        leads: row.total,
+        admitted: row.admitted,
+        admitRatePct: row.total ? Number(((row.admitted / row.total) * 100).toFixed(1)) : 0
+      }))
+      .sort((a, b) => b.admitRatePct - a.admitRatePct);
+
+    const avgTimeToFirstContactHours = totalFirstContactCount
+      ? Number((totalFirstContactHours / totalFirstContactCount).toFixed(2))
+      : null;
+
     const leadCentroidMap = new Map();
     for (const row of notifsForCentroid) {
       if (!row.provider?.lat || !row.provider?.lon || !row.lead?.zip) continue;
@@ -1928,13 +2245,35 @@ app.get('/api/admin/main/analytics', async (req, res) => {
           }
         })
       : [];
+    const recentOutcomes = recentLeadIds.length
+      ? await prisma.leadOutcome.findMany({
+          where: { leadId: { in: recentLeadIds } },
+          select: {
+            leadId: true,
+            providerId: true,
+            status: true,
+            lastStatusChangedAt: true,
+            firstResponseAt: true
+          }
+        })
+      : [];
+    const outcomeByLeadProvider = new Map(
+      recentOutcomes.map((o) => [`${o.leadId}|${o.providerId}`, o])
+    );
     const notificationsByLeadId = new Map();
     notificationRows.forEach((n) => {
       const arr = notificationsByLeadId.get(n.leadId) || [];
+      const outcomeKey = `${n.leadId}|${n.provider?.id || ''}`;
+      const outcome = outcomeByLeadProvider.get(outcomeKey);
+      const outcomeStatus = normalizeLeadOutcomeStatus(outcome?.status) || 'new';
       arr.push({
         status: n.status || 'unknown',
         sentAt: n.sentAt || n.createdAt,
         errorMessage: n.errorMessage || '',
+        outcomeStatus,
+        outcomeStatusLabel: leadOutcomeLabel(outcomeStatus),
+        outcomeUpdatedAt: outcome?.lastStatusChangedAt || null,
+        firstResponseAt: outcome?.firstResponseAt || null,
         provider: n.provider
           ? {
               id: n.provider.id,
@@ -1960,6 +2299,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       clientPhone: l.clientPhone || '',
       notifications: notificationsByLeadId.get(l.id) || []
     }));
+    staleNoUpdateLeads.sort((a, b) => b.ageDays - a.ageDays);
 
     res.json({
       ok: true,
@@ -1972,7 +2312,9 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         initialEmailsSentInRange,
         additionalEmailsSentInRange,
         impressionsInRange: impressionsRange,
-        avgNotificationsPerLead: leadsRange.length ? Number((notificationsRange / leadsRange.length).toFixed(2)) : 0
+        avgNotificationsPerLead: leadsRange.length ? Number((notificationsRange / leadsRange.length).toFixed(2)) : 0,
+        avgTimeToFirstContactHours,
+        noUpdateLeadsCount: staleNoUpdateLeads.length
       },
       breakdowns: {
         careTypes: careTypeMap,
@@ -1980,7 +2322,11 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         topZips,
         clientNeedTimesAllTime,
         clientNeedDaysAllTime,
-        providerClientRanking
+        providerClientRanking,
+        conversionByProvider,
+        admitRateByCareType,
+        admitRateByGeography,
+        noUpdateLeads: staleNoUpdateLeads
       },
       timeline,
       heatPoints,
@@ -2007,6 +2353,8 @@ app.delete('/api/admin/main/leads/:id', async (req, res) => {
 
     await prisma.$transaction([
       prisma.notificationJob.deleteMany({ where: { leadId } }),
+      prisma.leadOutcomeEvent.deleteMany({ where: { leadOutcome: { leadId } } }),
+      prisma.leadOutcome.deleteMany({ where: { leadId } }),
       prisma.providerImpression.deleteMany({ where: { leadId } }),
       prisma.leadNotification.deleteMany({ where: { leadId } }),
       prisma.lead.delete({ where: { id: leadId } })
@@ -2523,46 +2871,156 @@ app.get('/api/provider/leads', requireProviderAuth, async (req, res) => {
     const since = sinceParam ? new Date(String(sinceParam)) : null;
     if (!since || isNaN(since.getTime())) return res.status(400).json({ error: 'Invalid since date' });
 
-    const [notifs, total] = await Promise.all([
-      prisma.leadNotification.findMany({
-        where: { providerId: ctx.providerId, createdAt: { gte: since } },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-        select: {
-          lead: {
-            select: {
-              id: true,
-              createdAt: true,
-              zip: true,
-              submittedBy: true,
-              clientEmail: true,
-              clientPhone: true,
-              firstName: true,
-              lastName: true
-            }
+    const distinctLeadRows = await prisma.leadNotification.findMany({
+      where: { providerId: ctx.providerId, createdAt: { gte: since } },
+      distinct: ['leadId'],
+      orderBy: { createdAt: 'desc' },
+      select: { leadId: true }
+    });
+    const allLeadIds = distinctLeadRows.map((r) => r.leadId).filter(Boolean);
+    const total = allLeadIds.length;
+    const leadIds = allLeadIds.slice(skip, skip + limit);
+
+    const leadRows = leadIds.length
+      ? await prisma.lead.findMany({
+          where: { id: { in: leadIds } },
+          select: {
+            id: true,
+            createdAt: true,
+            zip: true,
+            submittedBy: true,
+            clientEmail: true,
+            clientPhone: true,
+            firstName: true,
+            lastName: true
           }
-        }
-      }),
-      prisma.leadNotification.count({ where: { providerId: ctx.providerId, createdAt: { gte: since } } })
-    ]);
-    const leads = notifs
-      .map((n) => n.lead)
-      .filter(Boolean)
-      .map((l) => ({
+        })
+      : [];
+    const leadById = new Map(leadRows.map((l) => [l.id, l]));
+    const outcomes = leadIds.length
+      ? await prisma.leadOutcome.findMany({
+          where: { providerId: ctx.providerId, leadId: { in: leadIds } },
+          select: { leadId: true, status: true, firstResponseAt: true, lastStatusChangedAt: true }
+        })
+      : [];
+    const outcomeByLeadId = new Map(outcomes.map((o) => [o.leadId, o]));
+
+    const leads = leadIds.map((id) => leadById.get(id)).filter(Boolean).map((l) => {
+      const outcome = outcomeByLeadId.get(l.id);
+      const status = normalizeLeadOutcomeStatus(outcome?.status) || 'new';
+      return {
         leadId: l.id,
         createdAt: l.createdAt,
         zip: l.zip,
         submittedBy: l.submittedBy,
         clientEmail: l.clientEmail || '',
         clientPhone: l.clientPhone || '',
-        clientName: [l.firstName, l.lastName].filter(Boolean).join(' ').trim()
-      }));
+        clientName: [l.firstName, l.lastName].filter(Boolean).join(' ').trim(),
+        outcomeStatus: status,
+        outcomeStatusLabel: leadOutcomeLabel(status),
+        outcomeUpdatedAt: outcome?.lastStatusChangedAt || l.createdAt,
+        firstResponseAt: outcome?.firstResponseAt || null
+      };
+    });
     await logAdminAction('provider_user', 'PROVIDER_AI_LEAD_LIST', ctx.providerId, { since: since.toISOString(), returned: leads.length }, hashIp(req.ip || ''));
     res.json({ ok: true, since: since.toISOString().split('T')[0], leads, total, page, pageSize: limit });
   } catch (err) {
     console.error('Lead list failed', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/provider/leads/:leadId/status', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const leadId = String(req.params.leadId || '').trim();
+    const nextStatus = normalizeLeadOutcomeStatus(req.body?.status);
+    if (!leadId) return res.status(400).json({ error: 'leadId required' });
+    if (!nextStatus) return res.status(400).json({ error: 'Invalid status' });
+
+    const notification = await prisma.leadNotification.findFirst({
+      where: { providerId: ctx.providerId, leadId },
+      select: { id: true }
+    });
+    if (!notification) return res.status(404).json({ error: 'Lead not found for this provider' });
+
+    const updated = await upsertLeadOutcomeStatus({
+      leadId,
+      providerId: ctx.providerId,
+      nextStatus,
+      changedBy: 'provider_dashboard'
+    });
+
+    await logAdminAction(
+      'provider_user',
+      'PROVIDER_LEAD_STATUS_UPDATE',
+      ctx.providerId,
+      { leadId, status: nextStatus },
+      hashIp(req.ip || '')
+    );
+
+    res.json({
+      ok: true,
+      leadId,
+      status: normalizeLeadOutcomeStatus(updated.status) || 'new',
+      statusLabel: leadOutcomeLabel(updated.status),
+      updatedAt: updated.lastStatusChangedAt,
+      firstResponseAt: updated.firstResponseAt || null
+    });
+  } catch (err) {
+    console.error('Provider lead status update failed', err);
+    res.status(500).json({ error: 'Could not update lead status' });
+  }
+});
+
+app.get('/api/provider/lead-status/quick', async (req, res) => {
+  const token = String(req.query.token || '').trim();
+  if (!token) return res.status(400).send('Missing token.');
+
+  try {
+    const payload = jwt.verify(token, LEAD_STATUS_SIGNING_SECRET);
+    if (!payload || payload.type !== 'lead_status_action') {
+      return res.status(400).send('Invalid token.');
+    }
+    const leadId = String(payload.leadId || '').trim();
+    const providerId = String(payload.providerId || '').trim();
+    const nextStatus = normalizeLeadOutcomeStatus(payload.status);
+    if (!leadId || !providerId || !nextStatus) {
+      return res.status(400).send('Invalid status action.');
+    }
+
+    const notification = await prisma.leadNotification.findFirst({
+      where: { leadId, providerId },
+      select: { id: true }
+    });
+    if (!notification) {
+      return res.status(404).send('Lead was not found for this provider.');
+    }
+
+    const updated = await upsertLeadOutcomeStatus({
+      leadId,
+      providerId,
+      nextStatus,
+      changedBy: 'email_quick_link'
+    });
+
+    const statusText = leadOutcomeLabel(updated.status);
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    return res.send(`
+      <!doctype html>
+      <html lang="en">
+      <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+      <body style="font-family:Arial,sans-serif;padding:24px;color:#0f172a;">
+        <h2 style="margin:0 0 10px;">Lead status updated</h2>
+        <p style="margin:0 0 12px;">This lead is now marked as <strong>${statusText}</strong>.</p>
+        <p style="margin:0 0 18px;">You can continue managing lead updates in your provider dashboard.</p>
+        <a href="${CANONICAL_DOMAIN}/provider-dashboard-home.html" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#0f766e;color:#fff;text-decoration:none;font-weight:700;">Open Provider Dashboard</a>
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    return res.status(400).send('Link expired or invalid.');
   }
 });
 
