@@ -575,7 +575,7 @@ a {
   align-items: center;
 }
 
-.search input {
+.search input:not([type="checkbox"]) {
   width: 100%;
   padding: 14px 16px;
   border-radius: 12px;
@@ -584,7 +584,7 @@ a {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.search input:focus {
+.search input:not([type="checkbox"]):focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 4px rgba(47, 125, 186, 0.15);
@@ -619,16 +619,12 @@ a {
 
 .consent-row {
   margin-top: 8px;
-  padding: 10px 12px;
-  border: 1px solid rgba(15, 118, 110, 0.16);
-  border-radius: 12px;
-  background: #f8fbff;
 }
 
 .consent-label {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 14px;
   line-height: 1.4;
@@ -636,9 +632,9 @@ a {
 }
 
 .consent-checkbox {
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
+  width: 15px;
+  height: 15px;
+  margin: 0;
   flex: 0 0 auto;
 }
 
