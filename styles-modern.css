@@ -807,12 +807,48 @@ a {
   grid-column: 2;
 }
 
+#optional-details-form label[for="detail-name"] {
+  grid-row: 1;
+}
+
+#optional-details-form #detail-name {
+  grid-row: 2;
+}
+
+#optional-details-form label[for="detail-relationship"] {
+  grid-row: 1;
+}
+
+#optional-details-form #detail-relationship {
+  grid-row: 2;
+}
+
 #optional-details-form label[for="detail-caretype"],
 #optional-details-form #detail-caretype,
 #optional-details-form label[for="detail-notes"],
 #optional-details-form #detail-notes,
 #optional-details-form .optional-choice {
   grid-column: 1 / -1;
+}
+
+#optional-details-form label[for="detail-caretype"] {
+  grid-row: 3;
+}
+
+#optional-details-form #detail-caretype {
+  grid-row: 4;
+}
+
+#optional-details-form label[for="detail-notes"] {
+  grid-row: 5;
+}
+
+#optional-details-form #detail-notes {
+  grid-row: 6;
+}
+
+#optional-details-form .optional-choice {
+  grid-row: 7;
 }
 
 #optional-details-form label {
