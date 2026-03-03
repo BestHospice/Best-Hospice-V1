@@ -815,6 +815,36 @@ a {
   grid-column: 1 / -1;
 }
 
+#optional-details-form label {
+  margin: 0;
+}
+
+#optional-details-form input,
+#optional-details-form select,
+#optional-details-form textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-sizing: border-box;
+}
+
+#optional-details-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+#optional-details-form input:focus,
+#optional-details-form select:focus,
+#optional-details-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.18);
+}
+
 .optional-status {
   margin-top: 10px;
 }
