@@ -26,12 +26,13 @@ function sharedSignatureBlock() {
 `;
 }
 
-function buildInitialLeadEmailHtml({ clientZip, timeline, clientEmail, clientPhone, providerCount }) {
+function buildInitialLeadEmailHtml({ clientZip, timeline, clientEmail, clientPhone, clientName, providerCount }) {
   return `
 <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #222;">
   <p>A family in your service area is looking for care and has requested provider information.</p>
   <hr />
   <p><strong>CONTACT INFORMATION:</strong><br />
+  Name: ${toDisplay(clientName)}<br />
   Phone: ${toDisplay(clientPhone)}<br />
   Email: ${toDisplay(clientEmail)}<br />
   ZIP Code: ${toDisplay(clientZip)}<br />
@@ -132,6 +133,7 @@ async function sendProviderNotifications({
           timeline: finalTimeline,
           clientEmail,
           clientPhone,
+          clientName,
           providerCount
         });
 

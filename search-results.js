@@ -36,6 +36,7 @@ let currentZip = '';
 let currentTimeline = '';
 let currentContactEmail = '';
 let currentContactPhone = '';
+let currentContactName = '';
 let currentGeoLabel = '';
 
 const map = L.map('map', { scrollWheelZoom: true }).setView([39.5, -98.35], 4);
@@ -335,6 +336,7 @@ function toRelationshipValue(inputValue) {
 }
 
 async function notifyInitialLead() {
+  const nameParts = splitName(currentContactName);
   const res = await fetch('/api/notify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -356,7 +358,11 @@ async function notifyInitialLead() {
         timeline: currentTimeline,
         contactEmail: currentContactEmail,
         contactPhone: currentContactPhone || '',
-        relationship: 'me'
+        relationship: 'me',
+        fullName: {
+          first: nameParts.firstName,
+          last: nameParts.lastName
+        }
       },
       captchaToken: turnstileToken
     })
@@ -435,6 +441,7 @@ async function startResultsFlow() {
     currentTimeline = (params.get('timeline') || '').trim();
     currentContactEmail = (params.get('contactEmail') || '').trim();
     currentContactPhone = (params.get('contactPhone') || '').trim();
+    currentContactName = (params.get('contactName') || '').trim();
 
     if (!/^\d{5}$/.test(currentZip) || !currentTimeline || !currentContactEmail) {
       setStatus('Missing required search details. Please start again.', true);
