@@ -304,6 +304,19 @@ function revealFinalScreen() {
   mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function showResultsWithOptionalPrompt() {
+  reassuranceCard?.classList.add('hidden');
+  noProvidersCard?.classList.add('hidden');
+  mapSection.classList.remove('hidden');
+  optionalCard?.classList.remove('hidden');
+  leadConfirmation.textContent =
+    "You're all set! The providers below have been notified and are ready to help. Expect to hear from them soon. Browse their profiles below to learn more about who will be reaching out.";
+  leadConfirmation.classList.remove('hidden');
+  if (notifyMini.textContent.trim()) notifyMini.classList.remove('hidden');
+  refreshMapLayout();
+  mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function showNoProvidersState(cityName) {
   reassuranceCard?.classList.add('hidden');
   optionalCard?.classList.add('hidden');
@@ -498,6 +511,7 @@ async function startResultsFlow() {
     reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} verified hospice providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
     notifyMini.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName}.`;
     setStatus(`We've notified ${currentNearbyProviders.length} providers near ${geo.label}.`);
+    showResultsWithOptionalPrompt();
   } catch (err) {
     console.error(err);
     setStatus('Unable to complete search right now. Please try again.', true);
