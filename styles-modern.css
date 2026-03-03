@@ -790,6 +790,31 @@ a {
   gap: 10px;
 }
 
+/* Keep optional details concise so the map is visible below on first view */
+#optional-details-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  align-items: start;
+}
+
+#optional-details-form label[for="detail-name"],
+#optional-details-form #detail-name {
+  grid-column: 1;
+}
+
+#optional-details-form label[for="detail-relationship"],
+#optional-details-form #detail-relationship {
+  grid-column: 2;
+}
+
+#optional-details-form label[for="detail-caretype"],
+#optional-details-form #detail-caretype,
+#optional-details-form label[for="detail-notes"],
+#optional-details-form #detail-notes,
+#optional-details-form .optional-choice {
+  grid-column: 1 / -1;
+}
+
 .optional-status {
   margin-top: 10px;
 }
@@ -1238,6 +1263,22 @@ a {
   .optional-choice .button {
     width: 100%;
     justify-content: center;
+  }
+
+  #optional-details-form {
+    grid-template-columns: 1fr;
+  }
+
+  #optional-details-form label[for="detail-name"],
+  #optional-details-form #detail-name,
+  #optional-details-form label[for="detail-relationship"],
+  #optional-details-form #detail-relationship,
+  #optional-details-form label[for="detail-caretype"],
+  #optional-details-form #detail-caretype,
+  #optional-details-form label[for="detail-notes"],
+  #optional-details-form #detail-notes,
+  #optional-details-form .optional-choice {
+    grid-column: 1;
   }
 
   .status {

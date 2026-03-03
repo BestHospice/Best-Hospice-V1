@@ -314,7 +314,7 @@ function showResultsWithOptionalPrompt() {
   leadConfirmation.classList.remove('hidden');
   if (notifyMini.textContent.trim()) notifyMini.classList.remove('hidden');
   refreshMapLayout();
-  mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  optionalCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function showNoProvidersState(cityName) {
