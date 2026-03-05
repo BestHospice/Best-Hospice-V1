@@ -3924,7 +3924,7 @@ const CORE_CONTENT_PAGES = [
   '/refund-policy.html',
   '/search.html',
   '/search-results.html',
-  '/ads-landing.html',
+  '/phoenix',
   '/sitemap.html'
 ];
 
@@ -4067,6 +4067,19 @@ app.get('/guides/hospice-vs-palliative-care', (_req, res) => {
 });
 app.get('/guides/home-health-care-costs', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'home-health-care-costs.html'));
+});
+
+// Paid ads landing page
+app.get('/phoenix', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'phoenix.html'));
+});
+
+app.get('/phoenix.html', (_req, res) => {
+  res.redirect(301, '/phoenix');
+});
+
+app.get('/ads-landing.html', (_req, res) => {
+  res.redirect(301, '/phoenix');
 });
 
 app.get('/sitemap.xml', async (_req, res) => {
