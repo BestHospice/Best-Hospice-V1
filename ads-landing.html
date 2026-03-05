@@ -33,12 +33,56 @@
 </head>
 <body>
   <div class="page-shell" style="max-width:860px; margin:0 auto; padding:24px 16px;">
-    <section class="card" style="padding:20px; text-align:center;">
+    <section class="card" style="padding:20px;">
       <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo" style="margin:0 auto 14px; display:block; max-width:360px; width:100%;">
-      <h1 style="margin:0 0 10px; font-size:38px; line-height:1.1;">Need hospice or home care now?</h1>
-      <p class="tagline" style="margin:0 0 18px; font-size:18px;">Find Hospice Care Near You - Free, Fast, Verified.</p>
-      <a href="search.html" class="button" style="display:inline-flex; font-size:20px; padding:14px 24px;">Find Providers in My Area</a>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-top:18px; text-align:left;">
+      <h1 style="margin:0 0 10px; font-size:38px; line-height:1.1; text-align:center;">Need hospice or home care now?</h1>
+      <p class="tagline" style="margin:0 0 18px; font-size:18px; text-align:center;">We connect families with verified providers - compassionately and at no cost.</p>
+
+      <form class="search" action="search-results.html" method="get" style="margin:0 auto; max-width:640px; padding:16px; border:1px solid var(--border); border-radius:14px; background:#f8fbff;">
+        <p class="eyebrow" style="margin:0 0 8px;">Start here</p>
+        <label for="contactName" class="label">Your name</label>
+        <div class="input-row">
+          <input id="contactName" name="contactName" type="text" placeholder="First and last name" />
+        </div>
+        <label for="zip" class="label" style="margin-top:10px;">Enter ZIP code</label>
+        <div class="input-row">
+          <input id="zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="e.g. 30301" required />
+        </div>
+        <label for="timeline" class="label" style="margin-top:10px;">When do you need care?</label>
+        <div class="input-row">
+          <select id="timeline" name="timeline" required>
+            <option value="">Select timeline</option>
+            <option>Urgently (within days)</option>
+            <option>Within 1-2 weeks</option>
+            <option>Within a month</option>
+            <option>Just researching</option>
+          </select>
+        </div>
+        <label for="contactEmail" class="label" style="margin-top:10px;">Email address</label>
+        <div class="input-row">
+          <input id="contactEmail" name="contactEmail" type="email" placeholder="you@example.com" required />
+        </div>
+        <label for="contactPhone" class="label" style="margin-top:10px;">Phone number (optional)</label>
+        <div class="input-row">
+          <input id="contactPhone" name="contactPhone" type="tel" placeholder="(555) 123-4567" />
+        </div>
+        <div class="consent-row">
+          <label for="consent" class="consent-label">
+            <input id="consent" name="consent" type="checkbox" required class="consent-checkbox" />
+            <span>I agree and consent to the <a href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms of Service</a>.</span>
+          </label>
+        </div>
+        <div class="input-row" style="margin-top:12px;">
+          <button type="submit" class="button" style="font-size:20px; padding:14px 24px; width:100%;">Find Providers in My Area</button>
+        </div>
+      </form>
+
+      <div class="card" style="margin-top:14px; padding:14px; display:grid; grid-template-columns:minmax(0,120px) 1fr; gap:14px; align-items:center; background:#f8fbff;">
+        <img src="founderpic.png" alt="Crawford Outland" style="width:110px; height:110px; object-fit:cover; border-radius:12px; margin:0 auto;">
+        <p style="margin:0; font-weight:600; color:#0f172a;">Built by Crawford Outland, whose own family faced hospice uncertainty and created Best Hospice and Home Health to help families find trusted care faster.</p>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:14px; text-align:center;">
         <div class="lead-item" style="padding:12px;">
           <strong><span id="provider-count">40</span> Verified Providers</strong>
         </div>
@@ -46,7 +90,7 @@
           <strong>100% Free for Families</strong>
         </div>
         <div class="lead-item" style="padding:12px;">
-          <strong>Built by a family that experienced the hospice journey firsthand.</strong>
+          <strong>Fast Local Matches</strong>
         </div>
       </div>
     </section>
