@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17909571702"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag("js", new Date());
+    gtag("config", "AW-17909571702");
+  </script>
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1447731666875537');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"/></noscript>
+  <!-- End Meta Pixel Code -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Find Hospice Care Near You | Best Hospice and Home Health</title>
+  <meta name="description" content="Find hospice, palliative, and home care providers near you. Free for families. Fast matched results." />
+  <link rel="canonical" href="https://www.besthospice.com/ads-landing.html" />
+  <link rel="stylesheet" href="styles-modern.css?v=1" />
+</head>
+<body>
+  <div class="page-shell" style="max-width:860px; margin:0 auto; padding:24px 16px;">
+    <section class="card" style="padding:20px; text-align:center;">
+      <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo" style="margin:0 auto 14px; display:block; max-width:360px; width:100%;">
+      <h1 style="margin:0 0 10px; font-size:38px; line-height:1.1;">Need hospice or home care now?</h1>
+      <p class="tagline" style="margin:0 0 18px; font-size:18px;">Find Hospice Care Near You - Free, Fast, Verified.</p>
+      <a href="search.html" class="button" style="display:inline-flex; font-size:20px; padding:14px 24px;">Find Providers in My Area</a>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-top:18px; text-align:left;">
+        <div class="lead-item" style="padding:12px;">
+          <strong><span id="provider-count">40</span> Verified Providers</strong>
+        </div>
+        <div class="lead-item" style="padding:12px;">
+          <strong>100% Free for Families</strong>
+        </div>
+        <div class="lead-item" style="padding:12px;">
+          <strong>Built by a family that experienced the hospice journey firsthand.</strong>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (async () => {
+      try {
+        const res = await fetch('/api/providers');
+        if (!res.ok) return;
+        const providers = await res.json();
+        const count = Array.isArray(providers) ? providers.length : null;
+        if (Number.isFinite(count) && count > 0) {
+          const el = document.getElementById('provider-count');
+          if (el) el.textContent = String(count);
+        }
+      } catch (_err) {}
+    })();
+  </script>
+</body>
+</html>

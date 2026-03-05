@@ -3924,6 +3924,7 @@ const CORE_CONTENT_PAGES = [
   '/refund-policy.html',
   '/search.html',
   '/search-results.html',
+  '/ads-landing.html',
   '/sitemap.html'
 ];
 
