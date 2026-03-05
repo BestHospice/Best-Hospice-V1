@@ -14,3 +14,18 @@ prisma/dev.db-journal
 
 # OS cruft
 .DS_Store
+
+# Local business/media files at repo root (prevent accidental massive commits)
+/*.key
+/*.pages
+/*.numbers
+/*.pptx
+/*.xlsx
+/*.csv
+/*.mov
+/*.MOV
+/*.mp4
+/*.MP4
+/Screenshot*
+/ScreenRecording_*
+/Y Combinator*
