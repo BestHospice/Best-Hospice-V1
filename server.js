@@ -4069,17 +4069,9 @@ app.get('/guides/home-health-care-costs', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'home-health-care-costs.html'));
 });
 
-// Paid ads landing page
-app.get('/phoenix', (_req, res) => {
+// Paid ads landing page (serve 200 on all aliases for strict ad crawlers)
+app.get(['/phoenix', '/phoenix/', '/phoenix.html', '/ads-landing.html'], (_req, res) => {
   res.sendFile(path.join(__dirname, 'phoenix.html'));
-});
-
-app.get('/phoenix.html', (_req, res) => {
-  res.redirect(301, '/phoenix');
-});
-
-app.get('/ads-landing.html', (_req, res) => {
-  res.redirect(301, '/phoenix');
 });
 
 app.get('/sitemap.xml', async (_req, res) => {
