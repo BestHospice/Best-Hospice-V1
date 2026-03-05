@@ -341,6 +341,25 @@ function maybePhi(text) {
   return phiKeywords.some((k) => lower.includes(k));
 }
 
+function normalizeStateLabel(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  if (stateNameMap[lower]) return stateNameMap[lower];
+  if (raw.length === 2 && stateNameMap[raw.toLowerCase()]) return stateNameMap[raw.toLowerCase()];
+  return raw.replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function stateCandidatesFromSlug(stateSlug) {
+  const slug = String(stateSlug || '').trim().toLowerCase();
+  if (!slug) return [];
+  const directName = stateNameMap[slug];
+  if (directName) return [slug, slug.toUpperCase(), directName];
+  const byName = Object.entries(stateNameMap).find(([, name]) => slugify(name) === slug);
+  if (byName) return [byName[0], byName[0].toUpperCase(), byName[1]];
+  return [slug, slug.toUpperCase(), slug];
+}
+
 // Stripe webhook needs raw body
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
@@ -385,6 +404,199 @@ app.use((req, res, next) => {
   }
   return next();
 });
+
+// Dynamic city/state pages (server-rendered from live DB for automatic updates)
+app.get('/cities.html', async (_req, res) => {
+  try {
+    const providers = await prisma.provider.findMany({
+      select: {
+        city: true,
+        state: true,
+        careType: true
+      }
+    });
+
+    const grouped = {
+      hospice: new Map(),
+      palliative: new Map(),
+      home: new Map()
+    };
+
+    for (const p of providers) {
+      const city = String(p.city || '').trim();
+      const stateLabel = normalizeStateLabel(p.state);
+      if (!city || !stateLabel) continue;
+      const careType = normalizeCareType(p.careType);
+      if (!grouped[careType].has(stateLabel)) grouped[careType].set(stateLabel, new Set());
+      grouped[careType].get(stateLabel).add(city);
+    }
+
+    const sectionHtml = (key, title) => {
+      const stateNames = Array.from(grouped[key].keys()).sort((a, b) => a.localeCompare(b));
+      if (!stateNames.length) {
+        return `<section class="card" style="padding:18px; margin-top:14px;"><h2 style="margin:0 0 6px;">${title}</h2><p style="margin:0;">No cities listed yet.</p></section>`;
+      }
+      return `
+        <section class="card" style="padding:18px; margin-top:14px;">
+          <h2 style="margin:0 0 8px;">${title}</h2>
+          ${stateNames
+            .map((stateName) => {
+              const cityLinks = Array.from(grouped[key].get(stateName))
+                .sort((a, b) => a.localeCompare(b))
+                .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}.html">${city}, ${stateName}</a></li>`)
+                .join('');
+              return `<h3 style="margin:12px 0 6px;">${stateName}</h3><ul style="margin:0 0 10px; padding-left:18px; display:grid; gap:6px;">${cityLinks}</ul>`;
+            })
+            .join('')}
+        </section>
+      `;
+    };
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Browse Cities We Serve | Best Hospice and Home Health</title>
+  <meta name="description" content="Browse cities with active hospice, palliative, and home care providers listed on Best Hospice and Home Health." />
+  <link rel="canonical" href="${CANONICAL_DOMAIN}/cities.html" />
+  <link rel="stylesheet" href="/styles-modern.css" />
+  <script src="/abel-chat.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="brand">
+          <img src="/BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo">
+        </div>
+        <div class="top-links" style="display:flex;">
+          <a class="pill ghost-pill" href="/">Main Menu</a>
+          <a class="pill ghost-pill" href="/locations.html">Locations We Currently Serve</a>
+          <a class="pill ghost-pill" href="/search.html">Search</a>
+        </div>
+      </div>
+      <div class="hero-body" style="grid-template-columns:1fr;">
+        <div class="hero-text">
+          <h1>Browse Cities We Serve</h1>
+          <p class="tagline">Direct links to city pages grouped by care type and state.</p>
+        </div>
+      </div>
+    </header>
+    <main>
+      ${sectionHtml('hospice', 'Hospice Care')}
+      ${sectionHtml('palliative', 'Palliative Care')}
+      ${sectionHtml('home', 'Home Care')}
+    </main>
+  </div>
+</body>
+</html>`;
+    res.send(html);
+  } catch (err) {
+    console.error('Dynamic cities page failed', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get(['/states/:state.html', '/states/:state'], async (req, res) => {
+  try {
+    const stateSlug = req.params.state;
+    const candidates = stateCandidatesFromSlug(stateSlug);
+    const providers = await prisma.provider.findMany({
+      where: {
+        OR: candidates.map((candidate) => ({
+          state: { equals: candidate, mode: 'insensitive' }
+        }))
+      },
+      select: { name: true, city: true, state: true, phone: true, website: true, address: true, careType: true },
+      orderBy: [{ city: 'asc' }, { name: 'asc' }]
+    });
+    if (!providers.length) return res.status(404).send('State not found');
+
+    const stateName = normalizeStateLabel(providers[0].state);
+    const cityMap = new Map();
+    for (const p of providers) {
+      const city = String(p.city || '').trim();
+      if (!city) continue;
+      if (!cityMap.has(city)) cityMap.set(city, []);
+      cityMap.get(city).push(p);
+    }
+
+    const cityListHtml = Array.from(cityMap.keys())
+      .sort((a, b) => a.localeCompare(b))
+      .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}.html">${city}, ${stateName}</a></li>`)
+      .join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hospice & Home Care Providers in ${stateName} | Best Hospice</title>
+  <meta name="description" content="Find verified hospice and home care providers across ${stateName}. Browse providers by city. 100% free for families." />
+  <link rel="canonical" href="${CANONICAL_DOMAIN}/states/${slugify(stateName)}.html" />
+  <link rel="stylesheet" href="/styles-modern.css" />
+  <script src="/abel-chat.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="brand"><img src="/BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo"></div>
+        <div class="top-links" style="display:flex;">
+          <a class="pill ghost-pill" href="/">Main Menu</a>
+          <a class="pill ghost-pill" href="/cities.html">Browse Cities</a>
+        </div>
+      </div>
+      <div class="hero-body" style="grid-template-columns:1fr;">
+        <div class="hero-text">
+          <h1>Hospice and Home Care Providers in ${stateName}</h1>
+          <p class="tagline">We currently serve ${providers.length} verified providers across ${cityMap.size} cities in ${stateName}.</p>
+        </div>
+      </div>
+    </header>
+    <main>
+      <section class="card" style="padding:18px;">
+        <h2 style="margin:0 0 10px;">Cities We Serve in ${stateName}</h2>
+        <ul style="margin:0; padding-left:18px; display:grid; gap:6px;">${cityListHtml}</ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>`;
+    res.send(html);
+  } catch (err) {
+    console.error('Dynamic state page failed', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get(['/cities/:city-:state.html', '/cities/:city-:state'], async (req, res) => {
+  try {
+    const citySlug = String(req.params.city || '').toLowerCase();
+    const stateSlug = String(req.params.state || '').toLowerCase();
+    const candidates = stateCandidatesFromSlug(stateSlug);
+    const providersByState = await prisma.provider.findMany({
+      where: {
+        OR: candidates.map((candidate) => ({
+          state: { equals: candidate, mode: 'insensitive' }
+        }))
+      },
+      orderBy: [{ city: 'asc' }, { name: 'asc' }]
+    });
+    const providers = providersByState.filter((p) => slugify(p.city) === citySlug);
+    if (!providers.length) return res.status(404).send('City not found');
+
+    const city = providers[0].city;
+    const stateCode = String(providers[0].state || '').toLowerCase();
+    const html = renderCityPage({ serviceKey: 'hospice-care', city, state: stateCode, providers });
+    res.send(html);
+  } catch (err) {
+    console.error('Dynamic city page failed', err);
+    res.status(500).send('Server error');
+  }
+});
+
 app.use(express.static(__dirname));
 
 // Provider auth helper
@@ -3730,17 +3942,20 @@ async function buildSitemapUrls() {
   const seenCities = new Set();
   for (const p of allProviderLocations) {
     const state = String(p.state || '').toLowerCase().trim();
+    const stateLabel = normalizeStateLabel(p.state);
     const city = String(p.city || '').trim();
     if (!state) continue;
     if (!seenStates.has(state)) {
       seenStates.add(state);
       SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${state}`));
+      if (stateLabel) urls.add(`${CANONICAL_DOMAIN}/states/${slugify(stateLabel)}.html`);
     }
     if (!city) continue;
     const cityKey = `${city.toLowerCase()}-${state}`;
     if (seenCities.has(cityKey)) continue;
     seenCities.add(cityKey);
     SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${slugify(city)}-${state}`));
+    if (stateLabel) urls.add(`${CANONICAL_DOMAIN}/cities/${slugify(city)}-${slugify(stateLabel)}.html`);
   }
 
   providers.forEach((p) => {
