@@ -38,7 +38,7 @@
       <h1 style="margin:0 0 10px; font-size:38px; line-height:1.1; text-align:center;">Need hospice or home care now?</h1>
       <p class="tagline" style="margin:0 0 18px; font-size:18px; text-align:center;">We connect families with verified providers - compassionately and at no cost.</p>
 
-      <form class="search" action="search-results.html" method="get" style="margin:0 auto; max-width:640px; padding:16px; border:1px solid var(--border); border-radius:14px; background:#f8fbff;">
+      <form id="phoenix-lead-form" class="search" action="search-results.html" method="get" style="margin:0 auto; max-width:640px; padding:16px; border:1px solid var(--border); border-radius:14px; background:#f8fbff;">
         <p class="eyebrow" style="margin:0 0 8px;">Start here</p>
         <label for="contactName" class="label">Your name</label>
         <div class="input-row">
@@ -97,6 +97,45 @@
   </div>
 
   <script>
+    // Replace this with the exact value from Google Ads conversion snippet.
+    // Example format: AW-17909571702/AbCdEfGhIjKlMnOpQr
+    const PHOENIX_CONVERSION_SEND_TO = 'AW-17909571702/[conversion_label]';
+
+    (() => {
+      const form = document.getElementById('phoenix-lead-form');
+      if (!form) return;
+
+      form.addEventListener('submit', (event) => {
+        // Let native browser validation run first.
+        if (!form.checkValidity()) return;
+        event.preventDefault();
+
+        const continueSubmit = () => {
+          HTMLFormElement.prototype.submit.call(form);
+        };
+
+        // Fire conversion only when valid form submit is happening.
+        if (typeof window.gtag === 'function' && !PHOENIX_CONVERSION_SEND_TO.includes('[conversion_label]')) {
+          let finished = false;
+          const done = () => {
+            if (finished) return;
+            finished = true;
+            continueSubmit();
+          };
+
+          window.gtag('event', 'conversion', {
+            send_to: PHOENIX_CONVERSION_SEND_TO,
+            event_callback: done
+          });
+
+          // Fallback so submit is never blocked if callback is delayed.
+          setTimeout(done, 900);
+        } else {
+          continueSubmit();
+        }
+      });
+    })();
+
     (async () => {
       try {
         const res = await fetch('/api/providers');
