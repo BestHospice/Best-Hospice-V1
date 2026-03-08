@@ -23,7 +23,7 @@ const ADMIN_TOKEN_DASH = process.env.ADMIN_TOKEN_DASH || 'lookForProviders177Now
 const ADMIN_TOKEN_AUDIT = process.env.ADMIN_TOKEN_AUDIT || ADMIN_TOKEN_DASH;
 
 function isAdminMainToken(token) {
-  return token === ADMIN_TOKEN_DASH || token === ADMIN_TOKEN_AUDIT || token === ADMIN_TOKEN_REMOVE || token === ADMIN_TOKEN_ADD;
+  return token === ADMIN_TOKEN_DASH || token === ADMIN_TOKEN_AUDIT;
 }
 const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET || '';
 const TURNSTILE_BYPASS = process.env.TURNSTILE_BYPASS === 'true';
