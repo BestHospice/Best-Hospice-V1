@@ -36,7 +36,8 @@
       <div style="display:flex; gap:12px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;">
         <div style="max-width:780px; line-height:1.45;">
           We use cookies and analytics to improve your experience and measure site performance.
-          See our <a href="/privacy.html" style="color:#7dd3fc; text-decoration:underline;">Privacy Policy</a>.
+          See our <a href="/privacy.html" style="color:#7dd3fc; text-decoration:underline;">Privacy Policy</a> and
+          <a href="/cookie-policy.html" style="color:#7dd3fc; text-decoration:underline;">Cookie Policy</a>.
         </div>
         <div style="display:flex; gap:8px;">
           <button id="bhhh-consent-deny" style="border:1px solid #334155; background:#111827; color:#fff; border-radius:8px; padding:8px 12px; font-weight:600; cursor:pointer;">Decline</button>
