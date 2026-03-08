@@ -2308,6 +2308,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       return res.status(400).json({ error: 'Invalid date range' });
     }
 
+    const hasLeadOutcomeModel = Boolean(prisma.leadOutcome && typeof prisma.leadOutcome.findMany === 'function');
     const [totalLeadsAllTime, leadsRange, allTimeLeadsForHours, allTimeSentNotifications, allLeadOutcomes] = await Promise.all([
       prisma.lead.count(),
       prisma.lead.findMany({
@@ -2342,26 +2343,28 @@ app.get('/api/admin/main/analytics', async (req, res) => {
           }
         }
       }),
-      prisma.leadOutcome.findMany({
-        include: {
-          provider: {
-            select: {
-              id: true,
-              name: true,
-              state: true,
-              careType: true
+      hasLeadOutcomeModel
+        ? prisma.leadOutcome.findMany({
+            include: {
+              provider: {
+                select: {
+                  id: true,
+                  name: true,
+                  state: true,
+                  careType: true
+                }
+              },
+              lead: {
+                select: {
+                  id: true,
+                  createdAt: true,
+                  services: true,
+                  zip: true
+                }
+              }
             }
-          },
-          lead: {
-            select: {
-              id: true,
-              createdAt: true,
-              services: true,
-              zip: true
-            }
-          }
-        }
-      })
+          })
+        : Promise.resolve([])
     ]);
 
     const leadIds = leadsRange.map((l) => l.id);
@@ -2645,7 +2648,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
           }
         })
       : [];
-    const recentOutcomes = recentLeadIds.length
+    const recentOutcomes = recentLeadIds.length && hasLeadOutcomeModel
       ? await prisma.leadOutcome.findMany({
           where: { leadId: { in: recentLeadIds } },
           select: {

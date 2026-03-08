@@ -803,7 +803,12 @@
         headers: { 'x-admin-token': adminToken }
       });
       if (!res.ok) {
-        throw new Error('Unable to load analytics.');
+        let details = '';
+        try {
+          const body = await res.json();
+          details = body?.error ? String(body.error) : '';
+        } catch (_) {}
+        throw new Error(details || `Unable to load analytics (HTTP ${res.status}).`);
       }
       const data = await res.json();
       rangeLabel.textContent = `Showing analytics from ${data.from} to ${data.to}`;
@@ -869,7 +874,7 @@
         adminToken = '';
         dashboard.classList.add('hidden');
         loginCard.classList.remove('hidden');
-        loginStatus.textContent = 'Invalid token or unable to load analytics.';
+        loginStatus.textContent = err?.message || 'Invalid token or unable to load analytics.';
       }
     }
 
