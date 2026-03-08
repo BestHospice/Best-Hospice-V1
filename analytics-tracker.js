@@ -5,6 +5,7 @@
   const EVENT_URL = '/api/analytics/event';
   const VIEWER_KEY = 'bhhh_viewer_id_v1';
   const SESSION_KEY = 'bhhh_session_id_v1';
+  const EXCLUDE_KEY = 'bhhh_analytics_exclude_v1';
   const SCROLL_STEPS = [25, 50, 75, 100];
 
   let started = false;
@@ -37,7 +38,32 @@
 
   window.getBhhhSessionId = getSessionId;
 
+  function isAnalyticsExcluded() {
+    try {
+      return localStorage.getItem(EXCLUDE_KEY) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setAnalyticsExcluded(enabled) {
+    try {
+      localStorage.setItem(EXCLUDE_KEY, enabled ? '1' : '0');
+    } catch (_) {}
+  }
+
+  try {
+    const qs = new URLSearchParams(window.location.search || '');
+    if (qs.get('noanalytics') === '1') setAnalyticsExcluded(true);
+    if (qs.get('noanalytics') === '0') setAnalyticsExcluded(false);
+  } catch (_) {}
+
+  window.bhhhSetAnalyticsExclusion = (enabled) => {
+    setAnalyticsExcluded(Boolean(enabled));
+  };
+
   function postEvent(payload, useBeacon = false) {
+    if (isAnalyticsExcluded()) return;
     const body = JSON.stringify({
       viewerId: getViewerId(),
       sessionId: getSessionId(),
@@ -94,6 +120,7 @@
 
   function startTracking() {
     if (started) return;
+    if (isAnalyticsExcluded()) return;
     started = true;
 
     postEvent({ eventType: 'page_view', eventValue: document.title.slice(0, 120) });
@@ -112,18 +139,18 @@
   }
 
   const consent = localStorage.getItem('bhhh_cookie_consent_v1');
-  if (consent === 'granted' || window.bhhhConsentGranted === true) {
+  if ((consent === 'granted' || window.bhhhConsentGranted === true) && !isAnalyticsExcluded()) {
     startTracking();
     postEvent({ eventType: 'consent_granted', eventValue: 'stored' });
   }
 
   window.addEventListener('bhhh:consent', (e) => {
     const state = e?.detail?.state;
-    if (state === 'granted') {
+    if (state === 'granted' && !isAnalyticsExcluded()) {
       postEvent({ eventType: 'consent_granted', eventValue: 'banner' });
       startTracking();
     }
-    if (state === 'denied') {
+    if (state === 'denied' && !isAnalyticsExcluded()) {
       postEvent({ eventType: 'consent_declined', eventValue: 'banner' });
     }
   });
