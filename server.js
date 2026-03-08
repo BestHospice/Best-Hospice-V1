@@ -2714,6 +2714,17 @@ app.get('/api/admin/main/analytics', async (req, res) => {
     let eventCounts = {};
     let topPages = [];
     let topReferrers = [];
+    let websiteAccessTimesEt = Array.from({ length: 48 }, (_, slot) => ({ slot, count: 0 }));
+    let websiteAccessDaysEt = [
+      { day: 'Sun', count: 0 },
+      { day: 'Mon', count: 0 },
+      { day: 'Tue', count: 0 },
+      { day: 'Wed', count: 0 },
+      { day: 'Thu', count: 0 },
+      { day: 'Fri', count: 0 },
+      { day: 'Sat', count: 0 }
+    ];
+    let websiteEngagementByDate = [];
     try {
       await ensureWebsiteEventsTable();
       const [
@@ -2725,7 +2736,10 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         avgScrollRows,
         topPagesRows,
         topReferrersRows,
-        eventCountsRows
+        eventCountsRows,
+        accessTimesRows,
+        accessDaysRows,
+        engagementByDateRows
       ] = await Promise.all([
         prisma.$queryRaw`SELECT COUNT(DISTINCT viewer_id)::bigint AS count FROM website_events WHERE created_at >= ${from} AND created_at <= ${to}`,
         prisma.$queryRaw`SELECT COUNT(DISTINCT viewer_id)::bigint AS count FROM website_events`,
@@ -2735,7 +2749,10 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         prisma.$queryRaw`SELECT AVG(max_scroll)::float AS avg_scroll FROM (SELECT session_id, MAX(COALESCE(scroll_depth, 0))::float AS max_scroll FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY session_id) t`,
         prisma.$queryRaw`SELECT path, COUNT(*)::bigint AS views FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY path ORDER BY views DESC LIMIT 12`,
         prisma.$queryRaw`SELECT COALESCE(NULLIF(referrer, ''), '(direct)') AS referrer, COUNT(*)::bigint AS views FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY referrer ORDER BY views DESC LIMIT 8`,
-        prisma.$queryRaw`SELECT event_type, COUNT(*)::bigint AS total FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY event_type`
+        prisma.$queryRaw`SELECT event_type, COUNT(*)::bigint AS total FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY event_type`,
+        prisma.$queryRaw`SELECT ((EXTRACT(HOUR FROM (created_at AT TIME ZONE 'America/New_York'))::int * 2) + (EXTRACT(MINUTE FROM (created_at AT TIME ZONE 'America/New_York'))::int / 30))::int AS slot, COUNT(*)::bigint AS total FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY slot ORDER BY slot ASC`,
+        prisma.$queryRaw`SELECT EXTRACT(DOW FROM (created_at AT TIME ZONE 'America/New_York'))::int AS dow, COUNT(*)::bigint AS total FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY dow ORDER BY dow ASC`,
+        prisma.$queryRaw`SELECT TO_CHAR((created_at AT TIME ZONE 'America/New_York')::date, 'YYYY-MM-DD') AS day, SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END)::bigint AS page_views, COUNT(DISTINCT session_id)::bigint AS sessions, AVG(CASE WHEN event_type = 'page_exit' AND duration_ms IS NOT NULL THEN duration_ms END)::float AS avg_ms FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY (created_at AT TIME ZONE 'America/New_York')::date ORDER BY day ASC`
       ]);
 
       uniqueViewersInRange = Number(uniqueViewersRangeRows?.[0]?.count || 0);
@@ -2757,6 +2774,34 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         referrer: String(row.referrer || '(direct)'),
         views: Number(row.views || 0)
       }));
+      const slotCounts = Array.from({ length: 48 }, () => 0);
+      (accessTimesRows || []).forEach((row) => {
+        const slot = Number(row.slot);
+        if (Number.isInteger(slot) && slot >= 0 && slot < 48) {
+          slotCounts[slot] = Number(row.total || 0);
+        }
+      });
+      websiteAccessTimesEt = slotCounts.map((count, slot) => ({ slot, count }));
+      const dayCounts = Array.from({ length: 7 }, () => 0);
+      (accessDaysRows || []).forEach((row) => {
+        const dow = Number(row.dow);
+        if (Number.isInteger(dow) && dow >= 0 && dow <= 6) {
+          dayCounts[dow] = Number(row.total || 0);
+        }
+      });
+      websiteAccessDaysEt = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => ({
+        day,
+        count: dayCounts[idx]
+      }));
+      websiteEngagementByDate = (engagementByDateRows || []).map((row) => {
+        const avgMs = Number(row.avg_ms || 0);
+        return {
+          date: String(row.day || ''),
+          pageViews: Number(row.page_views || 0),
+          sessions: Number(row.sessions || 0),
+          avgEngagementSeconds: Number.isFinite(avgMs) ? Number((avgMs / 1000).toFixed(1)) : 0
+        };
+      });
       pagesPerSession = sessionsInRange ? Number((pageViewsInRange / sessionsInRange).toFixed(2)) : 0;
       avgEngagementSeconds = Number((avgEngagementMs / 1000).toFixed(1));
       avgScrollDepthPct = Number(avgMaxScrollDepth.toFixed(1));
@@ -2799,6 +2844,9 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         noUpdateLeads: staleNoUpdateLeads,
         topPages,
         topReferrers,
+        websiteAccessTimesEt,
+        websiteAccessDaysEt,
+        websiteEngagementByDate,
         webEventCounts: eventCounts
       },
       timeline,

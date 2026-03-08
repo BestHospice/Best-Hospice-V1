@@ -25,9 +25,11 @@
     .stat .v { font-size: 26px; font-weight: 700; color: #0f172a; line-height: 1.15; }
     .split { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
     .bars { display: grid; gap: 8px; margin-top: 10px; }
-    .bar-row { display: grid; grid-template-columns: 130px 1fr 60px; gap: 8px; align-items: center; font-size: 14px; }
+    .bar-row { display: grid; grid-template-columns: minmax(170px, 230px) 1fr 70px; gap: 10px; align-items: center; font-size: 14px; }
     .bar-wrap { background: #e2e8f0; border-radius: 999px; overflow: hidden; height: 10px; }
     .bar-fill { background: linear-gradient(90deg, #0f766e, #0ea5a5); height: 100%; }
+    .bar-label { color: #0f172a; line-height: 1.25; word-break: break-word; }
+    .section-note { margin: 6px 0 12px; color: #64748b; font-size: 13px; line-height: 1.45; }
     .timeline { display: grid; gap: 8px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
     .timeline-row { display: grid; grid-template-columns: 110px 1fr 34px; gap: 8px; align-items: center; font-size: 13px; }
     .map-box { height: 360px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
@@ -134,12 +136,29 @@
         <div class="card">
           <h2>Website Engagement</h2>
           <div class="stats-grid" id="web-stats-grid"></div>
+          <div class="need-times-wrap">
+            <h3>Website Access by Time of Day (ET)</h3>
+            <p class="chart-note">Page views by 30-minute time slots in Eastern Time for the selected date range.</p>
+            <svg id="website-access-times-chart" class="need-chart" viewBox="0 0 760 200" preserveAspectRatio="none" aria-label="Website access by time of day"></svg>
+          </div>
+          <div style="margin-top: 12px;">
+            <h3>Website Access by Day of Week (ET)</h3>
+            <p class="section-note">This shows when your site is most frequently accessed during the week.</p>
+            <div id="website-access-days-bars" class="bars"></div>
+          </div>
         </div>
         <div class="card">
           <h2>Top Website Pages</h2>
+          <p class="section-note">Most viewed pages in the selected date range.</p>
           <div id="top-pages-bars" class="bars"></div>
           <h3 style="margin-top:14px;">Top Referrers</h3>
+          <p class="section-note">Referrer = website/app users came from before landing on BestHospice (for example Google, Facebook, or direct).</p>
           <div id="top-referrers-bars" class="bars"></div>
+          <div class="need-times-wrap">
+            <h3>Website Engagement by Date</h3>
+            <p class="chart-note">Daily website activity for the selected range.</p>
+            <div id="website-engagement-timeline" class="timeline"></div>
+          </div>
         </div>
       </div>
 
@@ -298,6 +317,9 @@
     const webStatsGrid = document.getElementById('web-stats-grid');
     const topPagesBarsEl = document.getElementById('top-pages-bars');
     const topReferrersBarsEl = document.getElementById('top-referrers-bars');
+    const websiteAccessTimesChartEl = document.getElementById('website-access-times-chart');
+    const websiteAccessDaysBarsEl = document.getElementById('website-access-days-bars');
+    const websiteEngagementTimelineEl = document.getElementById('website-engagement-timeline');
     const timelineEl = document.getElementById('timeline');
     const careBarsEl = document.getElementById('care-bars');
     const submittedBarsEl = document.getElementById('submitted-bars');
@@ -359,7 +381,7 @@
         const row = document.createElement('div');
         row.className = 'bar-row';
         row.innerHTML = `
-          <div>${r.label}</div>
+          <div class="bar-label">${r.label}</div>
           <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
           <div style="text-align:right;">${fmtNum(r.value)}</div>
         `;
@@ -482,6 +504,82 @@
         ${bars}
         ${xTicks}
       `;
+    }
+
+    function renderWebsiteAccessTimesChart(slotRows) {
+      const rows = Array.isArray(slotRows) && slotRows.length === 48
+        ? slotRows
+        : Array.from({ length: 48 }, (_, slot) => ({ slot, count: 0 }));
+      const maxCount = Math.max(1, ...rows.map((r) => Number(r.count || 0)));
+
+      const width = 760;
+      const height = 200;
+      const left = 42;
+      const right = 12;
+      const top = 10;
+      const bottom = 28;
+      const chartW = width - left - right;
+      const chartH = height - top - bottom;
+      const barCount = 48;
+      const barW = chartW / barCount;
+      const yFor = (count) => top + chartH - (count / maxCount) * chartH;
+
+      const bars = rows.map((r) => {
+        const slot = Number(r.slot || 0);
+        const count = Number(r.count || 0);
+        const x = left + (slot * barW);
+        const y = yFor(count);
+        const h = Math.max(1, (top + chartH) - y);
+        return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${Math.max(1, barW - 1).toFixed(2)}" height="${h.toFixed(2)}" fill="#075985"></rect>`;
+      }).join('');
+
+      const xTickSlots = [0, 8, 16, 24, 32, 40, 47];
+      const xTicks = xTickSlots
+        .map((slot) => {
+          const x = left + (slot * barW) + (barW / 2);
+          return `<text x="${x.toFixed(2)}" y="${height - 8}" text-anchor="middle" font-size="10" fill="#475569">${formatSlotLabel(slot)}</text>`;
+        })
+        .join('');
+      const yTicks = [0, Math.ceil(maxCount / 2), maxCount]
+        .map((v) => {
+          const y = yFor(v);
+          return `<text x="${left - 6}" y="${(y + 4).toFixed(2)}" text-anchor="end" font-size="10" fill="#64748b">${v}</text>`;
+        })
+        .join('');
+      const grid = [0, Math.ceil(maxCount / 2), maxCount]
+        .map((v) => {
+          const y = yFor(v);
+          return `<line x1="${left}" y1="${y.toFixed(2)}" x2="${(left + chartW).toFixed(2)}" y2="${y.toFixed(2)}" stroke="#e2e8f0" stroke-width="1"></line>`;
+        })
+        .join('');
+
+      websiteAccessTimesChartEl.innerHTML = `
+        ${grid}
+        ${bars}
+        ${xTicks}
+        ${yTicks}
+      `;
+    }
+
+    function renderWebsiteEngagementTimeline(rows) {
+      websiteEngagementTimelineEl.innerHTML = '';
+      const safeRows = Array.isArray(rows) ? rows : [];
+      const max = Math.max(1, ...safeRows.map((d) => d.pageViews || 0));
+      safeRows.forEach((d) => {
+        const pct = Math.round(((d.pageViews || 0) / max) * 100);
+        const row = document.createElement('div');
+        row.className = 'timeline-row';
+        row.innerHTML = `
+          <div>${d.date || '-'}</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <div style="text-align:right;">${fmtNum(d.pageViews || 0)}</div>
+        `;
+        row.title = `Sessions: ${fmtNum(d.sessions || 0)} | Avg Time: ${d.avgEngagementSeconds || 0}s`;
+        websiteEngagementTimelineEl.appendChild(row);
+      });
+      if (!safeRows.length) {
+        websiteEngagementTimelineEl.innerHTML = '<p class="note">No website engagement data in selected range.</p>';
+      }
     }
 
     function renderNeedDaysChart(dayRows) {
@@ -837,6 +935,12 @@
         label: String(r.referrer || '(direct)').replace('https://', '').replace('http://', '').slice(0, 42),
         value: r.views || 0
       })));
+      renderWebsiteAccessTimesChart((data.breakdowns && data.breakdowns.websiteAccessTimesEt) || []);
+      renderBars(websiteAccessDaysBarsEl, ((data.breakdowns && data.breakdowns.websiteAccessDaysEt) || []).map((d) => ({
+        label: d.day || '',
+        value: d.count || 0
+      })));
+      renderWebsiteEngagementTimeline((data.breakdowns && data.breakdowns.websiteEngagementByDate) || []);
       renderNeedTimesChart((data.breakdowns && data.breakdowns.clientNeedTimesAllTime) || []);
       renderNeedDaysChart((data.breakdowns && data.breakdowns.clientNeedDaysAllTime) || []);
       renderProviderRanking((data.breakdowns && data.breakdowns.providerClientRanking) || []);
