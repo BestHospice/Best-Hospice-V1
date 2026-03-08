@@ -2867,6 +2867,25 @@ app.get('/api/admin/main/verify', (req, res) => {
   res.json({ ok: true });
 });
 
+app.delete('/api/admin/main/website-events', async (req, res) => {
+  const token = req.headers['x-admin-token'];
+  if (!isAdminMainToken(token)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const confirmation = String(req.body?.confirmation || '').trim();
+  if (confirmation !== 'CLEAR_WEBSITE_EVENTS') {
+    return res.status(400).json({ error: 'Confirmation phrase required.' });
+  }
+  try {
+    await ensureWebsiteEventsTable();
+    const deletedCount = await prisma.$executeRawUnsafe('DELETE FROM website_events');
+    res.json({ ok: true, deletedCount: Number(deletedCount || 0) });
+  } catch (err) {
+    console.error('Admin website-events clear failed', err);
+    res.status(500).json({ error: 'Failed to clear website analytics data' });
+  }
+});
+
 app.delete('/api/admin/main/leads/:id', async (req, res) => {
   const token = req.headers['x-admin-token'];
   if (!isAdminMainToken(token)) {

@@ -135,6 +135,9 @@
       <div class="split">
         <div class="card">
           <h2>Website Engagement</h2>
+          <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+            <button class="danger-btn" id="clear-website-events-btn">Clear Website Analytics Data</button>
+          </div>
           <div class="stats-grid" id="web-stats-grid"></div>
           <div class="need-times-wrap">
             <h3>Website Access by Time of Day (ET)</h3>
@@ -335,6 +338,7 @@
     const caretypeAdmitBody = document.getElementById('caretype-admit-body');
     const geoAdmitBody = document.getElementById('geo-admit-body');
     const noUpdateBody = document.getElementById('no-update-body');
+    const clearWebsiteEventsBtn = document.getElementById('clear-website-events-btn');
     let adminToken = '';
     let leadMap = null;
     let heatLayer = null;
@@ -998,6 +1002,30 @@
 
     document.getElementById('unlock-btn').addEventListener('click', unlock);
     leadSearchInput?.addEventListener('input', applyLeadSearch);
+    clearWebsiteEventsBtn?.addEventListener('click', async () => {
+      if (!adminToken) return;
+      const confirmation = prompt('Type CLEAR_WEBSITE_EVENTS to delete all website analytics events.');
+      if (confirmation == null) return;
+      try {
+        const res = await fetch('/api/admin/main/website-events', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-token': adminToken
+          },
+          body: JSON.stringify({ confirmation: String(confirmation || '').trim() })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || 'Could not clear website analytics data.');
+        }
+        alert(`Website analytics data cleared. Deleted events: ${Number(data.deletedCount || 0).toLocaleString()}`);
+        await loadAnalytics();
+        refreshLeadMapLayout();
+      } catch (err) {
+        alert(err?.message || 'Could not clear website analytics data.');
+      }
+    });
     document.getElementById('refresh-btn').addEventListener('click', async () => {
       try {
         await loadAnalytics();
