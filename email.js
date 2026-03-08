@@ -14,6 +14,23 @@ function toDisplay(value, fallback = 'Not provided') {
   return String(value || '').trim() || fallback;
 }
 
+function parseSendGridError(error) {
+  const bodyErrors = error?.response?.body?.errors;
+  const bodyMessage = Array.isArray(bodyErrors) && bodyErrors.length
+    ? String(bodyErrors.map((e) => e?.message).filter(Boolean).join(' | '))
+    : '';
+  const rawMessage = String(bodyMessage || error?.message || 'unknown error');
+  const lower = rawMessage.toLowerCase();
+  const permanentFailure =
+    lower.includes('maximum credits exceeded') ||
+    lower.includes('invalid api key') ||
+    lower.includes('unauthorized') ||
+    lower.includes('forbidden') ||
+    lower.includes('account') && lower.includes('suspend') ||
+    lower.includes('sender') && lower.includes('identity');
+  return { message: rawMessage, permanentFailure };
+}
+
 function sharedSignatureBlock() {
   return `
   <p>We support care that acts quickly at <strong>Best Hospice and Home Health</strong>. We encourage you to reach out promptly!</p>
@@ -152,10 +169,17 @@ async function sendProviderNotifications({
       try {
         const [resp] = await sgMail.send(msg);
         const messageId = resp?.headers?.['x-message-id'] || resp?.headers?.['X-Message-Id'];
-        results.push({ email: recipient, providerId: provider.id, status: 'sent', messageId });
+        results.push({ email: recipient, providerId: provider.id, status: 'sent', messageId, permanentFailure: false });
       } catch (error) {
+        const parsed = parseSendGridError(error);
         console.error('SendGrid send failed for', recipient, error?.response?.body || error);
-        results.push({ email: recipient, providerId: provider.id, status: 'failed', error: error.message || 'unknown error' });
+        results.push({
+          email: recipient,
+          providerId: provider.id,
+          status: 'failed',
+          error: parsed.message,
+          permanentFailure: parsed.permanentFailure
+        });
       }
     }
   }
@@ -218,10 +242,17 @@ async function sendLeadStatusNudgeEmail({ providers, lead, statusLinks }) {
       try {
         const [resp] = await sgMail.send(msg);
         const messageId = resp?.headers?.['x-message-id'] || resp?.headers?.['X-Message-Id'];
-        results.push({ email: recipient, providerId: provider.id, status: 'sent', messageId });
+        results.push({ email: recipient, providerId: provider.id, status: 'sent', messageId, permanentFailure: false });
       } catch (error) {
+        const parsed = parseSendGridError(error);
         console.error('SendGrid nudge send failed for', recipient, error?.response?.body || error);
-        results.push({ email: recipient, providerId: provider.id, status: 'failed', error: error.message || 'unknown error' });
+        results.push({
+          email: recipient,
+          providerId: provider.id,
+          status: 'failed',
+          error: parsed.message,
+          permanentFailure: parsed.permanentFailure
+        });
       }
     }
   }

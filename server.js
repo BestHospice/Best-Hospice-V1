@@ -84,6 +84,26 @@ const LEAD_OUTCOME_LABELS = {
   no_response: 'No Response'
 };
 
+let newsletterTableReady = false;
+async function ensureNewsletterSubscribersTable() {
+  if (newsletterTableReady) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      source TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS idx_newsletter_subscribers_email
+    ON newsletter_subscribers(email)
+  `);
+  newsletterTableReady = true;
+}
+
 // --- SEO / programmatic helpers ---
 const slugify = (str) =>
   String(str || '')
@@ -597,6 +617,18 @@ app.get(['/cities/:city-:state.html', '/cities/:city-:state'], async (req, res) 
   }
 });
 
+// Newsletter pages (extensionless routes)
+app.get('/newsletter', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'newsletter', 'index.html'));
+});
+app.get('/newsletter/:issueSlug', (req, res) => {
+  const issueSlug = String(req.params.issueSlug || '').trim().toLowerCase();
+  if (!/^[a-z0-9-]+$/.test(issueSlug)) return res.status(404).send('Not found');
+  const pagePath = path.join(__dirname, 'newsletter', `${issueSlug}.html`);
+  if (!fs.existsSync(pagePath)) return res.status(404).send('Not found');
+  return res.sendFile(pagePath);
+});
+
 app.use(express.static(__dirname));
 
 // Provider auth helper
@@ -829,7 +861,8 @@ async function processNotificationJob(job) {
     }
 
     const nextAttempts = (job.attempts || 0) + 1;
-    if (nextAttempts < JOB_MAX_ATTEMPTS) {
+    const permanentFailure = Boolean(emailResult?.permanentFailure);
+    if (!permanentFailure && nextAttempts < JOB_MAX_ATTEMPTS) {
       await prisma.notificationJob.update({
         where: { id: job.id },
         data: {
@@ -935,7 +968,8 @@ async function processNotificationJob(job) {
   }
 
   const nextAttempts = (job.attempts || 0) + 1;
-  if (nextAttempts < JOB_MAX_ATTEMPTS) {
+  const permanentFailure = Boolean(emailResult?.permanentFailure);
+  if (!permanentFailure && nextAttempts < JOB_MAX_ATTEMPTS) {
     await prisma.notificationJob.update({
       where: { id: job.id },
       data: {
@@ -2103,6 +2137,34 @@ app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
   } catch (err) {
     console.error('Waitlist notify failed', err);
     res.status(500).json({ error: 'Could not submit notification request' });
+  }
+});
+
+app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    await ensureNewsletterSubscribersTable();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO newsletter_subscribers (id, name, email, source, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       ON CONFLICT (email) DO UPDATE
+       SET name = EXCLUDED.name,
+           source = EXCLUDED.source,
+           updated_at = NOW()`,
+      uuid(),
+      name,
+      email,
+      'newsletter-index'
+    );
+    res.json({ ok: true, message: 'Subscribed successfully.' });
+  } catch (err) {
+    console.error('Newsletter subscribe failed', err);
+    res.status(500).json({ error: 'Could not subscribe right now' });
   }
 });
 
@@ -3918,6 +3980,7 @@ const CORE_CONTENT_PAGES = [
   '/cities.html',
   '/faq-blog.html',
   '/education.html',
+  '/newsletter',
   '/why.html',
   '/privacy.html',
   '/terms.html',
@@ -3973,6 +4036,16 @@ async function buildSitemapUrls() {
     fs.readdirSync(group.dir)
       .filter((name) => name.endsWith('.html'))
       .forEach((name) => urls.add(`${CANONICAL_DOMAIN}${group.prefix}${name}`));
+  }
+  const newsletterDir = path.join(__dirname, 'newsletter');
+  if (fs.existsSync(newsletterDir)) {
+    fs.readdirSync(newsletterDir)
+      .filter((name) => name.endsWith('.html'))
+      .forEach((name) => {
+        const base = name.replace(/\.html$/, '');
+        const pagePath = base === 'index' ? '/newsletter' : `/newsletter/${base}`;
+        urls.add(`${CANONICAL_DOMAIN}${pagePath}`);
+      });
   }
 
   return Array.from(urls).sort();
@@ -4090,6 +4163,7 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
   const cityDir = path.join(__dirname, 'cities');
   const blogDir = path.join(__dirname, 'blog');
   const stateDir = path.join(__dirname, 'states');
+  const newsletterDir = path.join(__dirname, 'newsletter');
   const cityPages = fs.existsSync(cityDir)
     ? fs.readdirSync(cityDir).filter((name) => name.endsWith('.html')).map((name) => `/cities/${name}`)
     : [];
@@ -4099,7 +4173,15 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
   const statePages = fs.existsSync(stateDir)
     ? fs.readdirSync(stateDir).filter((name) => name.endsWith('.html')).map((name) => `/states/${name}`)
     : [];
-  const urls = [...pages, ...serviceHubs, ...guides, ...statePages, ...cityPages, ...blogPages].map((p) => `${CANONICAL_DOMAIN}${p}`);
+  const newsletterPages = fs.existsSync(newsletterDir)
+    ? fs.readdirSync(newsletterDir)
+      .filter((name) => name.endsWith('.html'))
+      .map((name) => {
+        const base = name.replace(/\.html$/, '');
+        return base === 'index' ? '/newsletter' : `/newsletter/${base}`;
+      })
+    : [];
+  const urls = [...pages, ...serviceHubs, ...guides, ...statePages, ...cityPages, ...blogPages, ...newsletterPages].map((p) => `${CANONICAL_DOMAIN}${p}`);
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}

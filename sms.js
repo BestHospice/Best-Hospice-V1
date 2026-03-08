@@ -1,4 +1,5 @@
 const twilio = require('twilio');
+let smsDisabledUntilConfigFix = false;
 
 function smsEnabled() {
   return (
@@ -14,6 +15,9 @@ function getClient() {
 }
 
 async function sendProviderSms(to, body) {
+  if (smsDisabledUntilConfigFix) {
+    return { status: 'skipped', reason: 'sms_temporarily_disabled_until_config_fix' };
+  }
   const client = getClient();
   if (!client) return { status: 'skipped', reason: 'sms_not_configured' };
   try {
@@ -24,8 +28,15 @@ async function sendProviderSms(to, body) {
     });
     return { status: 'sent', sid: msg.sid };
   } catch (err) {
-    console.error('SMS send failed', err?.message || err);
-    return { status: 'failed', error: err?.message || 'unknown error' };
+    const message = String(err?.message || 'unknown error');
+    const mismatch = message.toLowerCase().includes("mismatch between the 'from' number");
+    if (mismatch) {
+      smsDisabledUntilConfigFix = true;
+      console.error('SMS disabled until config fix: TWILIO_FROM_NUMBER does not match current TWILIO_ACCOUNT_SID.');
+      return { status: 'failed', error: message, permanentFailure: true };
+    }
+    console.error('SMS send failed', message);
+    return { status: 'failed', error: message };
   }
 }
 
