@@ -865,6 +865,17 @@
       try {
         loginStatus.textContent = 'Verifying...';
         adminToken = token;
+        const verifyRes = await fetch('/api/admin/main/verify', {
+          headers: { 'x-admin-token': adminToken }
+        });
+        if (!verifyRes.ok) {
+          let details = '';
+          try {
+            const body = await verifyRes.json();
+            details = body?.error ? String(body.error) : '';
+          } catch (_) {}
+          throw new Error(details || `Token verification failed (HTTP ${verifyRes.status}).`);
+        }
         loginCard.classList.add('hidden');
         dashboard.classList.remove('hidden');
         rangeLabel.textContent = 'Loading analytics...';

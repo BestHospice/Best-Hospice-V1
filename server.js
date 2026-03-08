@@ -2811,6 +2811,14 @@ app.get('/api/admin/main/analytics', async (req, res) => {
   }
 });
 
+app.get('/api/admin/main/verify', (req, res) => {
+  const token = req.headers['x-admin-token'];
+  if (!isAdminMainToken(token)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  res.json({ ok: true });
+});
+
 app.delete('/api/admin/main/leads/:id', async (req, res) => {
   const token = req.headers['x-admin-token'];
   if (!isAdminMainToken(token)) {
