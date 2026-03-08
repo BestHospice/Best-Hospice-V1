@@ -131,6 +131,14 @@ async function ensureWebsiteEventsTable() {
   websiteEventsTableReady = true;
 }
 
+let leadSessionColumnReady = false;
+async function ensureLeadSessionColumn() {
+  if (leadSessionColumnReady) return;
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "sessionId" TEXT`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_lead_session_id ON "Lead"("sessionId")`);
+  leadSessionColumnReady = true;
+}
+
 // --- SEO / programmatic helpers ---
 const slugify = (str) =>
   String(str || '')
@@ -1924,7 +1932,8 @@ app.delete('/api/providers/:id', async (req, res) => {
 app.post('/api/notify', rateLimit, async (req, res) => {
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {
-    const { mode, leadId, zip, answers, providers, captchaToken } = req.body || {};
+    const { mode, leadId, zip, answers, providers, captchaToken, sessionId } = req.body || {};
+    const normalizedSessionId = String(sessionId || '').trim().slice(0, 128) || null;
     const notifyMode = String(mode || 'initial').toLowerCase() === 'details' ? 'details' : 'initial';
     if (!zip || !answers || !Array.isArray(providers) || !providers.length) {
       return res.status(400).json({ error: 'Missing zip, answers, or providers list' });
@@ -1999,6 +2008,14 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           lastName: clientLast || null
         }
       });
+      if (normalizedSessionId) {
+        await ensureLeadSessionColumn();
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Lead" SET "sessionId" = COALESCE("sessionId", $1) WHERE id = $2`,
+          normalizedSessionId,
+          lead.id
+        );
+      }
     } else {
       if (!answers.timeline || !answers.contactEmail) {
         return res.status(400).json({ error: 'Missing timeline or contact email' });
@@ -2017,6 +2034,14 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           lastName: clientLast || null
         }
       });
+      if (normalizedSessionId) {
+        await ensureLeadSessionColumn();
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Lead" SET "sessionId" = $1 WHERE id = $2`,
+          normalizedSessionId,
+          lead.id
+        );
+      }
 
       const impressionData = toList
         .filter((p) => !!p.id)

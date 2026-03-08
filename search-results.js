@@ -38,6 +38,7 @@ let currentContactEmail = '';
 let currentContactPhone = '';
 let currentContactName = '';
 let currentGeoLabel = '';
+let currentSessionId = '';
 
 const map = L.map('map', { scrollWheelZoom: true }).setView([39.5, -98.35], 4);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -376,7 +377,8 @@ async function notifyInitialLead() {
           last: nameParts.lastName
         }
       },
-      captchaToken: turnstileToken
+      captchaToken: turnstileToken,
+      sessionId: currentSessionId || null
     })
   });
   if (!res.ok) throw new Error('Initial notify failed');
@@ -402,7 +404,8 @@ async function notifyEnhancedDetails(detailsAnswers) {
         lon: p.lon,
         planTier: p.planTier
       })),
-      answers: detailsAnswers
+      answers: detailsAnswers,
+      sessionId: currentSessionId || null
     })
   });
   if (!res.ok) throw new Error('Enhanced details notify failed');
@@ -460,6 +463,10 @@ async function startResultsFlow() {
     currentContactEmail = (params.get('contactEmail') || '').trim();
     currentContactPhone = (params.get('contactPhone') || '').trim();
     currentContactName = (params.get('contactName') || '').trim();
+    currentSessionId = (params.get('sessionId') || '').trim();
+    if (!currentSessionId && typeof window.getBhhhSessionId === 'function') {
+      currentSessionId = window.getBhhhSessionId();
+    }
 
     if (!/^\d{5}$/.test(currentZip) || !currentTimeline || !currentContactEmail) {
       setStatus('Missing required search details. Please start again.', true);

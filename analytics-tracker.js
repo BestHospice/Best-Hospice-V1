@@ -35,6 +35,8 @@
     return id;
   }
 
+  window.getBhhhSessionId = getSessionId;
+
   function postEvent(payload, useBeacon = false) {
     const body = JSON.stringify({
       viewerId: getViewerId(),
