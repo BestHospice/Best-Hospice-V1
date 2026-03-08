@@ -104,6 +104,33 @@ async function ensureNewsletterSubscribersTable() {
   newsletterTableReady = true;
 }
 
+let websiteEventsTableReady = false;
+async function ensureWebsiteEventsTable() {
+  if (websiteEventsTableReady) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS website_events (
+      id TEXT PRIMARY KEY,
+      viewer_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      path TEXT NOT NULL,
+      referrer TEXT,
+      duration_ms INTEGER,
+      scroll_depth INTEGER,
+      event_value TEXT,
+      metadata_json TEXT,
+      user_agent TEXT,
+      ip_hash TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_website_events_created_at ON website_events(created_at)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_website_events_event_type ON website_events(event_type)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_website_events_viewer_id ON website_events(viewer_id)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_website_events_session_id ON website_events(session_id)`);
+  websiteEventsTableReady = true;
+}
+
 // --- SEO / programmatic helpers ---
 const slugify = (str) =>
   String(str || '')
@@ -2140,6 +2167,72 @@ app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
   }
 });
 
+app.post('/api/analytics/event', async (req, res) => {
+  try {
+    const ua = String(req.headers['user-agent'] || '');
+    if (/bot|spider|crawl|preview|facebookexternalhit|headless|lighthouse/i.test(ua)) {
+      return res.json({ ok: true, skipped: 'bot' });
+    }
+    const viewerId = String(req.body?.viewerId || '').trim().slice(0, 128);
+    const sessionId = String(req.body?.sessionId || '').trim().slice(0, 128);
+    const eventType = String(req.body?.eventType || '').trim().toLowerCase().slice(0, 64);
+    const pathName = String(req.body?.path || '').trim().slice(0, 255);
+    const referrer = String(req.body?.referrer || '').trim().slice(0, 512) || null;
+    const durationMsRaw = Number(req.body?.durationMs);
+    const scrollDepthRaw = Number(req.body?.scrollDepth);
+    const eventValue = String(req.body?.eventValue || '').trim().slice(0, 255) || null;
+    const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : null;
+
+    if (!viewerId || !sessionId || !eventType || !pathName) {
+      return res.status(400).json({ error: 'Missing analytics fields' });
+    }
+
+    const allowedEvents = new Set([
+      'page_view',
+      'page_exit',
+      'click',
+      'scroll',
+      'form_submit_initial',
+      'form_submit_details',
+      'search_results_loaded',
+      'consent_granted',
+      'consent_declined'
+    ]);
+    if (!allowedEvents.has(eventType)) {
+      return res.status(400).json({ error: 'Unsupported event type' });
+    }
+
+    const durationMs = Number.isFinite(durationMsRaw) && durationMsRaw >= 0 ? Math.round(durationMsRaw) : null;
+    const scrollDepth = Number.isFinite(scrollDepthRaw)
+      ? Math.max(0, Math.min(100, Math.round(scrollDepthRaw)))
+      : null;
+    const metadataJson = metadata ? JSON.stringify(metadata).slice(0, 4000) : null;
+
+    await ensureWebsiteEventsTable();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO website_events
+        (id, viewer_id, session_id, event_type, path, referrer, duration_ms, scroll_depth, event_value, metadata_json, user_agent, ip_hash, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())`,
+      uuid(),
+      viewerId,
+      sessionId,
+      eventType,
+      pathName,
+      referrer,
+      durationMs,
+      scrollDepth,
+      eventValue,
+      metadataJson,
+      ua.slice(0, 1024) || null,
+      hashIp(req.ip || '')
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Analytics event ingest failed', err);
+    res.status(500).json({ error: 'Could not ingest analytics event' });
+  }
+});
+
 app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
   try {
     const name = String(req.body?.name || '').trim();
@@ -2575,6 +2668,52 @@ app.get('/api/admin/main/analytics', async (req, res) => {
     }));
     staleNoUpdateLeads.sort((a, b) => b.ageDays - a.ageDays);
 
+    await ensureWebsiteEventsTable();
+    const [
+      uniqueViewersRangeRows,
+      uniqueViewersAllRows,
+      pageViewsRangeRows,
+      sessionsRangeRows,
+      avgEngagementRows,
+      avgScrollRows,
+      topPagesRows,
+      topReferrersRows,
+      eventCountsRows
+    ] = await Promise.all([
+      prisma.$queryRaw`SELECT COUNT(DISTINCT viewer_id)::bigint AS count FROM website_events WHERE created_at >= ${from} AND created_at <= ${to}`,
+      prisma.$queryRaw`SELECT COUNT(DISTINCT viewer_id)::bigint AS count FROM website_events`,
+      prisma.$queryRaw`SELECT COUNT(*)::bigint AS count FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to}`,
+      prisma.$queryRaw`SELECT COUNT(DISTINCT session_id)::bigint AS count FROM website_events WHERE created_at >= ${from} AND created_at <= ${to}`,
+      prisma.$queryRaw`SELECT AVG(duration_ms)::float AS avg_ms FROM website_events WHERE event_type = 'page_exit' AND duration_ms IS NOT NULL AND created_at >= ${from} AND created_at <= ${to}`,
+      prisma.$queryRaw`SELECT AVG(max_scroll)::float AS avg_scroll FROM (SELECT session_id, MAX(COALESCE(scroll_depth, 0))::float AS max_scroll FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY session_id) t`,
+      prisma.$queryRaw`SELECT path, COUNT(*)::bigint AS views FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY path ORDER BY views DESC LIMIT 12`,
+      prisma.$queryRaw`SELECT COALESCE(NULLIF(referrer, ''), '(direct)') AS referrer, COUNT(*)::bigint AS views FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY referrer ORDER BY views DESC LIMIT 8`,
+      prisma.$queryRaw`SELECT event_type, COUNT(*)::bigint AS total FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY event_type`
+    ]);
+
+    const uniqueViewersInRange = Number(uniqueViewersRangeRows?.[0]?.count || 0);
+    const uniqueViewersAllTime = Number(uniqueViewersAllRows?.[0]?.count || 0);
+    const pageViewsInRange = Number(pageViewsRangeRows?.[0]?.count || 0);
+    const sessionsInRange = Number(sessionsRangeRows?.[0]?.count || 0);
+    const avgEngagementMs = Number(avgEngagementRows?.[0]?.avg_ms || 0);
+    const avgMaxScrollDepth = Number(avgScrollRows?.[0]?.avg_scroll || 0);
+    const eventCounts = (eventCountsRows || []).reduce((acc, row) => {
+      const key = String(row.event_type || '');
+      acc[key] = Number(row.total || 0);
+      return acc;
+    }, {});
+    const topPages = (topPagesRows || []).map((row) => ({
+      path: String(row.path || '/'),
+      views: Number(row.views || 0)
+    }));
+    const topReferrers = (topReferrersRows || []).map((row) => ({
+      referrer: String(row.referrer || '(direct)'),
+      views: Number(row.views || 0)
+    }));
+    const pagesPerSession = sessionsInRange ? Number((pageViewsInRange / sessionsInRange).toFixed(2)) : 0;
+    const avgEngagementSeconds = Number((avgEngagementMs / 1000).toFixed(1));
+    const avgScrollDepthPct = Number(avgMaxScrollDepth.toFixed(1));
+
     res.json({
       ok: true,
       from: from.toISOString().slice(0, 10),
@@ -2588,7 +2727,14 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         impressionsInRange: impressionsRange,
         avgNotificationsPerLead: leadsRange.length ? Number((notificationsRange / leadsRange.length).toFixed(2)) : 0,
         avgTimeToFirstContactHours,
-        noUpdateLeadsCount: staleNoUpdateLeads.length
+        noUpdateLeadsCount: staleNoUpdateLeads.length,
+        uniqueViewersInRange,
+        uniqueViewersAllTime,
+        pageViewsInRange,
+        sessionsInRange,
+        pagesPerSession,
+        avgEngagementSeconds,
+        avgScrollDepthPct
       },
       breakdowns: {
         careTypes: careTypeMap,
@@ -2600,7 +2746,10 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         conversionByProvider,
         admitRateByCareType,
         admitRateByGeography,
-        noUpdateLeads: staleNoUpdateLeads
+        noUpdateLeads: staleNoUpdateLeads,
+        topPages,
+        topReferrers,
+        webEventCounts: eventCounts
       },
       timeline,
       heatPoints,

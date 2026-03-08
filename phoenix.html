@@ -30,6 +30,8 @@
   <meta name="description" content="Find hospice, palliative, and home care providers near you. Free for families. Fast matched results." />
   <link rel="canonical" href="https://www.besthospice.com/phoenix" />
   <link rel="stylesheet" href="styles-modern.css?v=1" />
+  <script src="/cookie-consent.js" defer></script>
+  <script src="/analytics-tracker.js" defer></script>
 </head>
 <body>
   <div class="page-shell" style="max-width:860px; margin:0 auto; padding:24px 16px;">
@@ -108,6 +110,13 @@
       form.addEventListener('submit', (event) => {
         // Let native browser validation run first.
         if (!form.checkValidity()) return;
+        if (typeof window.trackBhhhEvent === 'function') {
+          const timeline = document.getElementById('timeline')?.value || '';
+          window.trackBhhhEvent('form_submit_initial', {
+            eventValue: 'phoenix_form_submit',
+            metadata: { timeline }
+          });
+        }
         event.preventDefault();
 
         const continueSubmit = () => {

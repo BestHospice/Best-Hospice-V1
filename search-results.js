@@ -314,6 +314,12 @@ function showResultsWithOptionalPrompt() {
     "You're all set! The providers below have been notified and are ready to help. Expect to hear from them soon. Browse their profiles below to learn more about who will be reaching out.";
   leadConfirmation.classList.remove('hidden');
   if (notifyMini.textContent.trim()) notifyMini.classList.remove('hidden');
+  if (typeof window.trackBhhhEvent === 'function') {
+    window.trackBhhhEvent('search_results_loaded', {
+      eventValue: 'results_with_optional_prompt',
+      metadata: { providers: currentNearbyProviders.length, zip: currentZip }
+    });
+  }
   refreshMapLayout();
   optionalCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -325,6 +331,12 @@ function showNoProvidersState(cityName) {
   if (noProviderCityEl) noProviderCityEl.textContent = cityName || 'your area';
   if (waitlistStatusEl) waitlistStatusEl.textContent = '';
   noProvidersCard?.classList.remove('hidden');
+  if (typeof window.trackBhhhEvent === 'function') {
+    window.trackBhhhEvent('search_results_loaded', {
+      eventValue: 'no_providers',
+      metadata: { city: cityName || 'unknown', zip: currentZip }
+    });
+  }
   noProvidersCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -426,6 +438,12 @@ async function handleOptionalDetailsSubmit(event) {
   try {
     setDetailsStatus('Sending additional details...');
     await notifyEnhancedDetails(answers);
+    if (typeof window.trackBhhhEvent === 'function') {
+      window.trackBhhhEvent('form_submit_details', {
+        eventValue: 'optional_details_submitted',
+        metadata: { careType: detailCareType.value || '', relationship: detailRelationship.value || '' }
+      });
+    }
     setDetailsStatus('Thank you! Providers now have more details to assist you.');
     revealFinalScreen();
   } catch (err) {

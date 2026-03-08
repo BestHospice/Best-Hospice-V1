@@ -159,6 +159,19 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
 
       <div class="split">
         <div class="card">
+          <h2>Website Engagement</h2>
+          <div class="stats-grid" id="web-stats-grid"></div>
+        </div>
+        <div class="card">
+          <h2>Top Website Pages</h2>
+          <div id="top-pages-bars" class="bars"></div>
+          <h3 style="margin-top:14px;">Top Referrers</h3>
+          <div id="top-referrers-bars" class="bars"></div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="card">
           <h2>Lead Trend (Daily)</h2>
           <div id="timeline" class="timeline"></div>
         </div>
@@ -309,6 +322,9 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     const fromInput = document.getElementById('from-date');
     const toInput = document.getElementById('to-date');
     const statsGrid = document.getElementById('stats-grid');
+    const webStatsGrid = document.getElementById('web-stats-grid');
+    const topPagesBarsEl = document.getElementById('top-pages-bars');
+    const topReferrersBarsEl = document.getElementById('top-referrers-bars');
     const timelineEl = document.getElementById('timeline');
     const careBarsEl = document.getElementById('care-bars');
     const submittedBarsEl = document.getElementById('submitted-bars');
@@ -412,9 +428,27 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         ['Peak Leads (Single Day)', fmtNum(peakDay.count)],
         ['Top ZIPs Counted', fmtNum(uniqueZips)],
         ['Avg Time to First Contact (hrs)', totals.avgTimeToFirstContactHours == null ? '-' : totals.avgTimeToFirstContactHours],
-        ['Leads with No Updates (7+ days)', fmtNum(totals.noUpdateLeadsCount || 0)]
+        ['Leads with No Updates (7+ days)', fmtNum(totals.noUpdateLeadsCount || 0)],
+        ['Unique Website Viewers (Range)', fmtNum(totals.uniqueViewersInRange || 0)],
+        ['Unique Website Viewers (All Time)', fmtNum(totals.uniqueViewersAllTime || 0)]
       ];
       statsGrid.innerHTML = cards.map(([k, v]) => (
+        `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`
+      )).join('');
+    }
+
+    function renderWebsiteStats(totals = {}, eventCounts = {}) {
+      const cards = [
+        ['Page Views (Range)', fmtNum(totals.pageViewsInRange || 0)],
+        ['Sessions (Range)', fmtNum(totals.sessionsInRange || 0)],
+        ['Pages / Session', String(totals.pagesPerSession || 0)],
+        ['Avg Time on Site (sec)', String(totals.avgEngagementSeconds || 0)],
+        ['Avg Max Scroll Depth', `${totals.avgScrollDepthPct || 0}%`],
+        ['Initial Form Submits', fmtNum(eventCounts.form_submit_initial || 0)],
+        ['Details Form Submits', fmtNum(eventCounts.form_submit_details || 0)],
+        ['Results Loaded Events', fmtNum(eventCounts.search_results_loaded || 0)]
+      ];
+      webStatsGrid.innerHTML = cards.map(([k, v]) => (
         `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`
       )).join('');
     }
@@ -816,6 +850,12 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         { label: 'Other', value: submittedBy.Other || 0 }
       ]);
       renderTopZips((data.breakdowns && data.breakdowns.topZips) || []);
+      const topPages = (data.breakdowns && data.breakdowns.topPages) || [];
+      const topReferrers = (data.breakdowns && data.breakdowns.topReferrers) || [];
+      const eventCounts = (data.breakdowns && data.breakdowns.webEventCounts) || {};
+      renderWebsiteStats(data.totals || {}, eventCounts);
+      renderBars(topPagesBarsEl, topPages.map((p) => ({ label: String(p.path || '/').slice(0, 42), value: p.views || 0 })));
+      renderBars(topReferrersBarsEl, topReferrers.map((r) => ({ label: String(r.referrer || '(direct)').replace(/^https?:\\/\\//, '').slice(0, 42), value: r.views || 0 })));
       renderNeedTimesChart((data.breakdowns && data.breakdowns.clientNeedTimesAllTime) || []);
       renderNeedDaysChart((data.breakdowns && data.breakdowns.clientNeedDaysAllTime) || []);
       renderProviderRanking((data.breakdowns && data.breakdowns.providerClientRanking) || []);

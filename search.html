@@ -37,6 +37,8 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
 /></noscript>
 <!-- End Meta Pixel Code -->
   <script src="/abel-chat.js" defer></script>
+  <script src="/cookie-consent.js" defer></script>
+  <script src="/analytics-tracker.js" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -117,5 +119,20 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       </div>
     </footer>
   </div>
+  <script>
+    (() => {
+      const form = document.getElementById('search-form');
+      if (!form) return;
+      form.addEventListener('submit', () => {
+        const timeline = document.getElementById('timeline')?.value || '';
+        if (typeof window.trackBhhhEvent === 'function') {
+          window.trackBhhhEvent('form_submit_initial', {
+            eventValue: 'search_form_submit',
+            metadata: { timeline }
+          });
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
