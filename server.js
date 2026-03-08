@@ -21,6 +21,10 @@ const ADMIN_TOKEN_ADD = process.env.ADMIN_TOKEN_ADD || 'TimetoProvideHelp12!';
 const ADMIN_TOKEN_REMOVE = process.env.ADMIN_TOKEN_REMOVE || 'this221isHow45!toRemove398Them34!';
 const ADMIN_TOKEN_DASH = process.env.ADMIN_TOKEN_DASH || 'lookForProviders177Now73!';
 const ADMIN_TOKEN_AUDIT = process.env.ADMIN_TOKEN_AUDIT || ADMIN_TOKEN_DASH;
+
+function isAdminMainToken(token) {
+  return token === ADMIN_TOKEN_DASH || token === ADMIN_TOKEN_AUDIT || token === ADMIN_TOKEN_REMOVE;
+}
 const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET || '';
 const TURNSTILE_BYPASS = process.env.TURNSTILE_BYPASS === 'true';
 const TURNSTILE_SITE_KEY = process.env.TURNSTILE_SITE_KEY || '';
@@ -798,6 +802,20 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+function uniqueEmails(items) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of items || []) {
+    const email = String(raw || '').trim();
+    if (!email) continue;
+    const key = email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(email);
+  }
+  return out;
+}
+
 function normalizeCityState(value) {
   return String(value || '').trim();
 }
@@ -851,9 +869,11 @@ async function processNotificationJob(job) {
   const payload = job.payload || {};
   const isStatusNudge = String(payload.jobType || '').toLowerCase() === 'lead_status_nudge';
   const providerEmail = payload.providerEmail;
-  const providerEmails = Array.isArray(payload.providerEmails)
-    ? payload.providerEmails.map((e) => String(e || '').trim()).filter(Boolean)
-    : (providerEmail ? [String(providerEmail).trim()] : []);
+  const providerEmails = uniqueEmails(
+    Array.isArray(payload.providerEmails)
+      ? payload.providerEmails
+      : (providerEmail ? [providerEmail] : [])
+  );
   const providerPhone = payload.providerPhone;
   let emailResult = { status: 'failed', error: 'Missing provider email' };
 
@@ -1003,28 +1023,16 @@ async function processNotificationJob(job) {
   }
 
   const nextAttempts = (job.attempts || 0) + 1;
-  const permanentFailure = Boolean(emailResult?.permanentFailure);
-  if (!permanentFailure && nextAttempts < JOB_MAX_ATTEMPTS) {
-    await prisma.notificationJob.update({
-      where: { id: job.id },
-      data: {
-        status: 'pending',
-        attempts: nextAttempts,
-        lastError: emailResult.error || 'send failed',
-        lockedAt: null,
-        runAt: new Date(Date.now() + JOB_RETRY_DELAY_MS)
-      }
-    });
-  } else {
-    await prisma.notificationJob.update({
-      where: { id: job.id },
-      data: {
-        status: 'failed',
-        attempts: nextAttempts,
-        lastError: emailResult.error || 'send failed'
-      }
-    });
-  }
+  // Do not retry lead notifications automatically; duplicate retries confuse providers
+  // and can spam the same lead. Mark failed once and surface the error in admin.
+  await prisma.notificationJob.update({
+    where: { id: job.id },
+    data: {
+      status: 'failed',
+      attempts: nextAttempts,
+      lastError: emailResult.error || 'send failed'
+    }
+  });
 }
 
 let jobWorkerRunning = false;
@@ -2067,10 +2075,10 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     const jobs = toList
       .map((p) => {
       const providerRecord = providerMap.get(p.id);
-      const recipientEmails = [
+      const recipientEmails = uniqueEmails([
         String(providerRecord?.email || p.email || '').trim(),
         String(providerRecord?.secondaryContactEmail || '').trim()
-      ].filter(Boolean);
+      ]);
       if (!recipientEmails.length) return null;
       const planTier = normalizePlanTier(p.planTier || providerRecord?.planTier);
       const delayMs = PLAN_NOTIFY_DELAY_MS[planTier] ?? PLAN_NOTIFY_DELAY_MS.verified;
@@ -2288,7 +2296,7 @@ app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
 
 app.get('/api/admin/main/analytics', async (req, res) => {
   const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_DASH) {
+  if (!isAdminMainToken(token)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
@@ -2693,51 +2701,65 @@ app.get('/api/admin/main/analytics', async (req, res) => {
     }));
     staleNoUpdateLeads.sort((a, b) => b.ageDays - a.ageDays);
 
-    await ensureWebsiteEventsTable();
-    const [
-      uniqueViewersRangeRows,
-      uniqueViewersAllRows,
-      pageViewsRangeRows,
-      sessionsRangeRows,
-      avgEngagementRows,
-      avgScrollRows,
-      topPagesRows,
-      topReferrersRows,
-      eventCountsRows
-    ] = await Promise.all([
-      prisma.$queryRaw`SELECT COUNT(DISTINCT viewer_id)::bigint AS count FROM website_events WHERE created_at >= ${from} AND created_at <= ${to}`,
-      prisma.$queryRaw`SELECT COUNT(DISTINCT viewer_id)::bigint AS count FROM website_events`,
-      prisma.$queryRaw`SELECT COUNT(*)::bigint AS count FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to}`,
-      prisma.$queryRaw`SELECT COUNT(DISTINCT session_id)::bigint AS count FROM website_events WHERE created_at >= ${from} AND created_at <= ${to}`,
-      prisma.$queryRaw`SELECT AVG(duration_ms)::float AS avg_ms FROM website_events WHERE event_type = 'page_exit' AND duration_ms IS NOT NULL AND created_at >= ${from} AND created_at <= ${to}`,
-      prisma.$queryRaw`SELECT AVG(max_scroll)::float AS avg_scroll FROM (SELECT session_id, MAX(COALESCE(scroll_depth, 0))::float AS max_scroll FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY session_id) t`,
-      prisma.$queryRaw`SELECT path, COUNT(*)::bigint AS views FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY path ORDER BY views DESC LIMIT 12`,
-      prisma.$queryRaw`SELECT COALESCE(NULLIF(referrer, ''), '(direct)') AS referrer, COUNT(*)::bigint AS views FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY referrer ORDER BY views DESC LIMIT 8`,
-      prisma.$queryRaw`SELECT event_type, COUNT(*)::bigint AS total FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY event_type`
-    ]);
+    let uniqueViewersInRange = 0;
+    let uniqueViewersAllTime = 0;
+    let pageViewsInRange = 0;
+    let sessionsInRange = 0;
+    let pagesPerSession = 0;
+    let avgEngagementSeconds = 0;
+    let avgScrollDepthPct = 0;
+    let eventCounts = {};
+    let topPages = [];
+    let topReferrers = [];
+    try {
+      await ensureWebsiteEventsTable();
+      const [
+        uniqueViewersRangeRows,
+        uniqueViewersAllRows,
+        pageViewsRangeRows,
+        sessionsRangeRows,
+        avgEngagementRows,
+        avgScrollRows,
+        topPagesRows,
+        topReferrersRows,
+        eventCountsRows
+      ] = await Promise.all([
+        prisma.$queryRaw`SELECT COUNT(DISTINCT viewer_id)::bigint AS count FROM website_events WHERE created_at >= ${from} AND created_at <= ${to}`,
+        prisma.$queryRaw`SELECT COUNT(DISTINCT viewer_id)::bigint AS count FROM website_events`,
+        prisma.$queryRaw`SELECT COUNT(*)::bigint AS count FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to}`,
+        prisma.$queryRaw`SELECT COUNT(DISTINCT session_id)::bigint AS count FROM website_events WHERE created_at >= ${from} AND created_at <= ${to}`,
+        prisma.$queryRaw`SELECT AVG(duration_ms)::float AS avg_ms FROM website_events WHERE event_type = 'page_exit' AND duration_ms IS NOT NULL AND created_at >= ${from} AND created_at <= ${to}`,
+        prisma.$queryRaw`SELECT AVG(max_scroll)::float AS avg_scroll FROM (SELECT session_id, MAX(COALESCE(scroll_depth, 0))::float AS max_scroll FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY session_id) t`,
+        prisma.$queryRaw`SELECT path, COUNT(*)::bigint AS views FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY path ORDER BY views DESC LIMIT 12`,
+        prisma.$queryRaw`SELECT COALESCE(NULLIF(referrer, ''), '(direct)') AS referrer, COUNT(*)::bigint AS views FROM website_events WHERE event_type = 'page_view' AND created_at >= ${from} AND created_at <= ${to} GROUP BY referrer ORDER BY views DESC LIMIT 8`,
+        prisma.$queryRaw`SELECT event_type, COUNT(*)::bigint AS total FROM website_events WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY event_type`
+      ]);
 
-    const uniqueViewersInRange = Number(uniqueViewersRangeRows?.[0]?.count || 0);
-    const uniqueViewersAllTime = Number(uniqueViewersAllRows?.[0]?.count || 0);
-    const pageViewsInRange = Number(pageViewsRangeRows?.[0]?.count || 0);
-    const sessionsInRange = Number(sessionsRangeRows?.[0]?.count || 0);
-    const avgEngagementMs = Number(avgEngagementRows?.[0]?.avg_ms || 0);
-    const avgMaxScrollDepth = Number(avgScrollRows?.[0]?.avg_scroll || 0);
-    const eventCounts = (eventCountsRows || []).reduce((acc, row) => {
-      const key = String(row.event_type || '');
-      acc[key] = Number(row.total || 0);
-      return acc;
-    }, {});
-    const topPages = (topPagesRows || []).map((row) => ({
-      path: String(row.path || '/'),
-      views: Number(row.views || 0)
-    }));
-    const topReferrers = (topReferrersRows || []).map((row) => ({
-      referrer: String(row.referrer || '(direct)'),
-      views: Number(row.views || 0)
-    }));
-    const pagesPerSession = sessionsInRange ? Number((pageViewsInRange / sessionsInRange).toFixed(2)) : 0;
-    const avgEngagementSeconds = Number((avgEngagementMs / 1000).toFixed(1));
-    const avgScrollDepthPct = Number(avgMaxScrollDepth.toFixed(1));
+      uniqueViewersInRange = Number(uniqueViewersRangeRows?.[0]?.count || 0);
+      uniqueViewersAllTime = Number(uniqueViewersAllRows?.[0]?.count || 0);
+      pageViewsInRange = Number(pageViewsRangeRows?.[0]?.count || 0);
+      sessionsInRange = Number(sessionsRangeRows?.[0]?.count || 0);
+      const avgEngagementMs = Number(avgEngagementRows?.[0]?.avg_ms || 0);
+      const avgMaxScrollDepth = Number(avgScrollRows?.[0]?.avg_scroll || 0);
+      eventCounts = (eventCountsRows || []).reduce((acc, row) => {
+        const key = String(row.event_type || '');
+        acc[key] = Number(row.total || 0);
+        return acc;
+      }, {});
+      topPages = (topPagesRows || []).map((row) => ({
+        path: String(row.path || '/'),
+        views: Number(row.views || 0)
+      }));
+      topReferrers = (topReferrersRows || []).map((row) => ({
+        referrer: String(row.referrer || '(direct)'),
+        views: Number(row.views || 0)
+      }));
+      pagesPerSession = sessionsInRange ? Number((pageViewsInRange / sessionsInRange).toFixed(2)) : 0;
+      avgEngagementSeconds = Number((avgEngagementMs / 1000).toFixed(1));
+      avgScrollDepthPct = Number(avgMaxScrollDepth.toFixed(1));
+    } catch (webAnalyticsErr) {
+      console.error('Website analytics query failed (continuing with lead analytics)', webAnalyticsErr?.message || webAnalyticsErr);
+    }
 
     res.json({
       ok: true,
@@ -2788,7 +2810,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
 
 app.delete('/api/admin/main/leads/:id', async (req, res) => {
   const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_DASH) {
+  if (!isAdminMainToken(token)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const leadId = String(req.params.id || '').trim();
