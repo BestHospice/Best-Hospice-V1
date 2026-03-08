@@ -833,7 +833,10 @@
       const eventCounts = (data.breakdowns && data.breakdowns.webEventCounts) || {};
       renderWebsiteStats(data.totals || {}, eventCounts);
       renderBars(topPagesBarsEl, topPages.map((p) => ({ label: String(p.path || '/').slice(0, 42), value: p.views || 0 })));
-      renderBars(topReferrersBarsEl, topReferrers.map((r) => ({ label: String(r.referrer || '(direct)').replace(/^https?:\\/\\//, '').slice(0, 42), value: r.views || 0 })));
+      renderBars(topReferrersBarsEl, topReferrers.map((r) => ({
+        label: String(r.referrer || '(direct)').replace('https://', '').replace('http://', '').slice(0, 42),
+        value: r.views || 0
+      })));
       renderNeedTimesChart((data.breakdowns && data.breakdowns.clientNeedTimesAllTime) || []);
       renderNeedDaysChart((data.breakdowns && data.breakdowns.clientNeedDaysAllTime) || []);
       renderProviderRanking((data.breakdowns && data.breakdowns.providerClientRanking) || []);
