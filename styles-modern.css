@@ -1440,15 +1440,6 @@ a {
   }
 }
 
-.site-footer {
-  margin-top: 32px;
-  padding: 20px 18px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: #fff;
-  box-shadow: var(--shadow);
-}
-
 .footer-inner {
   display: grid;
   gap: 10px;
