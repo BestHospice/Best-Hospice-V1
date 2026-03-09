@@ -562,7 +562,7 @@ app.get('/cities.html', async (_req, res) => {
         </div>
       </div>
     </header>
-    <main class="page-wrap" style="padding-top:32px; padding-bottom:56px;">
+    <main class="page-wrap" style="position:relative;z-index:0;padding-top:32px; padding-bottom:56px;">
       ${sectionHtml('hospice', 'Hospice Care')}
       ${sectionHtml('palliative', 'Palliative Care')}
       ${sectionHtml('home', 'Home Care')}
@@ -1424,7 +1424,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         </div>
       </header>
       ${body}
-      <footer class="site-footer">
+      <footer class="site-footer" style="position:static;background:#f8f5f0;width:100%;display:block;z-index:1;opacity:1;margin-top:0;border-radius:0;box-shadow:none;border:none;padding:24px 32px;">
         <div class="footer-inner">
           <div class="footer-brand">Best Hospice and Home Health</div>
           <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
@@ -1498,7 +1498,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
         </div>
       </div>
     </section>
-    <main class="page-wrap">
+    <main class="page-wrap" style="position:relative;z-index:0;">
       <div class="two-col">
         <div>
           <section class="content-section">
@@ -1604,7 +1604,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
         <p class="hero-sub">${service.direct.replace('{cityState}', stateName)}</p>
       </div>
     </section>
-    <main class="page-wrap" style="padding-top:48px; padding-bottom:56px;">
+    <main class="page-wrap" style="position:relative;z-index:0;padding-top:48px; padding-bottom:56px;">
       <section class="content-section">
         <h2>Top Providers in ${stateName}</h2>
         <div class="provider-stack">${renderProviderList(providers.slice(0, 20))}</div>
@@ -1688,7 +1688,7 @@ function renderHubPage({ serviceKey, states = [] }) {
         </div>
       </div>
     </section>
-    <main class="page-wrap">
+    <main class="page-wrap" style="position:relative;z-index:0;">
       <div class="two-col">
         <div>
           <section class="content-section">
