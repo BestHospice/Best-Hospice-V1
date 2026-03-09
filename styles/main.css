@@ -570,6 +570,20 @@ main .card { background: #fff; border: 1px solid var(--sand-dark); }
   main { padding: 16px; }
 }
 
+#cookie-consent-banner,
+#abel-chat,
+#main-menu-btn,
+.consent-bar {
+  z-index: 9999 !important;
+}
+
+.site-footer,
+.footer-inner {
+  position: relative !important;
+  z-index: 1 !important;
+  isolation: isolate;
+}
+
 @media (max-width: 600px) {
   .page-wrap { padding: 0 16px; }
   .hero { padding: 40px 16px 48px; }
