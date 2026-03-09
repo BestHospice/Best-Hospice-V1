@@ -634,9 +634,6 @@ app.get(['/cities/:city-:state.html', '/cities/:city-:state'], async (req, res) 
   try {
     const citySlug = String(req.params.city || '').toLowerCase();
     const stateSlug = String(req.params.state || '').toLowerCase();
-    if (citySlug === 'phoenix' && stateSlug === 'arizona') {
-      return res.sendFile(path.join(__dirname, 'cities', 'phoenix-arizona.html'));
-    }
     const candidates = stateCandidatesFromSlug(stateSlug);
     const providersByState = await prisma.provider.findMany({
       where: {
@@ -1258,24 +1255,27 @@ function nearbyCityLinks(city, state) {
 
 function renderProviderList(providers) {
   if (!providers?.length) {
-    return '<p>No providers listed yet for this area. We are expanding our network—check back soon.</p>';
+    return '<p class="text-muted">No providers listed yet for this area. We are expanding our network—check back soon.</p>';
   }
   return providers
     .map(
       (p) => `
-      <div class="provider-card">
-        <h3>${p.name}</h3>
-        <p>${p.address}</p>
-        <p>${p.phone ? `Phone: ${p.phone}` : ''}</p>
-        ${p.website ? `<p><a href="${p.website}" target="_blank" rel="noopener" style="color:#1d4ed8;">Website — click here to see the business home page</a></p>` : ''}
-      </div>`
+      <article class="provider-card">
+        <div class="v-badge"><span class="v-dot"></span>Verified</div>
+        <h3 class="provider-name">${p.name}</h3>
+        <div class="provider-details">
+          ${p.address ? `<div class="p-row">${p.address}</div>` : ''}
+          ${p.phone ? `<div class="p-row">Phone: ${p.phone}</div>` : ''}
+          ${p.website ? `<div class="p-row"><a class="p-link" href="${p.website}" target="_blank" rel="noopener">Website — click here to see the business home page</a></div>` : ''}
+        </div>
+      </article>`
     )
     .join('\n');
 }
 
 function renderComparisonTable() {
   return `
-    <table class="compare" aria-label="Compare hospice, palliative, and home care">
+    <table class="compare-table" aria-label="Compare hospice, palliative, and home care">
       <thead>
         <tr>
           <th>Category</th>
@@ -1286,8 +1286,8 @@ function renderComparisonTable() {
       </thead>
       <tbody>
         <tr><td>When used</td><td>Comfort near end of life</td><td>Any stage of serious illness</td><td>Daily living support</td></tr>
-        <tr><td>Can include medical team</td><td>Yes</td><td>Yes</td><td>Sometimes (skilled visits)</td></tr>
-        <tr><td>Works with curative treatment</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Can include medical team</td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Sometimes</span></td></tr>
+        <tr><td>Works with curative treatment</td><td><span class="tag-no">No</span></td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Yes</span></td></tr>
       </tbody>
     </table>
   `;
@@ -1295,11 +1295,11 @@ function renderComparisonTable() {
 
 function renderTrustBlock(dateStr) {
   return `
-    <section class="trust">
-      <h2>Reviewed for clarity</h2>
-      <p>Reviewed by the Best Hospice and Home Health Clinical Review Team.</p>
-      <p>Last updated: ${dateStr}</p>
-      <p>Sources: Medicare.gov, CMS, NIH.</p>
+    <section class="s-card">
+      <h3>Reviewed for clarity</h3>
+      <p class="text-small">Reviewed by the Best Hospice and Home Health Clinical Review Team.</p>
+      <p class="text-small"><strong>Last updated:</strong> ${dateStr}</p>
+      <p class="text-small">Sources: Medicare.gov, CMS, NIH.</p>
     </section>
   `;
 }
@@ -1327,7 +1327,11 @@ function renderPageHTML({ title, description, canonical, breadcrumbItems, body, 
     <title>${title}</title>
     <meta name="description" content="${description}" />
     <link rel="canonical" href="${canonical}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles-modern.css" />
+    <link rel="stylesheet" href="/styles/main.css" />
     <script src="/abel-chat.js" defer></script>
     <!-- Meta Pixel Code -->
 <script>
@@ -1349,9 +1353,55 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
     <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   </head>
   <body class="seo-page">
-    <header><a href="/">Best Hospice and Home Health</a></header>
-    <main>${body}</main>
-    <footer><p>Best Hospice and Home Health — connecting families to trusted hospice, palliative, and home care providers.</p></footer>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-top">
+          <div class="brand">
+            <img src="/BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo">
+          </div>
+          <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+            <span></span><span></span><span></span>
+          </button>
+          <div class="top-links" id="topLinks">
+            <a class="pill" href="/provider.html">Are you a hospice provider? <u>Click here</u> to join BestHospice.com</a>
+            <a class="pill ghost-pill" href="/why.html">Who We Are</a>
+            <a class="pill ghost-pill" href="/provider-dashboard.html">Provider Dashboard</a>
+            <a class="pill ghost-pill" href="/provider-billing.html">Provider Billing</a>
+            <a class="pill ghost-pill" href="/locations.html">Locations We Currently Serve</a>
+            <a class="pill ghost-pill" href="/cities.html">Browse Cities</a>
+            <a class="pill ghost-pill" href="/faq-blog.html">FAQ & Blog Posts</a>
+            <a class="pill ghost-pill" href="/education.html">Education Hub</a>
+            <a class="pill ghost-pill" href="/contact.html">Contact Us</a>
+          </div>
+        </div>
+      </header>
+      ${body}
+      <footer class="site-footer">
+        <div class="footer-inner">
+          <div class="footer-brand">Best Hospice and Home Health</div>
+          <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
+          <div class="footer-links">
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/cookie-policy.html">Cookie Policy</a>
+            <a href="/terms.html">Terms of Service</a>
+            <a href="/refund-policy.html">Refund & Cancellation Policy</a>
+            <a href="/provider-billing.html">Provider Billing</a>
+            <a href="/sitemap.html">HTML Sitemap</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+    <script>
+      (() => {
+        const toggle = document.querySelector('.menu-toggle');
+        const links = document.getElementById('topLinks');
+        if (!toggle || !links) return;
+        toggle.addEventListener('click', () => {
+          const open = links.classList.toggle('open');
+          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      })();
+    </script>
   </body>
   </html>`;
 }
@@ -1378,53 +1428,103 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
   const providerSchemas = providers.slice(0, 10);
 
   const body = `
-    <section class="card" style="padding:18px;">
-      <h1 style="margin:0 0 8px;">${service.name} in ${cityState}: Providers, Cost & Eligibility</h1>
-      <p class="tagline" style="margin:0 0 10px;">${service.direct.replace('{cityState}', cityState)}</p>
-      <div class="direct-answer">
-        <strong>Direct answer:</strong> ${service.direct.replace('{cityState}', cityState)}
+    <div class="breadcrumb">
+      <a href="/">Home</a><span>></span>
+      <a href="/${serviceKey}">${service.name}</a><span>></span>
+      <a href="/${serviceKey}/${(state || '').toLowerCase()}">${stateName}</a><span>></span>
+      ${cityState}
+    </div>
+    <section class="page-hero">
+      <div class="hero-inner">
+        <div class="hero-chip"><span class="hero-chip-dot"></span>Verified Local Providers</div>
+        <h1>${service.name} in ${cityState}: Providers, Cost & Eligibility</h1>
+        <p class="hero-sub">${service.direct.replace('{cityState}', cityState)}</p>
+        <div class="hero-btns">
+          <a class="btn-primary" href="/search.html">Find matched providers now</a>
+          <a class="btn-outline" href="/${serviceKey}/${(state || '').toLowerCase()}">Explore ${stateName}</a>
+        </div>
+        <div class="hero-trust">
+          <div class="trust-pill">Commission-free platform</div>
+          <div class="trust-pill">No family referral fees</div>
+          <div class="trust-pill">Verified provider directory</div>
+        </div>
       </div>
     </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">Local overview</h2>
-      <p style="margin:0 0 8px;">${providerLine}</p>
-      <p style="margin:0;">${localResources}</p>
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">${service.name} Providers in ${cityState}</h2>
-      ${renderProviderList(providers)}
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">Cost & Coverage</h2>
-      <p style="margin:0;">${service.cost.replace('{stateName}', stateName)}</p>
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">When to Choose ${service.name}</h2>
-      <p style="margin:0;">${service.eligibility}</p>
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">Local note for ${cityState}</h2>
-      <p style="margin:0;">${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">Compare Hospice, Palliative, and Home Care</h2>
-      ${renderComparisonTable()}
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">FAQs</h2>
-      <ul style="display:grid; gap:8px; margin:0; padding-left:18px;">${(service.faq || [])
-        .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
-        .join('')}</ul>
-    </section>
-    ${renderTrustBlock(formatDateISO())}
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h3 style="margin:0 0 8px;">Explore more</h3>
-      <ul style="margin:0; padding-left:18px;">
-        ${nearbyCityLinks(city, state)
-          .map((l) => `<li><a href="${l.url}">${l.name}</a></li>`)
-          .join('')}
-      </ul>
-    </section>
+    <main class="page-wrap">
+      <div class="two-col">
+        <div>
+          <section class="content-section">
+            <span class="eyebrow">Direct answer</span>
+            <p><strong>${service.direct.replace('{cityState}', cityState)}</strong></p>
+          </section>
+          <section class="content-section">
+            <h2>Local overview</h2>
+            <p>${providerLine}</p>
+            <p>${localResources}</p>
+          </section>
+          <section class="content-section">
+            <h2>${service.name} Providers in ${cityState}</h2>
+            <div class="provider-stack">
+              ${renderProviderList(providers)}
+            </div>
+          </section>
+          <section class="content-section">
+            <h2>Cost & Coverage</h2>
+            <p>${service.cost.replace('{stateName}', stateName)}</p>
+          </section>
+          <section class="content-section">
+            <h2>When to Choose ${service.name}</h2>
+            <p>${service.eligibility}</p>
+          </section>
+          <section class="content-section">
+            <h2>Local note for ${cityState}</h2>
+            <p>${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
+          </section>
+          <section class="content-section">
+            <h2>Compare Hospice, Palliative, and Home Care</h2>
+            ${renderComparisonTable()}
+          </section>
+          <section class="content-section">
+            <h2>FAQs</h2>
+            <div class="faq-list">
+              ${(service.faq || [])
+                .map(
+                  ([q, a]) => `
+                <div class="faq-item open">
+                  <button class="faq-btn" type="button" aria-expanded="true">${q}<svg class="faq-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg></button>
+                  <div class="faq-body" style="max-height:400px;padding-bottom:16px;"><p>${a}</p></div>
+                </div>`
+                )
+                .join('')}
+            </div>
+          </section>
+        </div>
+        <aside class="page-sidebar">
+          <section class="s-card featured">
+            <h3>Need care now?</h3>
+            <p>Connect with verified providers in minutes. Free for families and commission-free.</p>
+            <a class="btn-sidebar" href="/search.html">Start your search</a>
+          </section>
+          <section class="s-card">
+            <h3>Quick facts</h3>
+            <ul class="cov-list">
+              <li class="cov-row"><span class="cov-label">City</span><span>${cityState}</span></li>
+              <li class="cov-row"><span class="cov-label">Providers listed</span><span>${providerCount}</span></li>
+              <li class="cov-row"><span class="cov-label">Service</span><span>${service.name}</span></li>
+            </ul>
+          </section>
+          ${renderTrustBlock(formatDateISO())}
+          <section class="s-card">
+            <h3>Explore more</h3>
+            <ul class="link-list">
+              ${nearbyCityLinks(city, state)
+                .map((l) => `<li><a href="${l.url}">${l.name}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
+                .join('')}
+            </ul>
+          </section>
+        </aside>
+      </div>
+    </main>
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas });
 }
@@ -1444,43 +1544,61 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   const providerSchemas = providers.slice(0, 10);
   const cities = Array.from(new Set(providers.map((p) => p.city))).filter(Boolean).slice(0, 20);
   const body = `
-    <section class="card" style="padding:18px;">
-      <h1 style="margin:0 0 8px;">${service.name} in ${stateName}</h1>
-      <p class="tagline" style="margin:0;">${service.direct.replace('{cityState}', stateName)}</p>
+    <div class="breadcrumb">
+      <a href="/">Home</a><span>></span>
+      <a href="/${serviceKey}">${service.name}</a><span>></span>
+      ${stateName}
+    </div>
+    <section class="page-hero">
+      <div class="hero-inner">
+        <div class="hero-chip"><span class="hero-chip-dot"></span>${stateName}</div>
+        <h1>${service.name} in ${stateName}</h1>
+        <p class="hero-sub">${service.direct.replace('{cityState}', stateName)}</p>
+      </div>
     </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">Top Providers in ${stateName}</h2>
-      ${renderProviderList(providers.slice(0, 20))}
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">Browse cities in ${stateName}</h2>
-      <ul style="display:grid; gap:6px; margin:0; padding-left:18px;">${cities
-        .map((c) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${slugify(c)}-${(state || '').toLowerCase()}">${c}, ${state.toUpperCase()}</a></li>`)
-        .join('')}</ul>
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">Cost & Coverage</h2>
-      <p style="margin:0;">${service.cost.replace('{stateName}', stateName)}</p>
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">When to Choose ${service.name}</h2>
-      <p style="margin:0;">${service.eligibility}</p>
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">Local note for ${stateName}</h2>
-      <p style="margin:0;">${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">Compare Hospice, Palliative, and Home Care</h2>
-      ${renderComparisonTable()}
-    </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">FAQs</h2>
-      <ul style="display:grid; gap:8px; margin:0; padding-left:18px;">${(service.faq || [])
-        .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
-        .join('')}</ul>
-    </section>
-    ${renderTrustBlock(formatDateISO())}
+    <main class="page-wrap" style="padding-top:48px; padding-bottom:56px;">
+      <section class="content-section">
+        <h2>Top Providers in ${stateName}</h2>
+        <div class="provider-stack">${renderProviderList(providers.slice(0, 20))}</div>
+      </section>
+      <section class="content-section">
+        <h2>Browse cities in ${stateName}</h2>
+        <ul class="link-list">${cities
+          .map((c) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${slugify(c)}-${(state || '').toLowerCase()}">${c}, ${state.toUpperCase()}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
+          .join('')}</ul>
+      </section>
+      <section class="content-section">
+        <h2>Cost & Coverage</h2>
+        <p>${service.cost.replace('{stateName}', stateName)}</p>
+      </section>
+      <section class="content-section">
+        <h2>When to Choose ${service.name}</h2>
+        <p>${service.eligibility}</p>
+      </section>
+      <section class="content-section">
+        <h2>Local note for ${stateName}</h2>
+        <p>${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
+      </section>
+      <section class="content-section">
+        <h2>Compare Hospice, Palliative, and Home Care</h2>
+        ${renderComparisonTable()}
+      </section>
+      <section class="content-section">
+        <h2>FAQs</h2>
+        <div class="faq-list">
+          ${(service.faq || [])
+            .map(
+              ([q, a]) => `
+            <div class="faq-item open">
+              <button class="faq-btn" type="button" aria-expanded="true">${q}<svg class="faq-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg></button>
+              <div class="faq-body" style="max-height:400px;padding-bottom:16px;"><p>${a}</p></div>
+            </div>`
+            )
+            .join('')}
+        </div>
+      </section>
+      ${renderTrustBlock(formatDateISO())}
+    </main>
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas });
 }
@@ -1502,57 +1620,74 @@ function renderHubPage({ serviceKey, states = [] }) {
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
   const body = `
-    <section class="card" style="padding:18px;">
-      <h1 style="margin:0 0 8px;">${service.name}</h1>
-      <p class="tagline" style="margin:0;">${service.direct.replace('{cityState}', 'your area')}</p>
+    <div class="breadcrumb">
+      <a href="/">Home</a><span>></span>
+      ${service.name}
+    </div>
+    <section class="page-hero">
+      <div class="hero-inner">
+        <div class="hero-chip"><span class="hero-chip-dot"></span>Care Guide</div>
+        <h1>${service.name}</h1>
+        <p class="hero-sub">${service.direct.replace('{cityState}', 'your area')}</p>
+      </div>
     </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">${longGuide?.title || `${service.name} Guide`}</h2>
-      ${(longGuide?.intro || []).map((paragraph) => `<p style="margin:0 0 10px;">${paragraph}</p>`).join('')}
+    <main class="page-wrap" style="padding-top:48px; padding-bottom:56px;">
+    <section class="content-section">
+      <h2>${longGuide?.title || `${service.name} Guide`}</h2>
+      ${(longGuide?.intro || []).map((paragraph) => `<p>${paragraph}</p>`).join('')}
     </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">Find providers by state</h2>
+    <section class="content-section">
+      <h2>Find providers by state</h2>
       ${states.length
-        ? `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;">
+        ? `<div class="card-grid">
             ${states
-              .map((s) => `<a class="pill ghost-pill" href="${CANONICAL_DOMAIN}/${serviceKey}/${s}">${stateNameMap[s] || s.toUpperCase()}</a>`)
+              .map((s) => `<a class="card" href="${CANONICAL_DOMAIN}/${serviceKey}/${s}" style="text-decoration:none;"><h3>${stateNameMap[s] || s.toUpperCase()}</h3><p class="text-small">View providers and local resources</p></a>`)
               .join('')}
           </div>`
-        : '<p class="note">We are adding coverage in new states. Check back soon.</p>'}
+        : '<p class="text-muted">We are adding coverage in new states. Check back soon.</p>'}
     </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">Cost & Coverage</h2>
-      <p style="margin:0;">${service.cost.replace('{stateName}', 'your state')}</p>
+    <section class="content-section">
+      <h2>Cost & Coverage</h2>
+      <p>${service.cost.replace('{stateName}', 'your state')}</p>
     </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">When to Choose ${service.name}</h2>
-      <p style="margin:0;">${service.eligibility}</p>
+    <section class="content-section">
+      <h2>When to Choose ${service.name}</h2>
+      <p>${service.eligibility}</p>
     </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 8px;">Local note</h2>
-      <p style="margin:0;">${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
+    <section class="content-section">
+      <h2>Local note</h2>
+      <p>${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
     </section>
     ${(longGuide?.sections || [])
       .map(
         (section) => `
-      <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 8px;">${section.heading}</h2>
-        ${(section.paragraphs || []).map((paragraph) => `<p style="margin:0 0 10px;">${paragraph}</p>`).join('')}
+      <section class="content-section">
+        <h2>${section.heading}</h2>
+        ${(section.paragraphs || []).map((paragraph) => `<p>${paragraph}</p>`).join('')}
       </section>
     `
       )
       .join('')}
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">FAQs</h2>
-      <ul style="display:grid; gap:8px; margin:0; padding-left:18px;">${(service.faq || [])
-        .map(([q, a]) => `<li><strong>${q}</strong><br>${a}</li>`)
-        .join('')}</ul>
+    <section class="content-section">
+      <h2>FAQs</h2>
+      <div class="faq-list">
+        ${(service.faq || [])
+          .map(
+            ([q, a]) => `
+          <div class="faq-item open">
+            <button class="faq-btn" type="button" aria-expanded="true">${q}<svg class="faq-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg></button>
+            <div class="faq-body" style="max-height:400px;padding-bottom:16px;"><p>${a}</p></div>
+          </div>`
+          )
+          .join('')}
+      </div>
     </section>
-    <section class="card" style="padding:18px; margin-top:14px;">
-      <h2 style="margin:0 0 10px;">Compare Hospice, Palliative, and Home Care</h2>
+    <section class="content-section">
+      <h2>Compare Hospice, Palliative, and Home Care</h2>
       ${renderComparisonTable()}
     </section>
     ${renderTrustBlock(formatDateISO())}
+    </main>
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [] });
 }
