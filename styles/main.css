@@ -27,7 +27,7 @@
   --shadow-md:    0 6px 24px rgba(14,107,94,.11);
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; max-width: 100%; overflow-x: hidden; }
 
 body {
   font-family: var(--sans);
@@ -36,6 +36,8 @@ body {
   color: var(--ink);
   background: var(--white);
   -webkit-font-smoothing: antialiased;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 /* ── TYPOGRAPHY ──────────────────────────────── */
@@ -540,4 +542,14 @@ main .card { background: #fff; border: 1px solid var(--sand-dark); }
   .hero .hero-top { align-items: center; flex-wrap: wrap; padding: 10px 16px; }
   .hero .hero-body { padding: 26px 16px 30px; }
   main { padding: 16px; }
+}
+
+@media (max-width: 600px) {
+  .page-wrap { padding: 0 16px; }
+  .hero { padding: 40px 16px 48px; }
+  .page-hero { padding: 40px 16px 48px; }
+  .hero-inner { padding: 0; }
+  .two-col { padding: 32px 0 48px; }
+  .stat-strip { grid-template-columns: 1fr; }
+  body { overflow-x: hidden; }
 }
