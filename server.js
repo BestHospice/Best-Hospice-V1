@@ -1320,21 +1320,23 @@ function renderProviderList(providers) {
 
 function renderComparisonTable() {
   return `
-    <table class="compare-table" aria-label="Compare hospice, palliative, and home care">
-      <thead>
-        <tr>
-          <th>Category</th>
-          <th>Hospice</th>
-          <th>Palliative</th>
-          <th>Home Care</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td>When used</td><td>Comfort near end of life</td><td>Any stage of serious illness</td><td>Daily living support</td></tr>
-        <tr><td>Can include medical team</td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Sometimes</span></td></tr>
-        <tr><td>Works with curative treatment</td><td><span class="tag-no">No</span></td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Yes</span></td></tr>
-      </tbody>
-    </table>
+    <div class="compare-table-wrap">
+      <table class="compare-table" aria-label="Compare hospice, palliative, and home care">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Hospice</th>
+            <th>Palliative</th>
+            <th>Home Care</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>When used</td><td>Comfort near end of life</td><td>Any stage of serious illness</td><td>Daily living support</td></tr>
+          <tr><td>Can include medical team</td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Sometimes</span></td></tr>
+          <tr><td>Works with curative treatment</td><td><span class="tag-no">No</span></td><td><span class="tag-yes">Yes</span></td><td><span class="tag-yes">Yes</span></td></tr>
+        </tbody>
+      </table>
+    </div>
   `;
 }
 

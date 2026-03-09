@@ -4,7 +4,7 @@
    Teal/green palette with sand backgrounds and rust accent
    ============================================================ */
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; max-width: 100%; }
 
 :root {
   --green:        #0e6b5e;
@@ -39,6 +39,8 @@ body {
   max-width: 100%;
   overflow-x: hidden;
 }
+
+img, table, pre, code { overflow-x: auto; }
 
 /* ── TYPOGRAPHY ──────────────────────────────── */
 h1, h2, h3, h4 {
@@ -232,11 +234,15 @@ a  { color: var(--green); }
 .provider-name {
   font-family: var(--serif); font-size: 1rem; font-weight: 600;
   color: var(--charcoal); margin-bottom: 8px; padding-right: 72px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .provider-details { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .p-row {
   display: flex; align-items: center; gap: 7px;
   font-size: .83rem; color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .p-row svg { width: 13px; height: 13px; fill: var(--light); flex-shrink: 0; }
 .p-link {
@@ -275,6 +281,11 @@ a  { color: var(--green); }
   border-radius: var(--r); overflow: hidden;
   box-shadow: var(--shadow-sm); font-size: .86rem; margin: 18px 0;
 }
+.compare-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .compare-table thead { background: var(--green); }
 .compare-table thead th {
   color: var(--white); font-weight: 600; font-size: .78rem;
@@ -307,6 +318,7 @@ a  { color: var(--green); }
   gap: 14px; padding: 17px 0;
   font-family: var(--sans); font-size: .92rem; font-weight: 600;
   color: var(--charcoal); text-align: left;
+  white-space: normal;
 }
 .faq-btn:hover { color: var(--green); }
 .faq-icon {
@@ -354,6 +366,9 @@ a  { color: var(--green); }
   padding: 9px 0; font-size: .84rem; font-weight: 500;
   color: var(--green); text-decoration: none;
   border-bottom: 1px solid var(--sand-dark); transition: color .15s;
+  gap: 8px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .link-list li:last-child a { border-bottom: none; }
 .link-list li a:hover { color: var(--green-dark); }
@@ -552,4 +567,6 @@ main .card { background: #fff; border: 1px solid var(--sand-dark); }
   .two-col { padding: 32px 0 48px; }
   .stat-strip { grid-template-columns: 1fr; }
   body { overflow-x: hidden; }
+  .compare-table { min-width: 520px; }
+  .provider-name { padding-right: 0; }
 }
