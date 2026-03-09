@@ -634,6 +634,9 @@ app.get(['/cities/:city-:state.html', '/cities/:city-:state'], async (req, res) 
   try {
     const citySlug = String(req.params.city || '').toLowerCase();
     const stateSlug = String(req.params.state || '').toLowerCase();
+    if (citySlug === 'phoenix' && stateSlug === 'arizona') {
+      return res.sendFile(path.join(__dirname, 'cities', 'phoenix-arizona.html'));
+    }
     const candidates = stateCandidatesFromSlug(stateSlug);
     const providersByState = await prisma.provider.findMany({
       where: {
