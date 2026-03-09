@@ -1674,64 +1674,92 @@ function renderHubPage({ serviceKey, states = [] }) {
         <div class="hero-chip"><span class="hero-chip-dot"></span>Care Guide</div>
         <h1>${service.name}</h1>
         <p class="hero-sub">${service.direct.replace('{cityState}', 'your area')}</p>
+        <div class="hero-btns">
+          <a class="btn-primary" href="/search.html">Find matched providers now</a>
+          <a class="btn-outline" href="/cities.html">Browse cities</a>
+        </div>
+        <div class="hero-trust">
+          <div class="trust-pill">Verified provider directory</div>
+          <div class="trust-pill">No family referral fees</div>
+          <div class="trust-pill">Commission-free platform</div>
+        </div>
       </div>
     </section>
-    <main class="page-wrap" style="padding-top:48px; padding-bottom:56px;">
-    <section class="content-section">
-      <h2>${longGuide?.title || `${service.name} Guide`}</h2>
-      ${(longGuide?.intro || []).map((paragraph) => `<p>${paragraph}</p>`).join('')}
-    </section>
-    <section class="content-section">
-      <h2>Find providers by state</h2>
-      ${states.length
-        ? `<div class="card-grid">
-            ${states
-              .map((s) => `<a class="card" href="${CANONICAL_DOMAIN}/${serviceKey}/${s}" style="text-decoration:none;"><h3>${stateNameMap[s] || s.toUpperCase()}</h3><p class="text-small">View providers and local resources</p></a>`)
-              .join('')}
-          </div>`
-        : '<p class="text-muted">We are adding coverage in new states. Check back soon.</p>'}
-    </section>
-    <section class="content-section">
-      <h2>Cost & Coverage</h2>
-      <p>${service.cost.replace('{stateName}', 'your state')}</p>
-    </section>
-    <section class="content-section">
-      <h2>When to Choose ${service.name}</h2>
-      <p>${service.eligibility}</p>
-    </section>
-    <section class="content-section">
-      <h2>Local note</h2>
-      <p>${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
-    </section>
-    ${(longGuide?.sections || [])
-      .map(
-        (section) => `
-      <section class="content-section">
-        <h2>${section.heading}</h2>
-        ${(section.paragraphs || []).map((paragraph) => `<p>${paragraph}</p>`).join('')}
-      </section>
-    `
-      )
-      .join('')}
-    <section class="content-section">
-      <h2>FAQs</h2>
-      <div class="faq-list">
-        ${(service.faq || [])
-          .map(
-            ([q, a]) => `
-          <div class="faq-item open">
-            <button class="faq-btn" type="button" aria-expanded="true">${q}<svg class="faq-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg></button>
-            <div class="faq-body" style="max-height:400px;padding-bottom:16px;"><p>${a}</p></div>
-          </div>`
-          )
-          .join('')}
+    <main class="page-wrap">
+      <div class="two-col">
+        <div>
+          <section class="content-section">
+            <h2>${longGuide?.title || `${service.name} Guide`}</h2>
+            ${(longGuide?.intro || []).map((paragraph) => `<p>${paragraph}</p>`).join('')}
+          </section>
+          <section class="content-section">
+            <h2>Find providers by state</h2>
+            ${states.length
+              ? `<div class="card-grid">
+                  ${states
+                    .map((s) => `<a class="card" href="${CANONICAL_DOMAIN}/${serviceKey}/${s}" style="text-decoration:none;"><h3>${stateNameMap[s] || s.toUpperCase()}</h3><p class="text-small">View providers and local resources</p></a>`)
+                    .join('')}
+                </div>`
+              : '<p class="text-muted">We are adding coverage in new states. Check back soon.</p>'}
+          </section>
+          <section class="content-section">
+            <h2>Cost & Coverage</h2>
+            <p>${service.cost.replace('{stateName}', 'your state')}</p>
+          </section>
+          <section class="content-section">
+            <h2>When to Choose ${service.name}</h2>
+            <p>${service.eligibility}</p>
+          </section>
+          <section class="content-section">
+            <h2>Local note</h2>
+            <p>${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
+          </section>
+          ${(longGuide?.sections || [])
+            .map(
+              (section) => `
+            <section class="content-section">
+              <h2>${section.heading}</h2>
+              ${(section.paragraphs || []).map((paragraph) => `<p>${paragraph}</p>`).join('')}
+            </section>
+          `
+            )
+            .join('')}
+          <section class="content-section">
+            <h2>FAQs</h2>
+            <div class="faq-list">
+              ${(service.faq || [])
+                .map(
+                  ([q, a]) => `
+                <div class="faq-item open">
+                  <button class="faq-btn" type="button" aria-expanded="true">${q}<svg class="faq-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg></button>
+                  <div class="faq-body" style="max-height:400px;padding-bottom:16px;"><p>${a}</p></div>
+                </div>`
+                )
+                .join('')}
+            </div>
+          </section>
+          <section class="content-section">
+            <h2>Compare Hospice, Palliative, and Home Care</h2>
+            ${renderComparisonTable()}
+          </section>
+        </div>
+        <aside class="page-sidebar">
+          <section class="s-card featured">
+            <h3>Need care now?</h3>
+            <p>Connect with verified providers in minutes. Free for families and commission-free.</p>
+            <a class="btn-sidebar" href="/search.html">Start your search</a>
+          </section>
+          <section class="s-card">
+            <h3>Quick links</h3>
+            <ul class="link-list">
+              <li><a href="/cities.html">Browse all cities<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>
+              <li><a href="/locations.html">Locations we serve<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>
+              <li><a href="/education.html">Education Hub<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>
+            </ul>
+          </section>
+          ${renderTrustBlock(formatDateISO())}
+        </aside>
       </div>
-    </section>
-    <section class="content-section">
-      <h2>Compare Hospice, Palliative, and Home Care</h2>
-      ${renderComparisonTable()}
-    </section>
-    ${renderTrustBlock(formatDateISO())}
     </main>
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [] });
