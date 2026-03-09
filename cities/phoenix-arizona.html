@@ -1,130 +1,823 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" /><title>Hospice &amp; Home Care Providers in Phoenix, Arizona | Best Hospice</title>
-  <meta name="description" content="Find verified hospice, palliative, and home care providers in Phoenix, Arizona. Connect with trusted local providers. 100% free for families, no obligation." />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hospice Care in Phoenix, Arizona | Verified Providers | BestHospice.com</title>
+  <meta name="description" content="Find verified, commission-free hospice, palliative, and home care providers in Phoenix, Arizona. BestHospice.com connects families with trusted local care — free, no referral fees." />
   <link rel="canonical" href="https://www.besthospice.com/cities/phoenix-arizona.html" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles-modern.css" />
-  <link rel="stylesheet" href="/styles/main.css" />
-  <script src="/abel-chat.js" defer></script>
-  <script type="application/ld+json">[{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://www.besthospice.com/"},{"@type":"ListItem","position":2,"name":"Browse Cities","item":"https://www.besthospice.com/cities.html"},{"@type":"ListItem","position":3,"name":"Arizona","item":"https://www.besthospice.com/states/arizona.html"},{"@type":"ListItem","position":4,"name":"Phoenix","item":"https://www.besthospice.com/cities/phoenix-arizona.html"}]},{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How much does hospice cost in Arizona?","acceptedAnswer":{"@type":"Answer","text":"In Arizona, Medicare hospice benefits usually cover core hospice services when eligibility criteria are met. In Phoenix, families often compare payer coverage, medication needs, and care setting details with local agencies before choosing a provider."}},{"@type":"Question","name":"What does Medicare cover for hospice in Phoenix?","acceptedAnswer":{"@type":"Answer","text":"Medicare generally covers nursing visits, comfort medications tied to terminal diagnosis, medical equipment, and interdisciplinary hospice support. Families in Phoenix can confirm exact coverage directly with providers and review quality information on Medicare Care Compare."}},{"@type":"Question","name":"How many provider options are available in Phoenix?","acceptedAnswer":{"@type":"Answer","text":"Best Hospice and Home Health currently lists 1 verified providers in or serving Phoenix, including 1 home care provider."}},{"@type":"Question","name":"How do I know if a provider in Phoenix is legitimate?","acceptedAnswer":{"@type":"Answer","text":"Start by confirming state licensing, Medicare certification where applicable, and accepted insurance. In Phoenix, families can compare agencies such as Right at Home Arcadia-Phoenix/Scottsdale and ask each provider to confirm intake timelines and service boundaries."}},{"@type":"Question","name":"Can I switch hospice providers in Arizona?","acceptedAnswer":{"@type":"Answer","text":"Yes. Families can generally switch hospice providers if care fit is not meeting expectations."}}]}]</script>
-  <script src="/cookie-consent.js" defer></script>
-  <script src="/analytics-tracker.js" defer></script>
-  <script src="/marketing-consent-loader.js" defer></script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How do I find hospice care in Phoenix, AZ?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Search BestHospice.com for free. Enter Phoenix or your specific neighborhood and select your care type to see a curated list of verified, local providers. No account required, no fees, no referral commissions." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Medicare cover hospice care in Phoenix?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Medicare Part A covers hospice for patients with a life expectancy of six months or less who elect comfort care. Coverage includes nursing visits, medications related to the terminal diagnosis, medical equipment, aide services, social work, chaplain support, and bereavement counseling — at little to no out-of-pocket cost." }
+      },
+      {
+        "@type": "Question",
+        "name": "What is the difference between hospice and palliative care in Phoenix?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Hospice is for patients who have chosen to focus on comfort rather than curative treatment and have a prognosis of six months or less. Palliative care can begin at any stage of serious illness alongside active treatment. Both focus on symptom relief and quality of life, but only hospice requires forgoing curative treatment." }
+      },
+      {
+        "@type": "Question",
+        "name": "How quickly can hospice care begin in Phoenix?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Most Phoenix hospice providers can begin services within 24 to 48 hours after eligibility is confirmed. In urgent situations, many providers offer same-day admission and can deliver medical equipment within hours of enrollment." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can hospice care be provided at home in Phoenix?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. The vast majority of Phoenix hospice patients receive care in their own home or place of residence. Hospice teams make scheduled visits and are available 24/7 by phone. Inpatient hospice is available when symptoms cannot be safely managed at home." }
+      }
+    ]
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:        #0e6b5e;
+      --green-dark:   #094f45;
+      --green-mid:    #1a8a7a;
+      --green-tint:   #eef6f5;
+      --green-border: #c5e0dc;
+      --sand:         #f8f5f0;
+      --sand-dark:    #ede8e0;
+      --rust:         #b84c27;
+      --charcoal:     #1c2b27;
+      --ink:          #374843;
+      --muted:        #637770;
+      --light:        #9eb3ae;
+      --white:        #ffffff;
+      --serif:        'Lora', Georgia, serif;
+      --sans:         'DM Sans', system-ui, sans-serif;
+      --r:            10px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--ink);
+      background: var(--white);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── NAV ─────────────────────────────────── */
+    .nav {
+      position: sticky; top: 0; z-index: 200;
+      background: var(--white);
+      border-bottom: 1px solid var(--sand-dark);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 62px;
+      box-shadow: 0 1px 12px rgba(14,107,94,.07);
+    }
+    .nav-logo {
+      font-family: var(--serif); font-size: 1.15rem; font-weight: 600;
+      color: var(--green-dark); text-decoration: none; letter-spacing: -.02em;
+    }
+    .nav-logo em { color: var(--rust); font-style: normal; }
+    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-links a {
+      font-size: .85rem; font-weight: 500; color: var(--muted);
+      text-decoration: none; transition: color .18s;
+    }
+    .nav-links a:hover { color: var(--green); }
+    .nav-pill {
+      background: var(--green); color: var(--white) !important;
+      padding: 7px 16px; border-radius: 6px; font-weight: 600 !important;
+      font-size: .82rem !important; transition: background .18s !important;
+    }
+    .nav-pill:hover { background: var(--green-dark) !important; }
+    @media (max-width: 720px) { .nav-links { display: none; } }
+
+    /* ─── BREADCRUMB ──────────────────────────── */
+    .breadcrumb {
+      background: var(--sand); border-bottom: 1px solid var(--sand-dark);
+      padding: 9px 32px; font-size: .76rem; color: var(--light);
+    }
+    .breadcrumb a { color: var(--green); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb span { margin: 0 5px; }
+
+    /* ─── HERO ────────────────────────────────── */
+    .hero {
+      background: var(--green-dark);
+      padding: 60px 32px 68px;
+      position: relative; overflow: hidden;
+    }
+    /* subtle texture rings */
+    .hero::before, .hero::after {
+      content: ''; position: absolute; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,.06);
+      pointer-events: none;
+    }
+    .hero::before { width: 600px; height: 600px; top: -200px; right: -100px; }
+    .hero::after  { width: 360px; height: 360px; bottom: -160px; left: -60px; }
+
+    .hero-inner { max-width: 680px; position: relative; z-index: 1; }
+
+    .hero-chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+      color: rgba(255,255,255,.82); font-size: .72rem; font-weight: 600;
+      letter-spacing: .07em; text-transform: uppercase;
+      padding: 4px 13px; border-radius: 100px; margin-bottom: 22px;
+    }
+    .hero-chip-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #5ee8d5; display: inline-block;
+    }
+
+    .hero h1 {
+      font-family: var(--serif);
+      font-size: clamp(1.75rem, 4.5vw, 2.6rem);
+      font-weight: 600; color: var(--white);
+      line-height: 1.18; letter-spacing: -.025em;
+      margin-bottom: 16px;
+    }
+    .hero-sub {
+      font-size: 1rem; color: rgba(255,255,255,.76);
+      font-weight: 300; line-height: 1.7;
+      max-width: 540px; margin-bottom: 32px;
+    }
+    .hero-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn-hero {
+      display: inline-block; font-weight: 600; font-size: .92rem;
+      padding: 13px 26px; border-radius: 7px; text-decoration: none;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-hero.solid {
+      background: var(--white); color: var(--green-dark);
+      box-shadow: 0 4px 18px rgba(0,0,0,.22);
+    }
+    .btn-hero.solid:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(0,0,0,.28); }
+    .btn-hero.outline {
+      background: transparent; color: rgba(255,255,255,.88);
+      border: 1.5px solid rgba(255,255,255,.3);
+    }
+    .btn-hero.outline:hover { border-color: rgba(255,255,255,.65); background: rgba(255,255,255,.07); }
+
+    .hero-trust {
+      margin-top: 28px; display: flex; gap: 18px; flex-wrap: wrap;
+    }
+    .trust-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-size: .78rem; font-weight: 500; color: rgba(255,255,255,.65);
+    }
+    .trust-pill svg { width: 15px; height: 15px; fill: #5ee8d5; flex-shrink: 0; }
+
+    /* ─── LAYOUT ──────────────────────────────── */
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 32px; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 316px;
+      gap: 56px;
+      padding: 60px 0 72px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; gap: 40px; }
+      .sidebar { order: -1; }
+    }
+
+    /* ─── TYPOGRAPHY ──────────────────────────── */
+    .eyebrow {
+      font-size: .7rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--green);
+      margin-bottom: 8px; display: block;
+    }
+    h2 {
+      font-family: var(--serif);
+      font-size: clamp(1.3rem, 2.8vw, 1.65rem);
+      font-weight: 600; color: var(--charcoal);
+      line-height: 1.22; letter-spacing: -.02em;
+      margin-bottom: 14px;
+    }
+    h3 {
+      font-family: var(--serif); font-size: 1.05rem;
+      font-weight: 600; color: var(--charcoal); margin-bottom: 8px;
+    }
+    p { color: var(--ink); line-height: 1.75; margin-bottom: 14px; }
+    p:last-child { margin-bottom: 0; }
+
+    /* ─── CONTENT BLOCKS ──────────────────────── */
+    .section { margin-bottom: 52px; }
+    .section:last-child { margin-bottom: 0; }
+
+    .divider {
+      border: none; border-top: 1px solid var(--sand-dark);
+      margin: 52px 0;
+    }
+
+    /* ─── STAT STRIP ──────────────────────────── */
+    .stat-strip {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 14px; margin: 22px 0;
+    }
+    @media (max-width: 520px) { .stat-strip { grid-template-columns: 1fr; } }
+    .stat-card {
+      background: var(--green-tint);
+      border: 1px solid var(--green-border);
+      border-radius: var(--r); padding: 18px 16px; text-align: center;
+    }
+    .stat-n {
+      font-family: var(--serif); font-size: 1.8rem; font-weight: 600;
+      color: var(--green-dark); line-height: 1; margin-bottom: 5px;
+    }
+    .stat-l {
+      font-size: .72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted);
+    }
+
+    /* ─── PROVIDER CARDS ──────────────────────── */
+    .provider-stack { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+    .provider-card {
+      background: var(--white);
+      border: 1.5px solid var(--sand-dark);
+      border-radius: var(--r); padding: 20px 22px;
+      position: relative;
+      transition: border-color .2s, box-shadow .2s, transform .15s;
+    }
+    .provider-card:hover {
+      border-color: var(--green-border);
+      box-shadow: 0 6px 24px rgba(14,107,94,.1);
+      transform: translateY(-2px);
+    }
+    .v-badge {
+      position: absolute; top: 14px; right: 14px;
+      display: flex; align-items: center; gap: 4px;
+      font-size: .67rem; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--green);
+    }
+    .v-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; }
+    .provider-name {
+      font-family: var(--serif); font-size: 1rem; font-weight: 600;
+      color: var(--charcoal); margin-bottom: 8px; padding-right: 72px;
+    }
+    .provider-details { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .p-row {
+      display: flex; align-items: center; gap: 7px;
+      font-size: .83rem; color: var(--muted);
+    }
+    .p-row svg { width: 13px; height: 13px; fill: var(--light); flex-shrink: 0; }
+    .p-link {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: .83rem; font-weight: 600; color: var(--green);
+      text-decoration: none; transition: gap .18s;
+    }
+    .p-link:hover { gap: 7px; }
+    .p-link svg { width: 13px; height: 13px; fill: currentColor; }
+
+    /* ─── CHECKLIST ───────────────────────────── */
+    .checklist { list-style: none; display: flex; flex-direction: column; gap: 9px; margin: 16px 0; }
+    .checklist li {
+      display: flex; gap: 11px; align-items: flex-start;
+      font-size: .93rem; color: var(--ink); line-height: 1.65;
+    }
+    .checklist li::before {
+      content: '';
+      width: 19px; height: 19px; flex-shrink: 0; margin-top: 1px;
+      border-radius: 50%; background: var(--green);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='white'%3E%3Cpath fill-rule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'/%3E%3C/svg%3E");
+      background-size: 11px; background-repeat: no-repeat; background-position: center;
+    }
+
+    /* ─── HIGHLIGHT BOX ───────────────────────── */
+    .highlight {
+      background: var(--green-tint); border-left: 3px solid var(--green);
+      border-radius: 0 var(--r) var(--r) 0;
+      padding: 16px 20px; margin: 18px 0;
+    }
+    .highlight p { font-size: .88rem; color: var(--green-dark); font-weight: 500; margin: 0; }
+
+    /* ─── COMPARISON TABLE ────────────────────── */
+    .ctable {
+      width: 100%; border-collapse: collapse;
+      border-radius: var(--r); overflow: hidden;
+      box-shadow: 0 2px 12px rgba(14,107,94,.08);
+      font-size: .86rem; margin: 18px 0;
+    }
+    .ctable thead { background: var(--green); }
+    .ctable thead th {
+      color: var(--white); font-weight: 600; font-size: .78rem;
+      letter-spacing: .03em; padding: 13px 16px; text-align: left;
+    }
+    .ctable tbody tr:nth-child(odd)  { background: var(--sand); }
+    .ctable tbody tr:nth-child(even) { background: var(--white); }
+    .ctable tbody tr:hover { background: var(--green-tint); }
+    .ctable td {
+      padding: 12px 16px; color: var(--ink);
+      border-bottom: 1px solid var(--sand-dark);
+    }
+    .ctable td:first-child { font-weight: 600; color: var(--charcoal); }
+    .tag-yes {
+      display: inline-block; background: #e5f5ee; color: #1a6640;
+      font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 100px;
+    }
+    .tag-no {
+      display: inline-block; background: #fdf0eb; color: #8c3a1a;
+      font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 100px;
+    }
+
+    /* ─── FAQ ─────────────────────────────────── */
+    .faq { display: flex; flex-direction: column; }
+    .faq-item { border-bottom: 1px solid var(--sand-dark); }
+    .faq-item:first-child { border-top: 1px solid var(--sand-dark); }
+    .faq-btn {
+      width: 100%; background: none; border: none; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 14px; padding: 17px 0;
+      font-family: var(--sans); font-size: .92rem; font-weight: 600;
+      color: var(--charcoal); text-align: left;
+    }
+    .faq-btn:hover { color: var(--green); }
+    .faq-icon {
+      width: 18px; height: 18px; fill: var(--green);
+      flex-shrink: 0; transition: transform .25s;
+    }
+    .faq-item.open .faq-icon { transform: rotate(180deg); }
+    .faq-body {
+      max-height: 0; overflow: hidden;
+      transition: max-height .3s ease, padding-bottom .2s;
+    }
+    .faq-item.open .faq-body { max-height: 280px; padding-bottom: 16px; }
+    .faq-body p { font-size: .88rem; color: var(--muted); margin: 0; }
+
+    /* ─── SIDEBAR ─────────────────────────────── */
+    .sidebar { display: flex; flex-direction: column; gap: 18px; }
+
+    .s-card {
+      background: var(--white);
+      border: 1.5px solid var(--sand-dark);
+      border-radius: var(--r); padding: 22px;
+    }
+    .s-card.featured {
+      background: var(--green-dark); border-color: var(--green-dark);
+    }
+    .s-card.featured h3 {
+      font-family: var(--serif); color: var(--white); margin-bottom: 8px; font-size: 1.05rem;
+    }
+    .s-card.featured p { color: rgba(255,255,255,.72); font-size: .84rem; margin-bottom: 16px; }
+    .btn-sidebar {
+      display: block; background: var(--white); color: var(--green-dark);
+      font-weight: 700; font-size: .88rem;
+      padding: 11px 16px; border-radius: 7px;
+      text-align: center; text-decoration: none;
+      transition: opacity .15s;
+    }
+    .btn-sidebar:hover { opacity: .9; }
+
+    .s-card h3 { font-family: var(--serif); font-size: .95rem; color: var(--charcoal); margin-bottom: 14px; }
+
+    .cov-list { list-style: none; display: flex; flex-direction: column; gap: 0; }
+    .cov-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .82rem; padding: 9px 0;
+      border-bottom: 1px solid var(--sand-dark);
+    }
+    .cov-row:last-child { border-bottom: none; }
+    .cov-label { color: var(--charcoal); font-weight: 500; }
+    .cov-yes     { color: #1a6640; font-weight: 700; font-size: .75rem; }
+    .cov-partial { color: #7a5a10; font-weight: 700; font-size: .75rem; }
+
+    .link-list { list-style: none; display: flex; flex-direction: column; }
+    .link-list li a {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 0; font-size: .84rem; font-weight: 500;
+      color: var(--green); text-decoration: none;
+      border-bottom: 1px solid var(--sand-dark);
+      transition: color .15s;
+    }
+    .link-list li:last-child a { border-bottom: none; }
+    .link-list li a:hover { color: var(--green-dark); }
+    .link-list li a svg { width: 13px; height: 13px; fill: currentColor; opacity: .45; }
+
+    .note {
+      font-size: .73rem; color: var(--light); line-height: 1.55;
+      background: var(--sand); border-radius: var(--r); padding: 12px 14px;
+    }
+    .note strong { color: var(--muted); }
+
+    /* ─── BOTTOM CTA ──────────────────────────── */
+    .bottom-cta {
+      background: linear-gradient(135deg, var(--charcoal) 0%, #1e3d36 100%);
+      padding: 60px 32px; text-align: center;
+    }
+    .bottom-cta h2 {
+      font-family: var(--serif); color: var(--white);
+      font-size: clamp(1.3rem, 3vw, 1.9rem); margin-bottom: 12px;
+    }
+    .bottom-cta p { color: rgba(255,255,255,.65); max-width: 480px; margin: 0 auto 26px; }
+    .btn-cta {
+      display: inline-block; background: var(--white); color: var(--green-dark);
+      font-weight: 700; font-size: .95rem;
+      padding: 14px 32px; border-radius: 7px;
+      text-decoration: none;
+      box-shadow: 0 4px 18px rgba(0,0,0,.25);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-cta:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(0,0,0,.3); }
+
+    /* ─── FOOTER ──────────────────────────────── */
+    .footer {
+      background: var(--sand); border-top: 1px solid var(--sand-dark);
+      padding: 24px 32px; text-align: center;
+      font-size: .78rem; color: var(--light);
+    }
+    .footer a { color: var(--green); text-decoration: none; }
+
+    /* ─── ANIMATIONS ──────────────────────────── */
+    @keyframes up {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .hero-inner > * { animation: up .45s ease both; }
+    .hero-inner > *:nth-child(1) { animation-delay: .05s; }
+    .hero-inner > *:nth-child(2) { animation-delay: .14s; }
+    .hero-inner > *:nth-child(3) { animation-delay: .23s; }
+    .hero-inner > *:nth-child(4) { animation-delay: .32s; }
+    .hero-inner > *:nth-child(5) { animation-delay: .38s; }
+  </style>
 </head>
 <body>
-  <div class="page-shell">
-    <header class="hero">
-      
-    <div class="hero-top">
-      <div class="brand">
-        <img src="/BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo">
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="/" class="nav-logo">Best<em>Hospice</em>.com</a>
+  <ul class="nav-links">
+    <li><a href="/education.html">Learn</a></li>
+    <li><a href="/why.html">Why Us</a></li>
+    <li><a href="/cities.html">All Cities</a></li>
+    <li><a href="/search.html" class="nav-pill">Find Providers</a></li>
+  </ul>
+</nav>
+
+<!-- BREADCRUMB -->
+<div class="breadcrumb">
+  <a href="/">Home</a><span>›</span>
+  <a href="/cities.html">Arizona Cities</a><span>›</span>
+  Phoenix, AZ
+</div>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-chip"><span class="hero-chip-dot"></span>Maricopa County · Arizona</div>
+    <h1>Hospice Care in Phoenix, Arizona</h1>
+    <p class="hero-sub">Find verified, commission-free hospice, palliative, and home health providers serving Phoenix and the greater Valley. No referral fees — ever.</p>
+    <div class="hero-btns">
+      <a href="/search.html?location=Phoenix+AZ" class="btn-hero solid">Search Phoenix Providers</a>
+      <a href="/education.html" class="btn-hero outline">Learn About Hospice</a>
+    </div>
+    <div class="hero-trust">
+      <div class="trust-pill">
+        <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+        Verified providers only
       </div>
-      <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
-      <div class="top-links" id="topLinks">
-        <a class="pill" href="/provider.html">Are you a hospice provider? <u>Click here</u> to join BestHospice.com</a>
-        <a class="pill ghost-pill" href="/why.html">Who We Are</a>
-        <a class="pill ghost-pill" href="/provider-dashboard.html">Provider Dashboard</a>
-        <a class="pill ghost-pill" href="/provider-billing.html">Provider Billing</a>
-        <a class="pill ghost-pill" href="/locations.html">Locations We Currently Serve</a>
-        <a class="pill ghost-pill" href="/cities.html">Browse Cities</a>
-        <a class="pill ghost-pill" href="/faq-blog.html">FAQ & Blog Posts</a>
-        <a class="pill ghost-pill" href="/education.html">Education Hub</a>
-        <a class="pill ghost-pill" href="/contact.html">Contact Us</a>
+      <div class="trust-pill">
+        <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+        Free to families
+      </div>
+      <div class="trust-pill">
+        <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+        No referral commissions
       </div>
     </div>
-  
-      <div class="hero-body" style="grid-template-columns:1fr;">
-        <div class="hero-text">
-          <h1>Hospice and Home Care Providers in Phoenix, Arizona</h1>
-          <p class="tagline">Compare trusted local providers in Phoenix, Arizona.</p>
-        </div>
-      </div>
-    </header>
-
-    <main>
-      <section class="card" style="padding:18px;">
-        <nav aria-label="Breadcrumb" style="margin:0 0 12px;"><a href="/">Home</a> &gt; <a href="/cities.html">Browse Cities</a> &gt; <a href="/states/arizona.html">Arizona</a> &gt; <span>Phoenix</span></nav>
-        <p style="margin:0 0 10px;">Finding hospice care in Phoenix can feel overwhelming when families need answers quickly. Best Hospice and Home Health helps families compare verified providers in one place, with no cost or obligation. Our platform is designed to reduce confusion by showing local agencies that serve Phoenix and nearby communities. We verify core provider details, including service coverage and contact information, so families can focus on fit and responsiveness. If your loved one needs hospice, palliative, or home care, the list below gives you a direct path to providers in Phoenix. Families can contact multiple agencies, compare availability, and choose the provider that best matches clinical needs, insurance, and communication preferences.</p>
-      </section>
-
-      <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 8px;">Understanding Hospice and Home Care in Phoenix</h2>
-        <p style="margin:0 0 10px;">Hospice care supports patients and families when comfort becomes the primary goal of care. Services often include nursing support, symptom management, caregiver guidance, and emotional support. Home care generally helps with daily living needs at home, while palliative care can support symptom relief at any stage of serious illness. Together, these services help families keep loved ones safe, comfortable, and supported in familiar surroundings.</p>
-        <p style="margin:0;">Coverage depends on service type and payer. In Arizona, Medicare may cover hospice when eligibility criteria are met, and other services may be covered through Medicaid or private insurance depending on plan terms. The providers below serve Phoenix and surrounding areas and can help confirm eligibility and expected costs.</p>
-      </section>
-
-      <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 8px;">How to Choose a Provider in Phoenix</h2>
-        <p style="margin:0 0 10px;">When comparing providers, ask how quickly intake can begin, what support is available after hours, and whether they routinely serve your neighborhood. Verification matters: families should confirm licensing, Medicare certification when relevant, and payer acceptance before enrollment. Strong providers communicate clearly, set realistic expectations, and respond quickly when needs change.</p>
-        <p style="margin:0;">Review provider reputation, ask direct questions about care approach, and compare more than one agency whenever possible. The right provider is the one that combines clinical fit with clear communication and reliable follow-through.</p>
-      </section>
-
-      <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 10px;">Providers Serving Phoenix, Arizona</h2>
-        
-          <article class="lead-item" style="padding:16px; margin-bottom:10px;">
-            <h3 style="margin:0 0 6px;">Right at Home Arcadia-Phoenix/Scottsdale</h3>
-            <p style="margin:0 0 6px;"><strong>Care Type:</strong> Home Care</p>
-            <p style="margin:0 0 6px;">2929 N 44TH ST, Phoenix, AZ 85018</p>
-            <p>Phone: (602) 493-0085</p>
-            <p><a href="https://www.rightathome.net/arcadia-phoenix" target="_blank" rel="noopener" style="color:#1d4ed8; text-decoration:underline;">Website - click here</a></p>
-          </article>
-        
-      </section>
-
-      <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 8px;">Frequently Asked Questions</h2>
-        <p style="margin:0 0 8px;"><strong>How much does hospice cost in Arizona?</strong><br>In Arizona, Medicare hospice benefits usually cover core hospice services when eligibility criteria are met. In Phoenix, families often compare payer coverage, medication needs, and care setting details with local agencies before choosing a provider.</p>
-<p style="margin:0 0 8px;"><strong>What does Medicare cover for hospice in Phoenix?</strong><br>Medicare generally covers nursing visits, comfort medications tied to terminal diagnosis, medical equipment, and interdisciplinary hospice support. Families in Phoenix can confirm exact coverage directly with providers and review quality information on Medicare Care Compare.</p>
-<p style="margin:0 0 8px;"><strong>How many provider options are available in Phoenix?</strong><br>Best Hospice and Home Health currently lists 1 verified providers in or serving Phoenix, including 1 home care provider.</p>
-<p style="margin:0 0 8px;"><strong>How do I know if a provider in Phoenix is legitimate?</strong><br>Start by confirming state licensing, Medicare certification where applicable, and accepted insurance. In Phoenix, families can compare agencies such as Right at Home Arcadia-Phoenix/Scottsdale and ask each provider to confirm intake timelines and service boundaries.</p>
-<p style="margin:0;"><strong>Can I switch hospice providers in Arizona?</strong><br>Yes. Families can generally switch hospice providers if care fit is not meeting expectations.</p>
-      </section>
-
-      <section class="card" style="padding:18px; margin-top:14px;">
-        <h2 style="margin:0 0 8px;">Related Cities in Arizona</h2>
-        <ul style="margin:0 0 10px; padding-left:18px; display:grid; gap:6px;">
-          <li><a href="/cities/casa-grande-arizona.html">Casa Grande, Arizona</a></li><li><a href="/cities/fort-mohave-arizona.html">Fort Mohave, Arizona</a></li><li><a href="/cities/fountain-hills-arizona.html">Fountain Hills, Arizona</a></li><li><a href="/cities/gilbert-arizona.html">Gilbert, Arizona</a></li><li><a href="/cities/glendale-arizona.html">Glendale, Arizona</a></li>
-        </ul>
-        <a class="pill ghost-pill" href="/states/arizona.html">See all Arizona providers</a>
-      </section>
-    </main>
-
-    
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <div class="footer-brand">Best Hospice and Home Health</div>
-        <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
-        <div class="footer-links">
-          <a href="/privacy.html">Privacy Policy</a>
-          <a href="/terms.html">Terms of Service</a>
-          <a href="/refund-policy.html">Refund & Cancellation Policy</a>
-          <a href="/provider-billing.html">Provider Billing</a>
-          <a href="/sitemap.html">HTML Sitemap</a>
-        </div>
-      </div>
-    </footer>
-  
   </div>
-  
-    <script>
-      (() => {
-        const toggle = document.querySelector('.menu-toggle');
-        const links = document.getElementById('topLinks');
-        if (!toggle || !links) return;
-        toggle.addEventListener('click', () => {
-          const open = links.classList.toggle('open');
-          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-      })();
-    </script>
-  
+</header>
+
+<!-- MAIN -->
+<main>
+<div class="wrap">
+<div class="layout">
+
+  <!-- LEFT: MAIN CONTENT -->
+  <div>
+
+    <!-- CONTEXT -->
+    <div class="section">
+      <span class="eyebrow">Phoenix at a Glance</span>
+      <h2>Senior Care in the Valley of the Sun</h2>
+      <p>Phoenix is the fifth-largest city in the United States and the center of the nation's fastest-growing major metro area. Maricopa County — home to over 4.6 million residents — is projected to account for two-thirds of Arizona's entire elderly population growth through 2050, making Phoenix one of the most important hospice and home care markets in the country.</p>
+      <p>Arizona's 65-and-older population now represents 19.3% of the state total, above the national average of 16.8%. The state's hospice provider base grew 65% between 2018 and 2022 — the third-fastest growth rate nationally — reflecting the scale of demand building across Maricopa County.</p>
+      <div class="stat-strip">
+        <div class="stat-card">
+          <div class="stat-n">1.65M</div>
+          <div class="stat-l">City Population</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-n">19.3%</div>
+          <div class="stat-l">AZ Residents 65+</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-n">+65%</div>
+          <div class="stat-l">Hospice Growth 2018–22</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- PROVIDERS -->
+    <div class="section">
+      <span class="eyebrow">Verified Listings</span>
+      <h2>Hospice Providers in Phoenix, AZ</h2>
+      <p>The following providers are currently verified and listed on BestHospice.com. All listings are reviewed for active Arizona licensure. Providers are listed in alphabetical order — BestHospice never accepts payment to rank providers.</p>
+
+      <div class="provider-stack">
+
+        <div class="provider-card">
+          <div class="v-badge"><span class="v-dot"></span>Verified</div>
+          <div class="provider-name">Choice Hospice — West Phoenix</div>
+          <div class="provider-details">
+            <div class="p-row">
+              <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+              2550 W Union Hills Dr, Phoenix, AZ 85027
+            </div>
+            <div class="p-row">
+              <svg viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+              (928) 273-6619
+            </div>
+          </div>
+          <a href="https://choicehealthathome.com/locations/az/phoenix/phoenix-choice-hospice-w-union-hills-dr/" class="p-link" target="_blank" rel="noopener">
+            Visit website
+            <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </a>
+        </div>
+
+        <div class="provider-card">
+          <div class="v-badge"><span class="v-dot"></span>Verified</div>
+          <div class="provider-name">Choice Hospice — Central Phoenix</div>
+          <div class="provider-details">
+            <div class="p-row">
+              <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+              2111 E Highland Ave, Phoenix, AZ 85016
+            </div>
+            <div class="p-row">
+              <svg viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+              (928) 273-6619
+            </div>
+          </div>
+          <a href="https://choicehealthathome.com/locations/az/phoenix/phoenix-choice-hospice-e-highland-ave" class="p-link" target="_blank" rel="noopener">
+            Visit website
+            <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </a>
+        </div>
+
+        <div class="provider-card">
+          <div class="v-badge"><span class="v-dot"></span>Verified</div>
+          <div class="provider-name">Right at Home Arcadia-Phoenix/Scottsdale</div>
+          <div class="provider-details">
+            <div class="p-row">
+              <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+              2929 N 44th St, Phoenix, AZ 85018
+            </div>
+            <div class="p-row">
+              <svg viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+              (602) 493-0085
+            </div>
+          </div>
+          <a href="https://www.rightathome.net/arcadia-phoenix" class="p-link" target="_blank" rel="noopener">
+            Visit website
+            <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </a>
+        </div>
+
+      </div><!-- /provider-stack -->
+    </div>
+
+    <hr class="divider">
+
+    <!-- WHAT IS HOSPICE -->
+    <div class="section">
+      <span class="eyebrow">Education</span>
+      <h2>What Is Hospice Care?</h2>
+      <p>Hospice is specialized medical care for people facing a terminal illness with a life expectancy of six months or less. Rather than pursuing curative treatment, hospice focuses entirely on comfort, dignity, and quality of life — for both the patient and everyone who loves them.</p>
+      <p>In Phoenix, hospice can be provided in a patient's own home, an assisted living or memory care facility, or a dedicated inpatient hospice unit. Every enrolled patient receives a full interdisciplinary team:</p>
+      <ul class="checklist">
+        <li>Pain and symptom management — including medications at no cost under Medicare</li>
+        <li>Registered nurses on scheduled visits and on-call 24 hours a day</li>
+        <li>Medical equipment delivered to the home (hospital bed, wheelchair, oxygen)</li>
+        <li>Home health aides assisting with personal care and bathing</li>
+        <li>Social workers for care coordination and family support</li>
+        <li>Chaplain or spiritual care tailored to the patient's beliefs</li>
+        <li>Bereavement counseling for families up to 13 months after the patient passes</li>
+      </ul>
+      <div class="highlight">
+        <p>Most hospice care in Arizona is covered at little or no out-of-pocket cost through Medicare Part A, AHCCCS (Arizona Medicaid), VA benefits, or private insurance.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- WHEN TO CONSIDER -->
+    <div class="section">
+      <span class="eyebrow">Guidance for Families</span>
+      <h2>When Should You Consider Hospice?</h2>
+      <p>The most common thing families say after starting hospice is that they wish they had started sooner. Choosing hospice is not giving up — it is choosing a different kind of care, one that prioritizes presence, peace, and comfort over procedures and hospitalizations.</p>
+      <p>Consider requesting a hospice consultation when you notice any of the following:</p>
+      <ul class="checklist">
+        <li>A physician has estimated a life expectancy of six months or less</li>
+        <li>Two or more hospitalizations or ER visits in the past few months</li>
+        <li>Significant unintentional weight loss or declining appetite</li>
+        <li>Pain or symptoms that are increasingly difficult to control</li>
+        <li>Functional decline — needing help with three or more daily activities</li>
+        <li>The patient has expressed a wish to be at home rather than in a hospital</li>
+        <li>Caregiver exhaustion is affecting the whole family's wellbeing</li>
+      </ul>
+      <p>A hospice consultation in Phoenix is free and carries no obligation to enroll. Most providers can complete an in-home assessment within 24 hours of your call.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- COMPARE TABLE -->
+    <div class="section">
+      <span class="eyebrow">Quick Reference</span>
+      <h2>Hospice vs. Palliative vs. Home Care</h2>
+      <p>These three types of care are often confused. Here is a plain-language breakdown to help Phoenix families understand the differences and choose the right level of support.</p>
+      <table class="ctable">
+        <thead>
+          <tr>
+            <th>Care Type</th>
+            <th>When It's Used</th>
+            <th>Curative Treatment</th>
+            <th>Medicare</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hospice</td>
+            <td>Final 6 months, comfort focus</td>
+            <td><span class="tag-no">No</span></td>
+            <td><span class="tag-yes">Yes — Part A</span></td>
+          </tr>
+          <tr>
+            <td>Palliative</td>
+            <td>Any stage of serious illness</td>
+            <td><span class="tag-yes">Yes</span></td>
+            <td><span class="tag-yes">Yes — Part B</span></td>
+          </tr>
+          <tr>
+            <td>Home Health</td>
+            <td>Skilled nursing / therapy at home</td>
+            <td><span class="tag-yes">Yes</span></td>
+            <td><span class="tag-yes">Yes — Part A/B</span></td>
+          </tr>
+          <tr>
+            <td>Home Care</td>
+            <td>Daily living and personal care</td>
+            <td><span class="tag-yes">Yes</span></td>
+            <td><span class="tag-no">Generally No</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <hr class="divider">
+
+    <!-- FAQ -->
+    <div class="section">
+      <span class="eyebrow">Common Questions</span>
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq">
+
+        <div class="faq-item">
+          <button class="faq-btn" onclick="toggleFaq(this)">
+            How do I find hospice care in Phoenix, AZ?
+            <svg class="faq-icon" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </button>
+          <div class="faq-body"><p>Search BestHospice.com for free. Enter Phoenix or your specific neighborhood and select your care type to see a curated list of verified, local providers. No account required, no fees, no referral commissions.</p></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-btn" onclick="toggleFaq(this)">
+            Does Medicare cover hospice care in Phoenix?
+            <svg class="faq-icon" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </button>
+          <div class="faq-body"><p>Yes. Medicare Part A covers hospice for patients with a life expectancy of six months or less who elect comfort care. Coverage includes nursing visits, medications related to the terminal diagnosis, medical equipment, aide services, social work, chaplain support, and bereavement counseling — at little to no out-of-pocket cost.</p></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-btn" onclick="toggleFaq(this)">
+            What is the difference between hospice and palliative care?
+            <svg class="faq-icon" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </button>
+          <div class="faq-body"><p>Hospice requires forgoing curative treatment and is for patients with a prognosis of six months or less. Palliative care can begin at any stage of a serious illness alongside active treatment. Both focus on symptom relief and quality of life, but only hospice requires choosing comfort over continued treatment.</p></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-btn" onclick="toggleFaq(this)">
+            How quickly can hospice begin in Phoenix?
+            <svg class="faq-icon" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </button>
+          <div class="faq-body"><p>Most Phoenix hospice providers can begin services within 24 to 48 hours after eligibility is confirmed. In urgent situations, many providers offer same-day admission and can deliver medical equipment within hours of enrollment.</p></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-btn" onclick="toggleFaq(this)">
+            Can hospice care be provided at home in Phoenix?
+            <svg class="faq-icon" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </button>
+          <div class="faq-body"><p>Yes. The vast majority of Phoenix hospice patients receive care in their own home or place of residence. Teams make scheduled visits and are available 24/7 by phone. Inpatient hospice is available when symptoms cannot be safely managed at home.</p></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <div class="s-card featured">
+      <h3>Find a Phoenix Provider</h3>
+      <p>Search our verified, commission-free directory. Free for all families — always.</p>
+      <a href="/search.html?location=Phoenix+AZ" class="btn-sidebar">Search Phoenix Providers →</a>
+    </div>
+
+    <div class="s-card">
+      <h3>Coverage in Phoenix</h3>
+      <ul class="cov-list">
+        <li class="cov-row"><span class="cov-label">Medicare Part A</span><span class="cov-yes">✓ Covered</span></li>
+        <li class="cov-row"><span class="cov-label">AHCCCS / Medicaid</span><span class="cov-yes">✓ Covered</span></li>
+        <li class="cov-row"><span class="cov-label">Medicare Advantage</span><span class="cov-yes">✓ Most Plans</span></li>
+        <li class="cov-row"><span class="cov-label">VA Benefits</span><span class="cov-yes">✓ No Copay</span></li>
+        <li class="cov-row"><span class="cov-label">Private Insurance</span><span class="cov-partial">Varies by Plan</span></li>
+        <li class="cov-row"><span class="cov-label">Home Care (private pay)</span><span class="cov-partial">~$25/hr avg</span></li>
+      </ul>
+    </div>
+
+    <div class="s-card">
+      <h3>Nearby Cities</h3>
+      <ul class="link-list">
+        <li><a href="/cities/hospice-care-scottsdale-az.html">Scottsdale <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/cities/hospice-care-mesa-az.html">Mesa <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/cities/hospice-care-chandler-az.html">Chandler <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/cities/hospice-care-glendale-az.html">Glendale <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/cities/hospice-care-tempe-az.html">Tempe <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/cities/hospice-care-sun-city-az.html">Sun City <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+      </ul>
+    </div>
+
+    <div class="s-card">
+      <h3>Related Guides</h3>
+      <ul class="link-list">
+        <li><a href="/guides/when-is-it-time-for-hospice-arizona.html">When Is It Time for Hospice? <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/guides/how-to-pay-for-hospice-care-arizona.html">How to Pay for Hospice <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/guides/hospice-care-dementia-alzheimers-arizona.html">Hospice for Dementia Patients <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/guides/veteran-hospice-care-arizona.html">Veteran Hospice Care in AZ <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+        <li><a href="/guides/palliative-care-vs-hospice-arizona.html">Palliative vs. Hospice Care <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></a></li>
+      </ul>
+    </div>
+
+    <div class="note">
+      <strong>Last updated:</strong> March 2026 &nbsp;·&nbsp; <strong>Sources:</strong> Medicare.gov, CMS, Arizona AHPCO, U.S. Census Bureau. Provider listings verified at time of publication. Always confirm provider availability directly.
+    </div>
+
+  </aside>
+
+</div><!-- /layout -->
+</div><!-- /wrap -->
+
+<!-- BOTTOM CTA -->
+<section class="bottom-cta">
+  <h2>Ready to Find a Phoenix Hospice Provider?</h2>
+  <p>BestHospice.com is the only verified, commission-free hospice directory in Arizona. Search now — free, fast, and unbiased.</p>
+  <a href="/search.html?location=Phoenix+AZ" class="btn-cta">Search Phoenix Providers</a>
+</section>
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  BestHospice.com &nbsp;·&nbsp; Verified. Commission-Free. Compassionate. &nbsp;·&nbsp;
+  <a href="/privacy.html">Privacy</a> &nbsp;·&nbsp;
+  <a href="/terms.html">Terms</a> &nbsp;·&nbsp;
+  <a href="/contact.html">Contact</a>
+</footer>
+
+<script>
+  function toggleFaq(btn) {
+    const item = btn.closest('.faq-item');
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  }
+</script>
+
 </body>
 </html>
