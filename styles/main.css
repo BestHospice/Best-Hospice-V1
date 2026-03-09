@@ -430,6 +430,17 @@ button[type="submit"]:hover, .form-submit:hover { background: var(--green-dark);
   background: var(--sand); border-top: 1px solid var(--sand-dark);
   padding: 24px 32px; text-align: center;
   font-size: .78rem; color: var(--light);
+  position: static !important;
+  inset: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  z-index: auto !important;
+  width: 100%;
+  clear: both;
+  display: block;
+  opacity: 1;
+  background: var(--sand) !important;
 }
 .site-footer a { color: var(--green); text-decoration: none; }
 
