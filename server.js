@@ -493,18 +493,25 @@ app.get('/cities.html', async (_req, res) => {
     const sectionHtml = (key, title) => {
       const stateNames = Array.from(grouped[key].keys()).sort((a, b) => a.localeCompare(b));
       if (!stateNames.length) {
-        return `<section class="card" style="padding:18px; margin-top:14px;"><h2 style="margin:0 0 6px;">${title}</h2><p style="margin:0;">No cities listed yet.</p></section>`;
+        return `<section class="card content-section"><h2>${title}</h2><p class="text-muted">No cities listed yet.</p></section>`;
       }
       return `
-        <section class="card" style="padding:18px; margin-top:14px;">
-          <h2 style="margin:0 0 8px;">${title}</h2>
+        <section class="card content-section">
+          <h2>${title}</h2>
           ${stateNames
             .map((stateName) => {
               const cityLinks = Array.from(grouped[key].get(stateName))
                 .sort((a, b) => a.localeCompare(b))
                 .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}.html">${city}, ${stateName}</a></li>`)
                 .join('');
-              return `<h3 style="margin:12px 0 6px;">${stateName}</h3><ul style="margin:0 0 10px; padding-left:18px; display:grid; gap:6px;">${cityLinks}</ul>`;
+              return `
+                <h3 class="mt-sm">${stateName}</h3>
+                <ul class="link-list">
+                  ${Array.from(grouped[key].get(stateName))
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}.html">${city}, ${stateName}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
+                    .join('')}
+                </ul>`;
             })
             .join('')}
         </section>
@@ -519,35 +526,73 @@ app.get('/cities.html', async (_req, res) => {
   <title>Browse Cities We Serve | Best Hospice and Home Health</title>
   <meta name="description" content="Browse cities with active hospice, palliative, and home care providers listed on Best Hospice and Home Health." />
   <link rel="canonical" href="${CANONICAL_DOMAIN}/cities.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles-modern.css" />
+  <link rel="stylesheet" href="/styles/main.css" />
   <script src="/abel-chat.js" defer></script>
+  <script src="/cookie-consent.js" defer></script>
+  <script src="/analytics-tracker.js" defer></script>
+  <script src="/marketing-consent-loader.js" defer></script>
 </head>
 <body>
   <div class="page-shell">
-    <header class="hero">
-      <div class="hero-top">
+    <header class="hero page-hero">
+      <div class="hero-top site-nav">
         <div class="brand">
           <img src="/BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo">
         </div>
-        <div class="top-links" style="display:flex;">
+        <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="top-links" id="topLinks">
           <a class="pill ghost-pill" href="/">Main Menu</a>
           <a class="pill ghost-pill" href="/locations.html">Locations We Currently Serve</a>
+          <a class="pill ghost-pill" href="/cities.html">Browse Cities</a>
+          <a class="pill ghost-pill" href="/education.html">Education Hub</a>
           <a class="pill ghost-pill" href="/search.html">Search</a>
         </div>
       </div>
-      <div class="hero-body" style="grid-template-columns:1fr;">
+      <div class="hero-inner">
+        <div class="hero-chip"><span class="hero-chip-dot"></span>City Directory</div>
         <div class="hero-text">
           <h1>Browse Cities We Serve</h1>
-          <p class="tagline">Direct links to city pages grouped by care type and state.</p>
+          <p class="hero-sub">Direct links to city pages grouped by care type and state.</p>
         </div>
       </div>
     </header>
-    <main>
+    <main class="page-wrap" style="padding-top:32px; padding-bottom:56px;">
       ${sectionHtml('hospice', 'Hospice Care')}
       ${sectionHtml('palliative', 'Palliative Care')}
       ${sectionHtml('home', 'Home Care')}
     </main>
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">Best Hospice and Home Health</div>
+        <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
+        <div class="footer-links">
+          <a href="/privacy.html">Privacy Policy</a>
+          <a href="/cookie-policy.html">Cookie Policy</a>
+          <a href="/terms.html">Terms of Service</a>
+          <a href="/refund-policy.html">Refund & Cancellation Policy</a>
+          <a href="/provider-billing.html">Provider Billing</a>
+          <a href="/sitemap.html">HTML Sitemap</a>
+        </div>
+      </div>
+    </footer>
   </div>
+  <script>
+    (() => {
+      const toggle = document.querySelector('.menu-toggle');
+      const links = document.getElementById('topLinks');
+      if (!toggle || !links) return;
+      toggle.addEventListener('click', () => {
+        const open = links.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    })();
+  </script>
 </body>
 </html>`;
     res.send(html);
