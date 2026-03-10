@@ -584,6 +584,24 @@ main .ghost-pill {
   background: var(--green-tint);
   border: 1px solid var(--green-border);
 }
+
+/* Homepage-only readability guard */
+.home-page main,
+.home-page main p,
+.home-page main li,
+.home-page main .tagline,
+.home-page main .note,
+.home-page main h1,
+.home-page main h2,
+.home-page main h3,
+.home-page main h4 {
+  color: var(--charcoal);
+}
+
+.home-page main .pill,
+.home-page main .ghost-pill {
+  color: var(--green-dark) !important;
+}
 .hero .hero-body {
   padding: 34px 24px 36px;
   gap: 24px;
