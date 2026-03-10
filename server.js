@@ -1477,24 +1477,6 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           });
         }
 
-        // Hard guard: keep footer after FAQ content on all page variants.
-        const placeFooterAfterFaq = () => {
-          const footer = document.querySelector('.site-footer');
-          if (!footer) return;
-          const faqItems = document.querySelectorAll('.faq-item, .faq-simple-item');
-          if (!faqItems.length) return;
-          const lastFaqItem = faqItems[faqItems.length - 1];
-          const lastFaqSection = lastFaqItem.closest('.content-section') || lastFaqItem.parentElement;
-          if (!lastFaqSection || !lastFaqSection.parentNode) return;
-          if (footer.previousElementSibling !== lastFaqSection) {
-            lastFaqSection.parentNode.insertBefore(footer, lastFaqSection.nextSibling);
-          }
-        };
-
-        placeFooterAfterFaq();
-        requestAnimationFrame(placeFooterAfterFaq);
-        setTimeout(placeFooterAfterFaq, 0);
-        setTimeout(placeFooterAfterFaq, 250);
       })();
     </script>
   </body>
