@@ -69,6 +69,24 @@ const zipCodesToStorage = (value) => {
   const zips = normalizeZipCodeList(value);
   return zips.length ? zips.join(',') : null;
 };
+const normalizeTusconText = (value) => String(value || '').replace(/\bTuscon\b/gi, 'Tucson');
+const normalizeProviderCitySpelling = (provider) => {
+  if (!provider || typeof provider !== 'object') return provider;
+  return {
+    ...provider,
+    city: normalizeTusconText(provider.city),
+    address: normalizeTusconText(provider.address)
+  };
+};
+
+async function fixTusconProviderData() {
+  try {
+    await prisma.$executeRawUnsafe(`UPDATE "Provider" SET city='Tucson' WHERE city='Tuscon'`);
+    await prisma.$executeRawUnsafe(`UPDATE "Provider" SET address=REPLACE(address,'Tuscon','Tucson') WHERE address LIKE '%Tuscon%'`);
+  } catch (err) {
+    console.error('Tuscon->Tucson data fix skipped', err?.message || err);
+  }
+}
 const PROVIDER_MONTHLY_RATE = 250;
 const PLAN_NOTIFY_DELAY_MS = { priority: 0, featured: 60 * 1000, verified: 120 * 1000 };
 const JOB_POLL_MS = 5000;
@@ -1222,7 +1240,7 @@ function cityStateString(city, state) {
 }
 
 async function fetchAllProviders() {
-  return prisma.provider.findMany({
+  const providers = await prisma.provider.findMany({
     select: {
       id: true,
       name: true,
@@ -1237,16 +1255,22 @@ async function fetchAllProviders() {
       createdAt: true
     }
   });
+  return providers.map(normalizeProviderCitySpelling);
 }
 
 async function providersByLocation(city, state) {
-  return prisma.provider.findMany({
+  const legacyCity = city.replace(/\bTucson\b/i, 'Tuscon');
+  const results = await prisma.provider.findMany({
     where: {
-      city: { equals: city, mode: 'insensitive' },
+      OR: [
+        { city: { equals: city, mode: 'insensitive' } },
+        { city: { equals: legacyCity, mode: 'insensitive' } }
+      ],
       state: { equals: state, mode: 'insensitive' }
     },
     orderBy: { featured: 'desc' }
   });
+  return results.map(normalizeProviderCitySpelling);
 }
 
 function renderBreadcrumbList(items) {
@@ -1607,9 +1631,13 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
 function renderStatePage({ serviceKey, state, providers = [] }) {
   const service = serviceConfig[serviceKey];
   const stateName = stateNameMap[(state || '').toLowerCase()] || (state || '').toUpperCase();
+  const stateCode = (state || '').toLowerCase();
+  const stateIntro = stateCode === 'az'
+    ? `Arizona is home to over 1.8 million residents aged 65 and older, representing one of the fastest-growing senior populations in the United States. The Phoenix metro area alone accounts for more than 65% of the state's hospice utilization, with Tucson, Scottsdale, and Mesa also seeing significant demand. Arizona's warm climate attracts retirees year-round, making access to quality hospice, palliative, and home care a critical need for families across the state. Medicare covers the majority of hospice services in Arizona, and the state's ALTCS program provides additional support for qualifying low-income seniors.`
+    : service.direct.replace('{cityState}', stateName);
   const title = `${service.name} in ${stateName} | Providers, Cost & Eligibility`;
   const description = `${service.name} options across ${stateName}. Providers, costs, and what to expect.`;
-  const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${(state || '').toLowerCase()}`;
+  const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${stateCode}`;
   const breadcrumbItems = [
     { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
     { name: service.name, url: `${CANONICAL_DOMAIN}/${serviceKey}` },
@@ -1617,7 +1645,8 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
   const providerSchemas = providers.slice(0, 10);
-  const cities = Array.from(new Set(providers.map((p) => p.city))).filter(Boolean).slice(0, 20);
+  const normalizedProviders = providers.map(normalizeProviderCitySpelling);
+  const cities = Array.from(new Set(normalizedProviders.map((p) => p.city))).filter(Boolean).slice(0, 20);
   const body = `
     <div class="breadcrumb">
       <a href="/">Home</a><span>></span>
@@ -1628,18 +1657,18 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
       <div class="hero-inner">
         <div class="hero-chip"><span class="hero-chip-dot"></span>${stateName}</div>
         <h1>${service.name} in ${stateName}</h1>
-        <p class="hero-sub">${service.direct.replace('{cityState}', stateName)}</p>
+        <p class="hero-sub">${stateIntro}</p>
       </div>
     </section>
     <main class="page-wrap" style="position:relative;z-index:0;padding-top:48px; padding-bottom:56px;">
       <section class="content-section">
         <h2>Top Providers in ${stateName}</h2>
-        <div class="provider-stack">${renderProviderList(providers.slice(0, 20))}</div>
+        <div class="provider-stack">${renderProviderList(normalizedProviders.slice(0, 20))}</div>
       </section>
       <section class="content-section">
         <h2>Browse cities in ${stateName}</h2>
         <ul class="link-list">${cities
-          .map((c) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${slugify(c)}-${(state || '').toLowerCase()}">${c}, ${state.toUpperCase()}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
+          .map((c) => `<li><a href="${CANONICAL_DOMAIN}/${serviceKey}/${slugify(c)}-${stateCode}">${c}, ${state.toUpperCase()}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
           .join('')}</ul>
       </section>
       <section class="content-section">
@@ -4599,10 +4628,11 @@ app.get('/:service(hospice-care|palliative-care|home-care)/:city-:state', async 
 app.get('/:service(hospice-care|palliative-care|home-care)/:state([a-z]{2})', async (req, res) => {
   try {
     const { service, state } = req.params;
-    const providers = await prisma.provider.findMany({
+    const providersRaw = await prisma.provider.findMany({
       where: { state: { equals: state, mode: 'insensitive' } },
       orderBy: { featured: 'desc' }
     });
+    const providers = providersRaw.map(normalizeProviderCitySpelling);
     const html = renderStatePage({ serviceKey: service, state, providers });
     res.send(html);
   } catch (err) {
@@ -4767,6 +4797,7 @@ Sitemap: ${CANONICAL_DOMAIN}/sitemap.xml
 
 app.listen(PORT, () => {
   console.log(`Best Hospice and Home Health server running on http://localhost:${PORT}`);
+  fixTusconProviderData();
   if (!EMAIL_ENABLED) {
     console.log('Email not configured: set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (optional: SENDGRID_REPLY_TO)');
   }
