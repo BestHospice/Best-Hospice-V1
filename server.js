@@ -1541,10 +1541,6 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
       <div class="two-col">
         <div class="left-col">
           <section class="content-section">
-            <span class="eyebrow">Direct answer</span>
-            <p><strong>${service.direct.replace('{cityState}', cityState)}</strong></p>
-          </section>
-          <section class="content-section">
             <h2>Local overview</h2>
             <p>${providerLine}</p>
             <p>${localResources}</p>
