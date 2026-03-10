@@ -1274,6 +1274,33 @@ function renderFAQSchema(faqs) {
   };
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderSimpleFaqItems(faqs = []) {
+  if (!Array.isArray(faqs) || !faqs.length) return '<p class="text-muted">No FAQs available right now.</p>';
+  return `
+    <div class="faq-simple-list">
+      ${faqs
+        .map(
+          ([q, a]) => `
+        <article class="faq-simple-item">
+          <h3>${escapeHtml(q)}</h3>
+          <p>${escapeHtml(a)}</p>
+        </article>
+      `
+        )
+        .join('')}
+    </div>
+  `;
+}
+
 function renderProviderSchema(provider) {
   return {
     '@context': 'https://schema.org',
@@ -1425,7 +1452,7 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       </header>
       ${body}
     </div>
-    <footer class="site-footer" style="position:static;background:#f8f5f0;width:100%;display:block;opacity:1;margin-top:0;border-radius:0;box-shadow:none;border:none;padding:24px 32px;">
+    <footer class="site-footer">
       <div class="footer-inner">
         <div class="footer-brand">Best Hospice and Home Health</div>
         <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
@@ -1450,47 +1477,24 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           });
         }
 
-        window.addEventListener('load', () => {
-          document.querySelectorAll('footer.site-footer, .page-footer-wrap').forEach((el) => el.remove());
+        // Hard guard: keep footer after FAQ content on all page variants.
+        const placeFooterAfterFaq = () => {
+          const footer = document.querySelector('.site-footer');
+          if (!footer) return;
+          const faqItems = document.querySelectorAll('.faq-item, .faq-simple-item');
+          if (!faqItems.length) return;
+          const lastFaqItem = faqItems[faqItems.length - 1];
+          const lastFaqSection = lastFaqItem.closest('.content-section') || lastFaqItem.parentElement;
+          if (!lastFaqSection || !lastFaqSection.parentNode) return;
+          if (footer.previousElementSibling !== lastFaqSection) {
+            lastFaqSection.parentNode.insertBefore(footer, lastFaqSection.nextSibling);
+          }
+        };
 
-          const footer = document.createElement('footer');
-          footer.className = 'site-footer';
-          footer.setAttribute('style', 'position:static;background:#f8f5f0;width:100%;display:block;opacity:1;margin-top:0;border-radius:0;box-shadow:none;border:none;padding:24px 32px;');
-
-          const inner = document.createElement('div');
-          inner.className = 'footer-inner';
-
-          const brand = document.createElement('div');
-          brand.className = 'footer-brand';
-          brand.textContent = 'Best Hospice and Home Health';
-
-          const meta = document.createElement('div');
-          meta.className = 'footer-meta';
-          meta.textContent = 'Contact: contact@besthospice.com • United States';
-
-          const linksWrap = document.createElement('div');
-          linksWrap.className = 'footer-links';
-          const footerLinks = [
-            ['/privacy.html', 'Privacy Policy'],
-            ['/cookie-policy.html', 'Cookie Policy'],
-            ['/terms.html', 'Terms of Service'],
-            ['/refund-policy.html', 'Refund & Cancellation Policy'],
-            ['/provider-billing.html', 'Provider Billing'],
-            ['/sitemap.html', 'HTML Sitemap']
-          ];
-          footerLinks.forEach(([href, label]) => {
-            const a = document.createElement('a');
-            a.href = href;
-            a.textContent = label;
-            linksWrap.appendChild(a);
-          });
-
-          inner.appendChild(brand);
-          inner.appendChild(meta);
-          inner.appendChild(linksWrap);
-          footer.appendChild(inner);
-          document.body.appendChild(footer);
-        });
+        placeFooterAfterFaq();
+        requestAnimationFrame(placeFooterAfterFaq);
+        setTimeout(placeFooterAfterFaq, 0);
+        setTimeout(placeFooterAfterFaq, 250);
       })();
     </script>
   </body>
@@ -1577,17 +1581,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
           </section>
           <section class="content-section">
             <h2>FAQs</h2>
-            <div class="faq-list">
-              ${(service.faq || [])
-                .map(
-                  ([q, a]) => `
-                <div class="faq-item open">
-                  <button class="faq-btn" type="button" aria-expanded="true">${q}<svg class="faq-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg></button>
-                  <div class="faq-body" style="max-height:400px;padding-bottom:16px;"><p>${a}</p></div>
-                </div>`
-                )
-                .join('')}
-            </div>
+            ${renderSimpleFaqItems(service.faq || [])}
           </section>
         </div>
         <aside class="page-sidebar">
@@ -1676,17 +1670,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
       </section>
       <section class="content-section">
         <h2>FAQs</h2>
-        <div class="faq-list">
-          ${(service.faq || [])
-            .map(
-              ([q, a]) => `
-            <div class="faq-item open">
-              <button class="faq-btn" type="button" aria-expanded="true">${q}<svg class="faq-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg></button>
-              <div class="faq-body" style="max-height:400px;padding-bottom:16px;"><p>${a}</p></div>
-            </div>`
-            )
-            .join('')}
-        </div>
+        ${renderSimpleFaqItems(service.faq || [])}
       </section>
       ${renderTrustBlock(formatDateISO())}
     </main>
@@ -1772,17 +1756,7 @@ function renderHubPage({ serviceKey, states = [] }) {
             .join('')}
           <section class="content-section">
             <h2>FAQs</h2>
-            <div class="faq-list">
-              ${(service.faq || [])
-                .map(
-                  ([q, a]) => `
-                <div class="faq-item open">
-                  <button class="faq-btn" type="button" aria-expanded="true">${q}<svg class="faq-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg></button>
-                  <div class="faq-body" style="max-height:400px;padding-bottom:16px;"><p>${a}</p></div>
-                </div>`
-                )
-                .join('')}
-            </div>
+            ${renderSimpleFaqItems(service.faq || [])}
           </section>
           <section class="content-section">
             <h2>Compare Hospice, Palliative, and Home Care</h2>
