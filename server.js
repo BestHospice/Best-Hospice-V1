@@ -1424,21 +1424,21 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         </div>
       </header>
       ${body}
-      <footer class="site-footer" style="position:static;background:#f8f5f0;width:100%;display:block;z-index:1;opacity:1;margin-top:0;border-radius:0;box-shadow:none;border:none;padding:24px 32px;">
-        <div class="footer-inner">
-          <div class="footer-brand">Best Hospice and Home Health</div>
-          <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
-          <div class="footer-links">
-            <a href="/privacy.html">Privacy Policy</a>
-            <a href="/cookie-policy.html">Cookie Policy</a>
-            <a href="/terms.html">Terms of Service</a>
-            <a href="/refund-policy.html">Refund & Cancellation Policy</a>
-            <a href="/provider-billing.html">Provider Billing</a>
-            <a href="/sitemap.html">HTML Sitemap</a>
-          </div>
-        </div>
-      </footer>
     </div>
+    <footer class="site-footer" style="position:static;background:#f8f5f0;width:100%;display:block;z-index:1;opacity:1;margin-top:0;border-radius:0;box-shadow:none;border:none;padding:24px 32px;">
+      <div class="footer-inner">
+        <div class="footer-brand">Best Hospice and Home Health</div>
+        <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
+        <div class="footer-links">
+          <a href="/privacy.html">Privacy Policy</a>
+          <a href="/cookie-policy.html">Cookie Policy</a>
+          <a href="/terms.html">Terms of Service</a>
+          <a href="/refund-policy.html">Refund & Cancellation Policy</a>
+          <a href="/provider-billing.html">Provider Billing</a>
+          <a href="/sitemap.html">HTML Sitemap</a>
+        </div>
+      </div>
+    </footer>
     <script>
       (() => {
         const toggle = document.querySelector('.menu-toggle');
