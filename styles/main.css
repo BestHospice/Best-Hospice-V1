@@ -295,6 +295,13 @@ a  { color: var(--green); }
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  position: relative;
+  z-index: 0;
+}
+
+.compare-table-wrap + * {
+  position: relative;
+  z-index: 1;
 }
 .compare-table thead { background: var(--green); }
 .compare-table thead th {
@@ -523,7 +530,7 @@ button[type="submit"]:hover, .form-submit:hover { background: var(--green-dark);
 .delay-4 { animation-delay: .32s; }
 
 /* ── Compatibility layer for existing site structure ───────── */
-.page-shell { max-width: 1280px; margin: 0 auto; }
+.page-shell { max-width: 1280px; margin: 0 auto; overflow: visible !important; }
 .hero {
   background: var(--green-dark);
   color: var(--white);

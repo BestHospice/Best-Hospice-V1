@@ -567,7 +567,7 @@ app.get('/cities.html', async (_req, res) => {
       ${sectionHtml('palliative', 'Palliative Care')}
       ${sectionHtml('home', 'Home Care')}
     </main>
-    <footer class="site-footer">
+    <footer class="site-footer" style="position:static !important; display:block !important; clear:both !important; width:100% !important; margin-top:32px !important; z-index:1 !important;">
       <div class="footer-inner">
         <div class="footer-brand">Best Hospice and Home Health</div>
         <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
@@ -1476,22 +1476,6 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
           });
         }
-
-        // Hard rule: keep exactly one footer and make it the last body element.
-        const normalizeFooterPlacement = () => {
-          const footers = Array.from(document.querySelectorAll('.site-footer'));
-          if (!footers.length) return;
-          const footer = footers[footers.length - 1];
-          footers.slice(0, -1).forEach((el) => el.remove());
-          if (document.body.lastElementChild !== footer) {
-            document.body.appendChild(footer);
-          }
-        };
-
-        normalizeFooterPlacement();
-        requestAnimationFrame(normalizeFooterPlacement);
-        setTimeout(normalizeFooterPlacement, 0);
-        setTimeout(normalizeFooterPlacement, 250);
 
       })();
     </script>
