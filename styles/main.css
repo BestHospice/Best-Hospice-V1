@@ -666,6 +666,12 @@ main .ghost-pill {
   background: #fff;
 }
 
+/* Ensure hamburger lines remain readable on dark header backgrounds */
+.hero .menu-toggle span,
+.home-page .menu-toggle span {
+  background: #ffffff !important;
+}
+
 main { padding: 20px 24px 34px; background: var(--sand); }
 main .card { background: #fff; border: 1px solid var(--sand-dark); }
 .lead-item { background: #fff; border: 1px solid var(--sand-dark); border-radius: var(--r); }
