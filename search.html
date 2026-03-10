@@ -9,12 +9,27 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles-modern.css" />    <link rel="stylesheet" href="/styles/main.css" />
+  <style>
+    /* Search page readability guard */
+    .search-page .hero .hero-text h1,
+    .search-page .hero .hero-text h2,
+    .search-page .hero .hero-text h3 {
+      color: #16322d !important;
+    }
+    .search-page .hero .hero-text p,
+    .search-page .hero .hero-text .hero-line,
+    .search-page .hero .hero-text .tagline,
+    .search-page .hero .hero-text li,
+    .search-page .steps-vertical p {
+      color: #35544d !important;
+    }
+  </style>
 <script src="/abel-chat.js" defer></script>
   <script src="/cookie-consent.js" defer></script>
   <script src="/analytics-tracker.js" defer></script>
   <script src="/marketing-consent-loader.js" defer></script>
 </head>
-<body>
+<body class="search-page">
   <div class="page-shell">
     <header class="hero">
       <div class="hero-top">
