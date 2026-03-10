@@ -454,6 +454,15 @@ button[type="submit"]:hover, .form-submit:hover { background: var(--green-dark);
 }
 .site-footer a { color: var(--green); text-decoration: none; }
 
+.page-footer-wrap {
+  display: block;
+  width: 100%;
+  clear: both;
+  margin-top: 56px;
+  position: relative;
+  z-index: 0;
+}
+
 /* ── ADMIN / DASHBOARD TABLES ────────────────── */
 .data-table {
   width: 100%; border-collapse: collapse; font-size: .88rem; margin: 16px 0;
