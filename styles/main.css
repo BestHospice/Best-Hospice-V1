@@ -602,6 +602,20 @@ main .ghost-pill {
 .home-page main .ghost-pill {
   color: var(--green-dark) !important;
 }
+
+/* Homepage top hero readability (prevents white-on-light text) */
+.home-page .hero .hero-text,
+.home-page .hero .hero-text h1,
+.home-page .hero .hero-text h2,
+.home-page .hero .hero-text h3,
+.home-page .hero .hero-line,
+.home-page .hero .tagline,
+.home-page .hero .hero-callout p,
+.home-page .hero .hero-callout li,
+.home-page .hero .start-title,
+.home-page .hero .start-subtitle {
+  color: #16322d !important;
+}
 .hero .hero-body {
   padding: 34px 24px 36px;
   gap: 24px;
