@@ -1448,6 +1448,13 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           const open = links.classList.toggle('open');
           toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         });
+
+        // Fail-safe: keep footer as the final body element so it always sits
+        // below FAQ/content, regardless of layout or legacy CSS interactions.
+        const footer = document.querySelector('footer.site-footer');
+        if (footer) {
+          document.body.appendChild(footer);
+        }
       })();
     </script>
   </body>
