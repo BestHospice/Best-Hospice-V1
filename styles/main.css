@@ -648,6 +648,9 @@ main .ghost-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  color: #ffffff !important;
   background: transparent;
   border: 1px solid rgba(255,255,255,.35);
   border-radius: 10px;
@@ -661,9 +664,12 @@ main .ghost-pill {
 }
 .menu-toggle span {
   display: block;
+  width: 20px;
   height: 2px;
-  margin: 5px 0;
-  background: #fff;
+  margin: 0;
+  background: currentColor !important;
+  border-radius: 2px;
+  opacity: 1 !important;
 }
 
 /* Ensure hamburger lines remain readable on dark header backgrounds */
