@@ -1450,21 +1450,16 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           });
         }
 
-        const keepFooterAfterFaqs = () => {
+        const keepFooterLast = () => {
           const footer = document.querySelector('footer.site-footer');
-          const faqItems = Array.from(document.querySelectorAll('.faq-item'));
-          if (!footer || !faqItems.length) return;
-          const lastFaq = faqItems[faqItems.length - 1];
-          const footerBeforeLastFaq =
-            (footer.compareDocumentPosition(lastFaq) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-          if (footerBeforeLastFaq) {
-            document.body.appendChild(footer);
-          }
+          if (!footer) return;
+          document.body.appendChild(footer);
         };
 
         window.addEventListener('load', () => {
-          keepFooterAfterFaqs();
-          setTimeout(keepFooterAfterFaqs, 80);
+          keepFooterLast();
+          setTimeout(keepFooterLast, 80);
+          setTimeout(keepFooterLast, 240);
         });
       })();
     </script>
