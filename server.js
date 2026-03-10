@@ -1445,10 +1445,24 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
       (() => {
         const toggle = document.querySelector('.menu-toggle');
         const links = document.getElementById('topLinks');
-        if (!toggle || !links) return;
-        toggle.addEventListener('click', () => {
-          const open = links.classList.toggle('open');
-          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (toggle && links) {
+          toggle.addEventListener('click', () => {
+            const open = links.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+          });
+        }
+
+        const keepFooterLast = () => {
+          const footerWrap = document.querySelector('.page-footer-wrap');
+          if (!footerWrap) return;
+          document.body.appendChild(footerWrap);
+        };
+
+        // Run after full load and once more shortly after to handle iOS/Safari
+        // parser correction timing on complex accordion markup.
+        window.addEventListener('load', () => {
+          keepFooterLast();
+          setTimeout(keepFooterLast, 60);
         });
       })();
     </script>
