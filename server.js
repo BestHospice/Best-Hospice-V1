@@ -2794,38 +2794,54 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       ? Number((totalFirstContactHours / totalFirstContactCount).toFixed(2))
       : null;
 
-    const leadCentroidMap = new Map();
-    for (const row of notifsForCentroid) {
-      if (!row.provider?.lat || !row.provider?.lon || !row.lead?.zip) continue;
-      const curr = leadCentroidMap.get(row.leadId) || { zip: row.lead.zip, count: 0, lat: 0, lon: 0 };
-      curr.count += 1;
-      curr.lat += row.provider.lat;
-      curr.lon += row.provider.lon;
-      leadCentroidMap.set(row.leadId, curr);
-    }
+    const aggregateHeatPoints = (rows = []) => {
+      const leadCentroidMap = new Map();
+      for (const row of rows) {
+        const zip = String(row?.lead?.zip || '').trim();
+        const lat = Number(row?.provider?.lat);
+        const lon = Number(row?.provider?.lon);
+        if (!zip || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const curr = leadCentroidMap.get(row.leadId) || { zip, count: 0, lat: 0, lon: 0 };
+        curr.count += 1;
+        curr.lat += lat;
+        curr.lon += lon;
+        leadCentroidMap.set(row.leadId, curr);
+      }
 
-    const heatZipMap = new Map();
-    for (const cent of leadCentroidMap.values()) {
-      if (!cent.count) continue;
-      const lat = cent.lat / cent.count;
-      const lon = cent.lon / cent.count;
-      const key = String(cent.zip || '').trim();
-      const curr = heatZipMap.get(key) || { zip: key, count: 0, latAcc: 0, lonAcc: 0, n: 0 };
-      curr.count += 1;
-      curr.latAcc += lat;
-      curr.lonAcc += lon;
-      curr.n += 1;
-      heatZipMap.set(key, curr);
-    }
+      const heatZipMap = new Map();
+      for (const cent of leadCentroidMap.values()) {
+        if (!cent.count) continue;
+        const key = String(cent.zip || '').trim();
+        const curr = heatZipMap.get(key) || { zip: key, count: 0, latAcc: 0, lonAcc: 0, n: 0 };
+        curr.count += 1;
+        curr.latAcc += (cent.lat / cent.count);
+        curr.lonAcc += (cent.lon / cent.count);
+        curr.n += 1;
+        heatZipMap.set(key, curr);
+      }
 
-    const heatPoints = Array.from(heatZipMap.values())
-      .map((z) => ({
-        zip: z.zip,
-        count: z.count,
-        lat: z.latAcc / z.n,
-        lon: z.lonAcc / z.n
-      }))
-      .filter((z) => Number.isFinite(z.lat) && Number.isFinite(z.lon));
+      return Array.from(heatZipMap.values())
+        .map((z) => ({
+          zip: z.zip,
+          count: z.count,
+          lat: z.latAcc / z.n,
+          lon: z.lonAcc / z.n
+        }))
+        .filter((z) => Number.isFinite(z.lat) && Number.isFinite(z.lon));
+    };
+
+    let heatPoints = aggregateHeatPoints(notifsForCentroid);
+    if (!heatPoints.length && leadIds.length) {
+      const impressionRows = await prisma.providerImpression.findMany({
+        where: { leadId: { in: leadIds } },
+        select: {
+          leadId: true,
+          lead: { select: { zip: true } },
+          provider: { select: { lat: true, lon: true } }
+        }
+      });
+      heatPoints = aggregateHeatPoints(impressionRows);
+    }
 
     const timeline = Array.from(timelineMap.entries())
       .map(([date, count]) => ({ date, count }))
