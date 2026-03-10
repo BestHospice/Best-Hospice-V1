@@ -1477,6 +1477,22 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           });
         }
 
+        // Hard rule: keep exactly one footer and make it the last body element.
+        const normalizeFooterPlacement = () => {
+          const footers = Array.from(document.querySelectorAll('.site-footer'));
+          if (!footers.length) return;
+          const footer = footers[footers.length - 1];
+          footers.slice(0, -1).forEach((el) => el.remove());
+          if (document.body.lastElementChild !== footer) {
+            document.body.appendChild(footer);
+          }
+        };
+
+        normalizeFooterPlacement();
+        requestAnimationFrame(normalizeFooterPlacement);
+        setTimeout(normalizeFooterPlacement, 0);
+        setTimeout(normalizeFooterPlacement, 250);
+
       })();
     </script>
   </body>
