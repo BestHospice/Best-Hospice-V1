@@ -609,12 +609,22 @@ main .ghost-pill {
 .home-page .hero .hero-text h2,
 .home-page .hero .hero-text h3,
 .home-page .hero .hero-line,
-.home-page .hero .tagline,
 .home-page .hero .hero-callout p,
 .home-page .hero .hero-callout li,
 .home-page .hero .start-title,
 .home-page .hero .start-subtitle {
   color: #16322d !important;
+}
+
+/* Home hero intro copy (requested white) */
+.home-page .hero .hero-callout .tagline,
+.home-page .hero .hero-callout .tagline.accent {
+  color: rgba(255,255,255,.95) !important;
+}
+
+/* Home steps copy (requested black) */
+.home-page .hero .steps-vertical p {
+  color: #111827 !important;
 }
 .hero .hero-body {
   padding: 34px 24px 36px;
