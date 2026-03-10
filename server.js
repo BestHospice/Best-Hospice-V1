@@ -1753,12 +1753,12 @@ function renderHubPage({ serviceKey, states = [] }) {
             )
             .join('')}
           <section class="content-section">
-            <h2>FAQs</h2>
-            ${renderSimpleFaqItems(service.faq || [])}
-          </section>
-          <section class="content-section">
             <h2>Compare Hospice, Palliative, and Home Care</h2>
             ${renderComparisonTable()}
+          </section>
+          <section class="content-section">
+            <h2>FAQs</h2>
+            ${renderSimpleFaqItems(service.faq || [])}
           </section>
         </div>
         <aside class="page-sidebar">
