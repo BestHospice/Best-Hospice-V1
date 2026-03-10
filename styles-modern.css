@@ -1345,6 +1345,21 @@ a {
   #optional-details-form #detail-notes,
   #optional-details-form .optional-choice {
     grid-column: 1;
+    grid-row: auto !important;
+    position: static !important;
+  }
+
+  #optional-details-form label {
+    display: block;
+    margin-top: 6px;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+
+  #optional-details-form input,
+  #optional-details-form select,
+  #optional-details-form textarea {
+    margin-bottom: 8px;
   }
 
   .status {
