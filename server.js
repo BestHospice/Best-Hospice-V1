@@ -2797,7 +2797,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
     const aggregateHeatPoints = (rows = []) => {
       const leadCentroidMap = new Map();
       for (const row of rows) {
-        const zip = String(row?.lead?.zip || '').trim();
+        const zip = String(row?.lead?.zip || row?.zip || '').trim();
         const lat = Number(row?.provider?.lat);
         const lon = Number(row?.provider?.lon);
         if (!zip || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
@@ -2841,6 +2841,26 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         }
       });
       heatPoints = aggregateHeatPoints(impressionRows);
+    }
+    if (!heatPoints.length) {
+      const leadZipsInRange = Array.from(new Set(
+        leadsRange
+          .map((l) => String(l.zip || '').trim())
+          .filter(Boolean)
+      ));
+      if (leadZipsInRange.length) {
+        const impressionRowsByZip = await prisma.providerImpression.findMany({
+          where: {
+            zip: { in: leadZipsInRange },
+            createdAt: { gte: from, lte: to }
+          },
+          select: {
+            zip: true,
+            provider: { select: { lat: true, lon: true } }
+          }
+        });
+        heatPoints = aggregateHeatPoints(impressionRowsByZip);
+      }
     }
 
     const timeline = Array.from(timelineMap.entries())
