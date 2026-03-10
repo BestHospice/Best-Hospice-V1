@@ -576,6 +576,14 @@ button[type="submit"]:hover, .form-submit:hover { background: var(--green-dark);
   background: rgba(255,255,255,.08);
   border: 1px solid rgba(255,255,255,.2);
 }
+
+/* Content-area pills (e.g., guide jump links) must stay readable on light cards */
+main .pill,
+main .ghost-pill {
+  color: var(--green-dark) !important;
+  background: var(--green-tint);
+  border: 1px solid var(--green-border);
+}
 .hero .hero-body {
   padding: 34px 24px 36px;
   gap: 24px;
