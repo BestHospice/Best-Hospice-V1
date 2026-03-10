@@ -553,7 +553,17 @@ button[type="submit"]:hover, .form-submit:hover { background: var(--green-dark);
   backdrop-filter: blur(4px);
   border-bottom: 1px solid rgba(255,255,255,.1);
 }
-.hero .brand-logo { max-height: 44px; width: auto; }
+.hero .brand {
+  flex: 0 0 auto;
+  min-width: 220px;
+}
+.hero .brand-logo {
+  max-height: 64px;
+  width: auto;
+  max-width: 360px;
+  object-fit: contain;
+  display: block;
+}
 .top-links {
   display: flex;
   gap: 12px;
@@ -635,13 +645,19 @@ main .ghost-pill {
 .hero main, .hero h1, .hero h2, .hero h3 { color: var(--white); }
 
 .menu-toggle {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  border: 0;
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 10px;
   width: 42px;
   height: 42px;
   padding: 8px;
   cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 260;
 }
 .menu-toggle span {
   display: block;
@@ -656,7 +672,7 @@ main .card { background: #fff; border: 1px solid var(--sand-dark); }
 .site-footer { border-radius: 0 0 12px 12px; }
 
 @media (max-width: 980px) {
-  .menu-toggle { display: block; }
+  .menu-toggle { display: inline-flex; }
   .top-links {
     display: none;
     width: 100%;
@@ -670,6 +686,21 @@ main .card { background: #fff; border: 1px solid var(--sand-dark); }
   .hero .hero-top { align-items: center; flex-wrap: wrap; padding: 10px 16px; }
   .hero .hero-body { padding: 26px 16px 30px; }
   main { padding: 16px; }
+}
+
+/* Desktop: keep menu button available and allow collapsing links */
+@media (min-width: 981px) {
+  .hero .hero-top {
+    flex-wrap: nowrap;
+  }
+
+  .menu-toggle {
+    display: inline-flex !important;
+  }
+
+  .top-links.open {
+    display: none !important;
+  }
 }
 
 #cookie-consent-banner,
