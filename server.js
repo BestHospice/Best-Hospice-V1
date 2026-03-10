@@ -1347,7 +1347,7 @@ function renderProviderList(providers) {
 
 function renderComparisonTable() {
   return `
-    <div class="compare-table-wrap">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;max-width:100%;">
       <table class="compare-table" aria-label="Compare hospice, palliative, and home care">
         <thead>
           <tr>
