@@ -198,6 +198,18 @@ a  { color: var(--green); }
   .page-sidebar { order: -1; }
 }
 
+@media (max-width: 768px) {
+  .two-col {
+    display: block;
+  }
+  .left-col {
+    width: 100%;
+  }
+  .page-sidebar {
+    width: 100%;
+  }
+}
+
 .content-section { margin-bottom: 52px; position: relative; z-index: 0; }
 .content-section:last-child { margin-bottom: 0; }
 .section-divider {
