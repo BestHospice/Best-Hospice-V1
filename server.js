@@ -1452,51 +1452,38 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           });
         }
 
-        const keepFooterLast = () => {
-          const footer = document.querySelector('footer.site-footer');
-          const footerWrap = document.querySelector('.page-footer-wrap') || footer;
-          if (!footerWrap) return;
+        const normalizeFooterAtBottom = () => {
+          // Remove any duplicated/corrupted footer fragments first.
+          document.querySelectorAll('.page-footer-wrap, footer.site-footer, .footer-inner, .footer-brand, .footer-meta, .footer-links')
+            .forEach((el) => el.remove());
 
-          // Force footer to remain in normal flow below all FAQ/content.
-          footerWrap.style.setProperty('position', 'static', 'important');
-          footerWrap.style.setProperty('display', 'block', 'important');
-          footerWrap.style.setProperty('width', '100%', 'important');
-          footerWrap.style.setProperty('clear', 'both', 'important');
-          footerWrap.style.setProperty('float', 'none', 'important');
-          footerWrap.style.setProperty('inset', 'auto', 'important');
-          footerWrap.style.setProperty('top', 'auto', 'important');
-          footerWrap.style.setProperty('right', 'auto', 'important');
-          footerWrap.style.setProperty('bottom', 'auto', 'important');
-          footerWrap.style.setProperty('left', 'auto', 'important');
-          footerWrap.style.setProperty('transform', 'none', 'important');
-          footerWrap.style.setProperty('z-index', '1', 'important');
-
-          if (footer) {
-            footer.style.setProperty('position', 'static', 'important');
-            footer.style.setProperty('display', 'block', 'important');
-            footer.style.setProperty('width', '100%', 'important');
-            footer.style.setProperty('clear', 'both', 'important');
-            footer.style.setProperty('float', 'none', 'important');
-            footer.style.setProperty('inset', 'auto', 'important');
-            footer.style.setProperty('top', 'auto', 'important');
-            footer.style.setProperty('right', 'auto', 'important');
-            footer.style.setProperty('bottom', 'auto', 'important');
-            footer.style.setProperty('left', 'auto', 'important');
-            footer.style.setProperty('transform', 'none', 'important');
-            footer.style.setProperty('z-index', '1', 'important');
-          }
-
-          document.body.appendChild(footerWrap);
+          const wrap = document.createElement('div');
+          wrap.className = 'page-footer-wrap';
+          wrap.innerHTML = `
+            <footer class="site-footer" style="position:static;background:#f8f5f0;width:100%;display:block;opacity:1;margin-top:0;border-radius:0;box-shadow:none;border:none;padding:24px 32px;">
+              <div class="footer-inner">
+                <div class="footer-brand">Best Hospice and Home Health</div>
+                <div class="footer-meta">Contact: contact@besthospice.com • United States</div>
+                <div class="footer-links">
+                  <a href="/privacy.html">Privacy Policy</a>
+                  <a href="/cookie-policy.html">Cookie Policy</a>
+                  <a href="/terms.html">Terms of Service</a>
+                  <a href="/refund-policy.html">Refund & Cancellation Policy</a>
+                  <a href="/provider-billing.html">Provider Billing</a>
+                  <a href="/sitemap.html">HTML Sitemap</a>
+                </div>
+              </div>
+            </footer>
+          `;
+          document.body.appendChild(wrap);
         };
 
         // Run repeatedly across lifecycle to handle iOS/Safari parser/caching quirks.
-        document.addEventListener('DOMContentLoaded', keepFooterLast);
+        document.addEventListener('DOMContentLoaded', normalizeFooterAtBottom);
         window.addEventListener('load', () => {
-          keepFooterLast();
-          setTimeout(keepFooterLast, 30);
-          setTimeout(keepFooterLast, 60);
-          setTimeout(keepFooterLast, 180);
-          setTimeout(keepFooterLast, 400);
+          normalizeFooterAtBottom();
+          setTimeout(normalizeFooterAtBottom, 30);
+          setTimeout(normalizeFooterAtBottom, 120);
         });
       })();
     </script>
