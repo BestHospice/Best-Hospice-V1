@@ -1453,16 +1453,50 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
         }
 
         const keepFooterLast = () => {
-          const footerWrap = document.querySelector('.page-footer-wrap');
+          const footer = document.querySelector('footer.site-footer');
+          const footerWrap = document.querySelector('.page-footer-wrap') || footer;
           if (!footerWrap) return;
+
+          // Force footer to remain in normal flow below all FAQ/content.
+          footerWrap.style.setProperty('position', 'static', 'important');
+          footerWrap.style.setProperty('display', 'block', 'important');
+          footerWrap.style.setProperty('width', '100%', 'important');
+          footerWrap.style.setProperty('clear', 'both', 'important');
+          footerWrap.style.setProperty('float', 'none', 'important');
+          footerWrap.style.setProperty('inset', 'auto', 'important');
+          footerWrap.style.setProperty('top', 'auto', 'important');
+          footerWrap.style.setProperty('right', 'auto', 'important');
+          footerWrap.style.setProperty('bottom', 'auto', 'important');
+          footerWrap.style.setProperty('left', 'auto', 'important');
+          footerWrap.style.setProperty('transform', 'none', 'important');
+          footerWrap.style.setProperty('z-index', '1', 'important');
+
+          if (footer) {
+            footer.style.setProperty('position', 'static', 'important');
+            footer.style.setProperty('display', 'block', 'important');
+            footer.style.setProperty('width', '100%', 'important');
+            footer.style.setProperty('clear', 'both', 'important');
+            footer.style.setProperty('float', 'none', 'important');
+            footer.style.setProperty('inset', 'auto', 'important');
+            footer.style.setProperty('top', 'auto', 'important');
+            footer.style.setProperty('right', 'auto', 'important');
+            footer.style.setProperty('bottom', 'auto', 'important');
+            footer.style.setProperty('left', 'auto', 'important');
+            footer.style.setProperty('transform', 'none', 'important');
+            footer.style.setProperty('z-index', '1', 'important');
+          }
+
           document.body.appendChild(footerWrap);
         };
 
-        // Run after full load and once more shortly after to handle iOS/Safari
-        // parser correction timing on complex accordion markup.
+        // Run repeatedly across lifecycle to handle iOS/Safari parser/caching quirks.
+        document.addEventListener('DOMContentLoaded', keepFooterLast);
         window.addEventListener('load', () => {
           keepFooterLast();
+          setTimeout(keepFooterLast, 30);
           setTimeout(keepFooterLast, 60);
+          setTimeout(keepFooterLast, 180);
+          setTimeout(keepFooterLast, 400);
         });
       })();
     </script>
