@@ -10,18 +10,24 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles-modern.css" />    <link rel="stylesheet" href="/styles/main.css" />
   <style>
-    /* Search page readability guard */
+    /* Search page: keep intro copy readable and above the questionnaire */
+    .search-page .hero-body {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 16px !important;
+    }
+    .search-page .hero-text { order: 1; }
+    .search-page #search-form { order: 2; }
+
     .search-page .hero .hero-text h1,
     .search-page .hero .hero-text h2,
     .search-page .hero .hero-text h3 {
-      color: #16322d !important;
+      color: rgba(255,255,255,.95) !important;
     }
-    .search-page .hero .hero-text p,
     .search-page .hero .hero-text .hero-line,
     .search-page .hero .hero-text .tagline,
-    .search-page .hero .hero-text li,
-    .search-page .steps-vertical p {
-      color: #35544d !important;
+    .search-page .hero .hero-text li {
+      color: rgba(255,255,255,.86) !important;
     }
   </style>
 <script src="/abel-chat.js" defer></script>
