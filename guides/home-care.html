@@ -133,11 +133,27 @@
       (() => {
         const toggle = document.querySelector('.menu-toggle');
         const links = document.getElementById('topLinks');
-        if (!toggle || !links) return;
-        toggle.addEventListener('click', () => {
-          const open = links.classList.toggle('open');
-          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
+        if (toggle && links) {
+          toggle.addEventListener('click', () => {
+            const open = links.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+          });
+        }
+
+        const normalizeFooterPlacement = () => {
+          const footers = Array.from(document.querySelectorAll('.site-footer'));
+          if (!footers.length) return;
+          const footer = footers[footers.length - 1];
+          footers.slice(0, -1).forEach((el) => el.remove());
+          if (document.body.lastElementChild !== footer) {
+            document.body.appendChild(footer);
+          }
+        };
+
+        normalizeFooterPlacement();
+        requestAnimationFrame(normalizeFooterPlacement);
+        setTimeout(normalizeFooterPlacement, 0);
+        setTimeout(normalizeFooterPlacement, 250);
       })();
     </script>
 
