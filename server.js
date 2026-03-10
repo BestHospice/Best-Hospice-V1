@@ -1451,6 +1451,25 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
           });
         }
+
+        const enforceFaqThenFooter = () => {
+          const faqList = document.querySelector('.faq-list');
+          if (faqList) {
+            const allFaqItems = Array.from(document.querySelectorAll('.faq-item'));
+            allFaqItems.forEach((item) => faqList.appendChild(item));
+          }
+
+          const footerWrap = document.querySelector('.page-footer-wrap');
+          if (footerWrap) {
+            document.body.appendChild(footerWrap);
+          }
+        };
+
+        window.addEventListener('DOMContentLoaded', enforceFaqThenFooter);
+        window.addEventListener('load', () => {
+          enforceFaqThenFooter();
+          setTimeout(enforceFaqThenFooter, 60);
+        });
       })();
     </script>
   </body>
