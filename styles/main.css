@@ -210,6 +210,15 @@ a  { color: var(--green); }
   }
 }
 
+@media (max-width: 768px) {
+  .compare-table-wrap, .compare-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+}
+
 .content-section { margin-bottom: 52px; position: relative; z-index: 0; }
 .content-section:last-child { margin-bottom: 0; }
 .section-divider {
