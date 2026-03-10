@@ -1450,16 +1450,46 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
           });
         }
 
-        const keepFooterLast = () => {
-          const footer = document.querySelector('footer.site-footer');
-          if (!footer) return;
-          document.body.appendChild(footer);
-        };
-
         window.addEventListener('load', () => {
-          keepFooterLast();
-          setTimeout(keepFooterLast, 80);
-          setTimeout(keepFooterLast, 240);
+          document.querySelectorAll('footer.site-footer, .page-footer-wrap').forEach((el) => el.remove());
+
+          const footer = document.createElement('footer');
+          footer.className = 'site-footer';
+          footer.setAttribute('style', 'position:static;background:#f8f5f0;width:100%;display:block;opacity:1;margin-top:0;border-radius:0;box-shadow:none;border:none;padding:24px 32px;');
+
+          const inner = document.createElement('div');
+          inner.className = 'footer-inner';
+
+          const brand = document.createElement('div');
+          brand.className = 'footer-brand';
+          brand.textContent = 'Best Hospice and Home Health';
+
+          const meta = document.createElement('div');
+          meta.className = 'footer-meta';
+          meta.textContent = 'Contact: contact@besthospice.com • United States';
+
+          const linksWrap = document.createElement('div');
+          linksWrap.className = 'footer-links';
+          const footerLinks = [
+            ['/privacy.html', 'Privacy Policy'],
+            ['/cookie-policy.html', 'Cookie Policy'],
+            ['/terms.html', 'Terms of Service'],
+            ['/refund-policy.html', 'Refund & Cancellation Policy'],
+            ['/provider-billing.html', 'Provider Billing'],
+            ['/sitemap.html', 'HTML Sitemap']
+          ];
+          footerLinks.forEach(([href, label]) => {
+            const a = document.createElement('a');
+            a.href = href;
+            a.textContent = label;
+            linksWrap.appendChild(a);
+          });
+
+          inner.appendChild(brand);
+          inner.appendChild(meta);
+          inner.appendChild(linksWrap);
+          footer.appendChild(inner);
+          document.body.appendChild(footer);
         });
       })();
     </script>
