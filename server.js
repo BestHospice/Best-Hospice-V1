@@ -1503,6 +1503,16 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
   const providerSchemas = providers.slice(0, 10);
+  const cityFaqItems = (service.faq || [])
+    .map(
+      ([q, a]) => `
+                <div class="faq-simple-item faq-item">
+                  <h3>${escapeHtml(q)}</h3>
+                  <p>${escapeHtml(a)}</p>
+                </div>
+              `
+    )
+    .join('');
 
   const body = `
     <div class="breadcrumb">
@@ -1529,7 +1539,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
     </section>
     <main class="page-wrap" style="position:relative;z-index:0;">
       <div class="two-col">
-        <div>
+        <div class="left-col">
           <section class="content-section">
             <span class="eyebrow">Direct answer</span>
             <p><strong>${service.direct.replace('{cityState}', cityState)}</strong></p>
@@ -1561,9 +1571,11 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
             <h2>Compare Hospice, Palliative, and Home Care</h2>
             ${renderComparisonTable()}
           </section>
-          <section class="content-section">
+          <section class="content-section faq-section">
             <h2>FAQs</h2>
-            ${renderSimpleFaqItems(service.faq || [])}
+            <div class="faq-simple-list faq-list">
+              ${cityFaqItems}
+            </div>
           </section>
         </div>
         <aside class="page-sidebar">
