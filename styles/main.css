@@ -198,7 +198,7 @@ a  { color: var(--green); }
   .page-sidebar { order: -1; }
 }
 
-.content-section { margin-bottom: 52px; }
+.content-section { margin-bottom: 52px; position: relative; z-index: 0; }
 .content-section:last-child { margin-bottom: 0; }
 .section-divider {
   border: none; border-top: 1px solid var(--sand-dark); margin: 52px 0;
@@ -288,8 +288,10 @@ a  { color: var(--green); }
 /* ── COMPARISON TABLE ────────────────────────── */
 .compare-table {
   width: 100%; border-collapse: collapse;
-  border-radius: var(--r); overflow: hidden;
+  border-radius: var(--r); overflow: visible;
   box-shadow: var(--shadow-sm); font-size: .86rem; margin: 18px 0;
+  position: relative;
+  z-index: 0;
 }
 .compare-table-wrap {
   width: 100%;
@@ -475,12 +477,13 @@ button[type="submit"]:hover, .form-submit:hover { background: var(--green-dark);
   bottom: auto !important;
   left: auto !important;
   right: auto !important;
-  z-index: auto !important;
+  z-index: 5 !important;
   width: 100%;
   clear: both;
   display: block;
   opacity: 1;
   background: var(--sand) !important;
+  isolation: isolate;
 }
 .site-footer a { color: var(--green); text-decoration: none; }
 
