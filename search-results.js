@@ -131,6 +131,16 @@ function parseServiceZipCodes(value) {
     .filter((z) => /^\d{5}$/.test(z));
 }
 
+function providerMatchesCoverage(provider, distanceKm, searchRadiusKm, searchZip) {
+  const zipCoverage = parseServiceZipCodes(provider?.serviceZipCodes);
+  const hasZipCoverage = zipCoverage.length > 0;
+  const zipMatch = /^\d{5}$/.test(searchZip || '') && zipCoverage.includes(String(searchZip));
+  if (hasZipCoverage) return zipMatch; // ZIP list present => ZIP-only matching
+  const providerRadius = provider?.serviceRadiusKm || searchRadiusKm;
+  const effectiveRadius = Math.min(searchRadiusKm, providerRadius);
+  return distanceKm <= effectiveRadius;
+}
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const toRad = (v) => (v * Math.PI) / 180;
   const R = 6371;
@@ -144,14 +154,7 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 function getNearbyProviders(lat, lon, providers, radiusKm, searchZip) {
   return providers
     .map((p) => ({ ...p, distance: haversineKm(lat, lon, p.lat, p.lon) }))
-    .filter((p) => {
-      const providerRadius = p.serviceRadiusKm || radiusKm;
-      const effectiveRadius = Math.min(radiusKm, providerRadius);
-      const zipCoverage = parseServiceZipCodes(p.serviceZipCodes);
-      const zipMatch = /^\d{5}$/.test(searchZip || '') && zipCoverage.includes(String(searchZip));
-      const radiusMatch = p.distance <= effectiveRadius;
-      return zipMatch || radiusMatch;
-    })
+    .filter((p) => providerMatchesCoverage(p, p.distance, radiusKm, searchZip))
     .sort((a, b) => {
       const rankDiff = getPlanRank(b.planTier) - getPlanRank(a.planTier);
       if (rankDiff !== 0) return rankDiff;
@@ -504,7 +507,7 @@ async function startResultsFlow() {
           distance: haversineKm(geo.lat, geo.lon, p.lat, p.lon),
           source: 'featured'
         }))
-        .filter((p) => p.distance <= Math.min(radiusKm, p.serviceRadiusKm || radiusKm))
+        .filter((p) => providerMatchesCoverage(p, p.distance, radiusKm, currentZip))
     ];
 
     const unique = [];
