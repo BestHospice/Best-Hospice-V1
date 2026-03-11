@@ -16,6 +16,16 @@ const app = express();
 const prisma = new PrismaClient();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
+app.use((req, res, next) => {
+  if (req.headers['x-forwarded-proto'] !== 'https') {
+    return res.redirect(301, 'https://www.besthospice.com' + req.url);
+  }
+  if (req.headers.host === 'besthospice.com') {
+    return res.redirect(301, 'https://www.besthospice.com' + req.url);
+  }
+  next();
+});
+
 const PORT = process.env.PORT || 8080;
 const ADMIN_TOKEN_ADD = process.env.ADMIN_TOKEN_ADD || 'TimetoProvideHelp12!';
 const ADMIN_TOKEN_REMOVE = process.env.ADMIN_TOKEN_REMOVE || 'this221isHow45!toRemove398Them34!';
