@@ -106,6 +106,7 @@ const JOB_RETRY_DELAY_MS = 5 * 60 * 1000;
 const BLOG_VERIFICATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 const LEAD_STATUS_SIGNING_SECRET = process.env.LEAD_STATUS_SIGNING_SECRET || PROVIDER_JWT_SECRET;
 const LEAD_STATUS_NUDGE_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
+const LEAD_STATUS_NUDGE_ENABLED = process.env.LEAD_STATUS_NUDGE_ENABLED === 'true';
 const LEAD_OUTCOME_VALUES = ['new', 'contacted', 'qualified', 'admitted', 'not_a_fit', 'no_response'];
 const LEAD_OUTCOME_LABELS = {
   new: 'New',
@@ -941,6 +942,13 @@ async function claimNotificationJobs(limit = 10) {
 async function processNotificationJob(job) {
   const payload = job.payload || {};
   const isStatusNudge = String(payload.jobType || '').toLowerCase() === 'lead_status_nudge';
+  if (isStatusNudge && !LEAD_STATUS_NUDGE_ENABLED) {
+    await prisma.notificationJob.update({
+      where: { id: job.id },
+      data: { status: 'skipped', lastError: 'Lead follow-up nudges are paused' }
+    });
+    return;
+  }
   const providerEmail = payload.providerEmail;
   const providerEmails = uniqueEmails(
     Array.isArray(payload.providerEmails)
@@ -2405,18 +2413,20 @@ app.post('/api/notify', rateLimit, async (req, res) => {
             });
           }
 
-          const nudgeJobs = jobs.map((j) => ({
-            id: uuid(),
-            leadId: j.leadId,
-            providerId: j.providerId,
-            runAt: new Date(Date.now() + LEAD_STATUS_NUDGE_DELAY_MS),
-            status: 'pending',
-            payload: {
-              ...j.payload,
-              jobType: 'lead_status_nudge'
-            }
-          }));
-          await prisma.notificationJob.createMany({ data: nudgeJobs });
+          if (LEAD_STATUS_NUDGE_ENABLED) {
+            const nudgeJobs = jobs.map((j) => ({
+              id: uuid(),
+              leadId: j.leadId,
+              providerId: j.providerId,
+              runAt: new Date(Date.now() + LEAD_STATUS_NUDGE_DELAY_MS),
+              status: 'pending',
+              payload: {
+                ...j.payload,
+                jobType: 'lead_status_nudge'
+              }
+            }));
+            await prisma.notificationJob.createMany({ data: nudgeJobs });
+          }
         }
       }
     }
