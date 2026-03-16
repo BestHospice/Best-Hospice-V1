@@ -47,7 +47,7 @@
     const auditBody = document.getElementById('audit-body');
 
     async function fetchLogs() {
-      const res = await fetch('/api/admin/audit');
+      const res = await fetch('/api/admin/audit', { credentials: 'same-origin' });
       if (!res.ok) throw new Error('Unauthorized');
       return res.json();
     }
@@ -68,11 +68,14 @@
       });
     }
 
-    window.adminAuth.requireSession().then(async () => {
-      const logs = await fetchLogs();
-      auditCard.classList.remove('hidden');
-      renderLogs(logs);
-    }).catch(() => {});
+    auditCard.classList.remove('hidden');
+    fetchLogs()
+      .then((logs) => {
+        renderLogs(logs);
+      })
+      .catch((_err) => {
+        auditBody.innerHTML = '<tr><td colspan="5">Unable to load audit log.</td></tr>';
+      });
   </script>
 </body>
 </html>

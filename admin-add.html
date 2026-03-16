@@ -170,7 +170,6 @@
   </div>
   <script>
     const statusEl = document.getElementById('status');
-    window.adminAuth.requireSession().catch(() => {});
     document.getElementById('submit').addEventListener('click', async () => {
       const clientEmail = document.getElementById('email').value.trim();
       const secondaryClientEmail = document.getElementById('secondary-email').value.trim();
@@ -196,6 +195,7 @@
       try {
         const res = await fetch('/api/providers', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json'
           },

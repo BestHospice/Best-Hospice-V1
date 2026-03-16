@@ -116,20 +116,22 @@
     }
 
     searchInput?.addEventListener('input', applySearch);
-    window.adminAuth.requireSession().then(async () => {
-      dashboardCard.classList.remove('hidden');
-      statusEl.textContent = 'Loading providers...';
-      const res = await fetch('/api/providers/secure', { credentials: 'same-origin' });
-      if (!res.ok) throw new Error('Unable to load providers');
-      const data = await res.json();
-      allProviders = Array.isArray(data) ? data : [];
-      filteredProviders = allProviders;
-      statusEl.textContent = '';
-      renderPage();
-    }).catch((err) => {
-      dashboardCard.classList.remove('hidden');
-      statusEl.textContent = err?.message || 'Unable to verify admin session.';
-    });
+    dashboardCard.classList.remove('hidden');
+    statusEl.textContent = 'Loading providers...';
+    fetch('/api/providers/secure', { credentials: 'same-origin' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Unable to load providers');
+        return res.json();
+      })
+      .then((data) => {
+        allProviders = Array.isArray(data) ? data : [];
+        filteredProviders = allProviders;
+        statusEl.textContent = '';
+        renderPage();
+      })
+      .catch((err) => {
+        statusEl.textContent = err?.message || 'Unable to load providers.';
+      });
   </script>
 </body>
 </html>

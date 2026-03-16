@@ -131,13 +131,9 @@
       searchInput.value = '';
       applyFilter();
     });
-    window.adminAuth.requireSession().then(async () => {
-      adminCard.classList.remove('hidden');
-      statusEl.textContent = 'Ready.';
-      await loadProviders();
-    }).catch((err) => {
-      statusEl.textContent = err?.message || 'Unable to verify admin session.';
-    });
+    adminCard.classList.remove('hidden');
+    statusEl.textContent = 'Ready.';
+    loadProviders();
   </script>
 </body>
 </html>

@@ -247,21 +247,21 @@
     }
 
     document.getElementById('load-leads-btn').addEventListener('click', loadLeads);
-    window.adminAuth.requireSession().then(async () => {
-      detailCard.classList.remove('hidden');
-      saveStatus.textContent = 'Loading provider...';
-      const providers = await fetchProviders();
-      const found = (providers || []).find((p) => p.id === providerId);
-      if (!found) {
-        saveStatus.textContent = 'Provider not found.';
-        return;
-      }
-      saveStatus.textContent = '';
-      renderProvider(found);
-    }).catch((err) => {
-      detailCard.classList.remove('hidden');
-      saveStatus.textContent = err?.message || 'Unable to verify admin session.';
-    });
+    detailCard.classList.remove('hidden');
+    saveStatus.textContent = 'Loading provider...';
+    fetchProviders()
+      .then((providers) => {
+        const found = (providers || []).find((p) => p.id === providerId);
+        if (!found) {
+          saveStatus.textContent = 'Provider not found.';
+          return;
+        }
+        saveStatus.textContent = '';
+        renderProvider(found);
+      })
+      .catch((err) => {
+        saveStatus.textContent = err?.message || 'Unable to load provider.';
+      });
   </script>
 </body>
 </html>
