@@ -121,6 +121,12 @@ const RATE_LIMIT_PER_WINDOW = 5;
 const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 const AUTH_RATE_LIMIT_PER_WINDOW = 10;
 const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const AUTH_RATE_LIMIT_BYPASS_IPS = new Set(
+  String(process.env.AUTH_RATE_LIMIT_BYPASS_IPS || '')
+    .split(',')
+    .map((ip) => ip.trim())
+    .filter(Boolean)
+);
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
@@ -1348,6 +1354,10 @@ async function rateLimit(req, res, next) {
 
 async function authRateLimit(req, res, next) {
   try {
+    const requestIp = String(req.ip || '').trim();
+    if (requestIp && AUTH_RATE_LIMIT_BYPASS_IPS.has(requestIp)) {
+      return next();
+    }
     const ipHash = hashIp(`auth:${req.ip || ''}`);
     const cutoff = new Date(Date.now() - AUTH_RATE_LIMIT_WINDOW_MS);
     const count = await prisma.rateLimitEvent.count({
