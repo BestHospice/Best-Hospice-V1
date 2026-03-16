@@ -108,7 +108,7 @@
     let currentProvider = null;
 
     async function fetchProviders() {
-      const res = await fetch('/api/providers/secure');
+      const res = await fetch('/api/providers/secure', { credentials: 'same-origin' });
       if (!res.ok) throw new Error('Unauthorized');
       return res.json();
     }
@@ -190,6 +190,7 @@
       try {
         const res = await fetch(`/api/providers/${encodeURIComponent(currentProvider.id)}`, {
           method: 'PUT',
+          credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json'
           },
@@ -214,7 +215,9 @@
       leadsStatus.textContent = 'Loading leads...';
       leadsList.innerHTML = '';
       try {
-        const res = await fetch(`/api/admin/providers/${encodeURIComponent(currentProvider.id)}/leads?limit=25`);
+        const res = await fetch(`/api/admin/providers/${encodeURIComponent(currentProvider.id)}/leads?limit=25`, {
+          credentials: 'same-origin'
+        });
         const data = await res.json();
         if (!res.ok) {
           leadsStatus.textContent = data.error || 'Failed to load leads.';
@@ -245,15 +248,20 @@
 
     document.getElementById('load-leads-btn').addEventListener('click', loadLeads);
     window.adminAuth.requireSession().then(async () => {
+      detailCard.classList.remove('hidden');
+      saveStatus.textContent = 'Loading provider...';
       const providers = await fetchProviders();
       const found = (providers || []).find((p) => p.id === providerId);
       if (!found) {
         saveStatus.textContent = 'Provider not found.';
         return;
       }
-      detailCard.classList.remove('hidden');
+      saveStatus.textContent = '';
       renderProvider(found);
-    }).catch(() => {});
+    }).catch((err) => {
+      detailCard.classList.remove('hidden');
+      saveStatus.textContent = err?.message || 'Unable to verify admin session.';
+    });
   </script>
 </body>
 </html>

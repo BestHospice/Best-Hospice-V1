@@ -52,7 +52,7 @@
 
     async function loadProviders() {
       try {
-        const res = await fetch('/api/providers');
+        const res = await fetch('/api/providers', { credentials: 'same-origin' });
         const data = await res.json();
         allProviders = Array.isArray(data) ? data : [];
         applyFilter();
@@ -111,7 +111,8 @@
       statusEl.textContent = 'Removing...';
       try {
         const res = await fetch(`/api/providers/${encodeURIComponent(id)}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          credentials: 'same-origin'
         });
         const data = await res.json();
         if (!res.ok) {
@@ -134,7 +135,9 @@
       adminCard.classList.remove('hidden');
       statusEl.textContent = 'Ready.';
       await loadProviders();
-    }).catch(() => {});
+    }).catch((err) => {
+      statusEl.textContent = err?.message || 'Unable to verify admin session.';
+    });
   </script>
 </body>
 </html>

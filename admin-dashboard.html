@@ -117,14 +117,19 @@
 
     searchInput?.addEventListener('input', applySearch);
     window.adminAuth.requireSession().then(async () => {
-      const res = await fetch('/api/providers/secure');
+      dashboardCard.classList.remove('hidden');
+      statusEl.textContent = 'Loading providers...';
+      const res = await fetch('/api/providers/secure', { credentials: 'same-origin' });
       if (!res.ok) throw new Error('Unable to load providers');
       const data = await res.json();
       allProviders = Array.isArray(data) ? data : [];
       filteredProviders = allProviders;
-      dashboardCard.classList.remove('hidden');
+      statusEl.textContent = '';
       renderPage();
-    }).catch(() => {});
+    }).catch((err) => {
+      dashboardCard.classList.remove('hidden');
+      statusEl.textContent = err?.message || 'Unable to verify admin session.';
+    });
   </script>
 </body>
 </html>
