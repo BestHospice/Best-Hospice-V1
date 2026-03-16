@@ -35,7 +35,7 @@ const ADMIN_TOKEN_DASH = getRequiredSecret('ADMIN_TOKEN_DASH');
 const ADMIN_TOKEN_AUDIT = String(process.env.ADMIN_TOKEN_AUDIT || '').trim() || ADMIN_TOKEN_DASH;
 const ADMIN_LOGIN_EMAIL = String(process.env.ADMIN_LOGIN_EMAIL || 'admin@besthospice.com').trim().toLowerCase();
 const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || '$2a$10$yUoJWY8ZQH3FDiRdN0V0e.g4HuYr/7OpuyGBIIcoqiPkCO9ezwk4K').trim();
-const ADMIN_SESSION_COOKIE = 'bh_admin_session';
+const ADMIN_SESSION_COOKIE = 'bh_admin_session_v2';
 const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-add.html',
   '/admin-manage.html',
