@@ -121,6 +121,8 @@ const RATE_LIMIT_PER_WINDOW = 5;
 const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 const AUTH_RATE_LIMIT_PER_WINDOW = 10;
 const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const ADMIN_LOGIN_FAILED_LIMIT = 5;
+const ADMIN_LOGIN_FAILED_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const AUTH_RATE_LIMIT_BYPASS_IPS = new Set(
   String(process.env.AUTH_RATE_LIMIT_BYPASS_IPS || '')
     .split(',')
@@ -605,26 +607,37 @@ app.get('/api/admin/session', (req, res) => {
   return res.json({ ok: true, email: session.email });
 });
 
-app.post('/api/admin/login', authRateLimit, async (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+  try {
+    const failedCount = await getAdminFailedLoginCount(req);
+    if (failedCount >= ADMIN_LOGIN_FAILED_LIMIT) {
+      return res.status(429).json({ error: 'Too many failed admin login attempts. Please try again later.' });
+    }
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    if (email !== ADMIN_LOGIN_EMAIL) {
+      await recordAdminFailedLogin(req);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const ok = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+    if (!ok) {
+      await recordAdminFailedLogin(req);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const token = jwt.sign(
+      { type: 'admin_session', email: ADMIN_LOGIN_EMAIL },
+      ADMIN_SESSION_SECRET,
+      { expiresIn: '12h' }
+    );
+    setAdminSessionCookie(res, token);
+    return res.json({ ok: true, email: ADMIN_LOGIN_EMAIL });
+  } catch (err) {
+    console.error('Admin login failed', err);
+    return res.status(500).json({ error: 'Server error' });
   }
-  if (email !== ADMIN_LOGIN_EMAIL) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-  const ok = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
-  if (!ok) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-  const token = jwt.sign(
-    { type: 'admin_session', email: ADMIN_LOGIN_EMAIL },
-    ADMIN_SESSION_SECRET,
-    { expiresIn: '12h' }
-  );
-  setAdminSessionCookie(res, token);
-  return res.json({ ok: true, email: ADMIN_LOGIN_EMAIL });
 });
 
 app.post('/api/admin/logout', (req, res) => {
@@ -1375,6 +1388,30 @@ async function authRateLimit(req, res, next) {
     console.error('Auth rate limit check failed', err);
     res.status(500).json({ error: 'Server error' });
   }
+}
+
+async function getAdminFailedLoginCount(req) {
+  const requestIp = String(req.ip || '').trim();
+  if (requestIp && AUTH_RATE_LIMIT_BYPASS_IPS.has(requestIp)) {
+    return 0;
+  }
+  const ipHash = hashIp(`admin-auth-fail:${requestIp}`);
+  const cutoff = new Date(Date.now() - ADMIN_LOGIN_FAILED_WINDOW_MS);
+  return prisma.rateLimitEvent.count({
+    where: {
+      ipHash,
+      createdAt: { gte: cutoff }
+    }
+  });
+}
+
+async function recordAdminFailedLogin(req) {
+  const requestIp = String(req.ip || '').trim();
+  if (requestIp && AUTH_RATE_LIMIT_BYPASS_IPS.has(requestIp)) {
+    return;
+  }
+  const ipHash = hashIp(`admin-auth-fail:${requestIp}`);
+  await prisma.rateLimitEvent.create({ data: { id: uuid(), ipHash } });
 }
 
 async function verifyTurnstile(token, ip) {
