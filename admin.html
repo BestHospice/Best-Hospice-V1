@@ -95,10 +95,10 @@
     document.getElementById('admin-login-btn').addEventListener('click', async () => {
       loginStatus.textContent = 'Logging in...';
       try {
-        await window.adminAuth.login(emailInput.value.trim(), passwordInput.value);
+        await window.adminAuth.loginAndConfirmSession(emailInput.value.trim(), passwordInput.value);
         const nextPath = new URLSearchParams(window.location.search).get('next');
         if (nextPath) {
-          window.location.href = nextPath;
+          window.location.href = new URL(nextPath, window.location.origin).toString();
           return;
         }
         await showAdminHome();

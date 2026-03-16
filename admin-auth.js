@@ -18,6 +18,18 @@ window.adminAuth = (() => {
     return data;
   }
 
+  async function loginAndConfirmSession(email, password) {
+    await login(email, password);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        return await getSession();
+      } catch (_err) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    }
+    throw new Error('Login succeeded, but the admin session was not ready. Please try again.');
+  }
+
   async function logout() {
     await fetch('/api/admin/logout', {
       method: 'POST',
@@ -35,5 +47,5 @@ window.adminAuth = (() => {
     }
   }
 
-  return { getSession, login, logout, requireSession };
+  return { getSession, login, loginAndConfirmSession, logout, requireSession };
 })();
