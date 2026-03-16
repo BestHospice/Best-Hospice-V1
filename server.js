@@ -17,11 +17,22 @@ const prisma = new PrismaClient();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
 app.set('trust proxy', true);
 
+function getRequiredSecret(name) {
+  const configured = String(process.env[name] || '').trim();
+  if (configured) return configured;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`${name} must be configured in production`);
+  }
+  const ephemeral = crypto.randomBytes(32).toString('hex');
+  console.warn(`${name} is not configured; using an ephemeral development-only value.`);
+  return ephemeral;
+}
+
 const PORT = process.env.PORT || 8080;
-const ADMIN_TOKEN_ADD = process.env.ADMIN_TOKEN_ADD || 'TimetoProvideHelp12!';
-const ADMIN_TOKEN_REMOVE = process.env.ADMIN_TOKEN_REMOVE || 'this221isHow45!toRemove398Them34!';
-const ADMIN_TOKEN_DASH = process.env.ADMIN_TOKEN_DASH || 'lookForProviders177Now73!';
-const ADMIN_TOKEN_AUDIT = process.env.ADMIN_TOKEN_AUDIT || ADMIN_TOKEN_DASH;
+const ADMIN_TOKEN_ADD = getRequiredSecret('ADMIN_TOKEN_ADD');
+const ADMIN_TOKEN_REMOVE = getRequiredSecret('ADMIN_TOKEN_REMOVE');
+const ADMIN_TOKEN_DASH = getRequiredSecret('ADMIN_TOKEN_DASH');
+const ADMIN_TOKEN_AUDIT = String(process.env.ADMIN_TOKEN_AUDIT || '').trim() || ADMIN_TOKEN_DASH;
 
 function isAdminMainToken(token) {
   return token === ADMIN_TOKEN_DASH || token === ADMIN_TOKEN_AUDIT;
@@ -33,7 +44,7 @@ const RATE_LIMIT_PER_WINDOW = 5;
 const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
-const PROVIDER_JWT_SECRET = process.env.PROVIDER_JWT_SECRET || 'change-this-provider-secret';
+const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
 const PROVIDER_PLAN_DEFAULT = 'active';
 const normalizePlanTier = (value) => {
@@ -752,7 +763,53 @@ app.get('/newsletter/:issueSlug', (req, res) => {
   return res.sendFile(pagePath);
 });
 
-app.use(express.static(__dirname));
+app.get('/', (_req, res) => {
+  return res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+const BLOCKED_STATIC_EXTENSIONS = new Set([
+  '.env',
+  '.csv',
+  '.xlsx',
+  '.xls',
+  '.numbers',
+  '.ppt',
+  '.pptx',
+  '.key',
+  '.mov',
+  '.mp4',
+  '.sql',
+  '.db',
+  '.sqlite',
+  '.sqlite3',
+  '.bak',
+  '.zip',
+  '.tar',
+  '.gz'
+]);
+const BLOCKED_STATIC_BASENAMES = new Set(['.env', '.ds_store', 'readme.md']);
+const rootStatic = express.static(__dirname, {
+  dotfiles: 'deny',
+  fallthrough: true,
+  index: false
+});
+
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  let requestPath = '/';
+  try {
+    requestPath = decodeURIComponent(req.path || '/');
+  } catch (_err) {
+    return res.status(400).send('Bad request');
+  }
+  const normalized = path.posix.normalize(requestPath);
+  const basename = path.posix.basename(normalized).toLowerCase();
+  const ext = path.posix.extname(normalized).toLowerCase();
+  if (normalized.includes('/.') || basename.startsWith('.') || BLOCKED_STATIC_BASENAMES.has(basename) || BLOCKED_STATIC_EXTENSIONS.has(ext)) {
+    return res.status(404).send('Not found');
+  }
+  return rootStatic(req, res, next);
+});
 
 // Provider auth helper
 function requireProviderAuth(req, res, next) {
