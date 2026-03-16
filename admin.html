@@ -16,17 +16,40 @@
     .card { background: #fff; border-radius: 16px; padding: 20px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); display: grid; gap: 12px; }
     .card h2 { margin: 0; }
     .card p { margin: 0; color: #4b5563; }
+    .login-card { max-width: 420px; margin: 0 auto 24px; }
+    .hidden { display: none; }
+    .login-card input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
   </style><script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
 </head>
 <body>
   <div class="admin-shell">
-    <h1>Admin</h1>
-    <p class="note">Making sure Best Hospice and Home Health stays the best by providing clients with up-to-date providers constantly.</p>
-    <p><a class="button" href="index.html">Back to main site</a></p>
-    <div class="grid">
+    <div id="login-card" class="card login-card">
+      <h1>Admin Login</h1>
+      <p class="note">Use your admin email and password to access internal Best Hospice and Home Health tools.</p>
+      <label for="admin-email">Email</label>
+      <input id="admin-email" type="email" value="admin@besthospice.com" autocomplete="username" />
+      <label for="admin-password">Password</label>
+      <input id="admin-password" type="password" autocomplete="current-password" />
+      <button class="button" id="admin-login-btn">Log In</button>
+      <p id="login-status" class="note"></p>
+      <p><a class="button" href="index.html">Back to main site</a></p>
+    </div>
+    <div id="admin-home" class="hidden">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+        <div>
+          <h1 style="margin:0;">Admin</h1>
+          <p class="note">Making sure Best Hospice and Home Health stays the best by providing clients with up-to-date providers constantly.</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="button" href="index.html">Back to main site</a>
+          <button class="button ghost" id="admin-logout-btn" type="button">Log Out</button>
+        </div>
+      </div>
+      <div class="grid">
       <div class="card">
         <h2>Team Up Now</h2>
-        <p>Add your hospice details to appear in searches. Requires the Provider Add Token.</p>
+        <p>Add your hospice details to appear in searches.</p>
         <a class="button" href="admin-add.html">Open provider form</a>
       </div>
       <div class="card">
@@ -36,15 +59,61 @@
       </div>
       <div class="card">
         <h2>Provider Information</h2>
-        <p>View and edit provider details (mileage, contact info, etc.). Requires the Provider Dashboard Token.</p>
+        <p>View and edit provider details (mileage, contact info, etc.).</p>
         <a class="button" href="admin-dashboard.html">Open provider dashboard</a>
       </div>
       <div class="card">
         <h2>Admin Main</h2>
-        <p>View total client leads, timeline activity, care type mix, ZIP hotspots, and map heat view. Uses the same Provider Dashboard Token.</p>
+        <p>View total client leads, timeline activity, care type mix, ZIP hotspots, and map heat view.</p>
         <a class="button" href="admin-main.html">Open Admin Main</a>
+      </div>
       </div>
     </div>
   </div>
+  <script>
+    const loginCard = document.getElementById('login-card');
+    const adminHome = document.getElementById('admin-home');
+    const loginStatus = document.getElementById('login-status');
+    const emailInput = document.getElementById('admin-email');
+    const passwordInput = document.getElementById('admin-password');
+
+    async function showAdminHome() {
+      loginCard.classList.add('hidden');
+      adminHome.classList.remove('hidden');
+    }
+
+    async function checkSession() {
+      try {
+        await window.adminAuth.getSession();
+        await showAdminHome();
+      } catch (_err) {
+        loginCard.classList.remove('hidden');
+        adminHome.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('admin-login-btn').addEventListener('click', async () => {
+      loginStatus.textContent = 'Logging in...';
+      try {
+        await window.adminAuth.login(emailInput.value.trim(), passwordInput.value);
+        const nextPath = new URLSearchParams(window.location.search).get('next');
+        if (nextPath) {
+          window.location.href = nextPath;
+          return;
+        }
+        await showAdminHome();
+        loginStatus.textContent = '';
+      } catch (err) {
+        loginStatus.textContent = err.message || 'Login failed.';
+      }
+    });
+
+    document.getElementById('admin-logout-btn').addEventListener('click', async () => {
+      await window.adminAuth.logout();
+      window.location.href = 'admin.html';
+    });
+
+    checkSession();
+  </script>
 </body>
 </html>

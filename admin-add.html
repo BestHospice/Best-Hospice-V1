@@ -22,12 +22,13 @@
     .admin-actions { display: flex; justify-content: flex-end; gap: 10px; }
     .note { color: #4b5563; font-size: 14px; }
   </style><script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
 </head>
 <body>
   <div class="admin-shell">
     <div class="admin-card">
       <h1>Become a Best Hospice and Home Health Provider</h1>
-      <p class="note">Contact the Best Hospice and Home Health Team at providers@besthospice.com to gain access to your personalized Provider Add Token.</p>
+      <p class="note">Add a provider listing to Best Hospice and Home Health.</p>
       <div class="list">
         <p class="note">We use Longitude and Latitude to give customers the most accurate locations. Please insert negative values as needed for West and South cardinal directions.</p>
       </div>
@@ -159,10 +160,6 @@
           </select>
         </div>
         <input id="featured" type="hidden" value="true" />
-        <div>
-          <label for="token-add">Provider Add Token</label>
-          <input id="token-add" type="password" placeholder="Type token here" />
-        </div>
       </div>
       <div class="admin-actions">
         <button class="button" id="submit">Submit provider</button>
@@ -173,12 +170,8 @@
   </div>
   <script>
     const statusEl = document.getElementById('status');
+    window.adminAuth.requireSession().catch(() => {});
     document.getElementById('submit').addEventListener('click', async () => {
-      const addToken = document.getElementById('token-add').value.trim();
-      if (!addToken) {
-        statusEl.textContent = 'Enter the Provider Add Token.';
-        return;
-      }
       const clientEmail = document.getElementById('email').value.trim();
       const secondaryClientEmail = document.getElementById('secondary-email').value.trim();
       const loginEmail = document.getElementById('login-email').value.trim() || clientEmail;
@@ -204,8 +197,7 @@
         const res = await fetch('/api/providers', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'x-admin-token': addToken,
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload),
         });

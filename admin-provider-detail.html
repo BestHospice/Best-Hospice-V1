@@ -28,17 +28,10 @@
     .lead-item h4 { margin:0 0 6px; font-size:15px; }
     .lead-meta { color:#475569; font-size:13px; display:grid; gap:4px; }
   </style><script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
 </head>
 <body>
   <div class="shell">
-    <div id="login-card" class="login-card">
-      <h2>Provider Detail</h2>
-      <p class="note">Enter the Provider Dashboard Token to view and update details.</p>
-      <input id="token" type="password" placeholder="Type token here" />
-      <button class="button" id="login-btn">Unlock</button>
-      <p id="login-status" class="note"></p>
-    </div>
-
     <div id="detail-card" class="card hidden">
       <h1 id="prov-name"></h1>
       <div class="meta">
@@ -105,21 +98,18 @@
     </div>
   </div>
   <script>
-    let dashToken = '';
     let providerId = '';
     const params = new URLSearchParams(window.location.search);
     providerId = params.get('id') || '';
-    const loginStatus = document.getElementById('login-status');
-    const loginCard = document.getElementById('login-card');
     const detailCard = document.getElementById('detail-card');
     const saveStatus = document.getElementById('save-status');
     const leadsStatus = document.getElementById('leads-status');
     const leadsList = document.getElementById('leads-list');
     let currentProvider = null;
 
-    async function fetchProviders(token) {
-      const res = await fetch('/api/providers/secure', { headers: { 'x-admin-token': token } });
-      if (!res.ok) throw new Error('Invalid token');
+    async function fetchProviders() {
+      const res = await fetch('/api/providers/secure');
+      if (!res.ok) throw new Error('Unauthorized');
       return res.json();
     }
 
@@ -173,33 +163,8 @@
       document.getElementById('f-care-type').value = p.careType || 'hospice';
     }
 
-    async function unlock() {
-      const token = document.getElementById('token').value.trim();
-      if (!token) {
-        loginStatus.textContent = 'Enter your Provider Dashboard Token.';
-        return;
-      }
-      loginStatus.textContent = 'Verifying...';
-      try {
-        const providers = await fetchProviders(token);
-        dashToken = token;
-        const found = (providers || []).find((p) => p.id === providerId);
-        if (!found) {
-          loginStatus.textContent = 'Provider not found.';
-          return;
-        }
-        loginCard.classList.add('hidden');
-        detailCard.classList.remove('hidden');
-        renderProvider(found);
-      } catch (err) {
-        loginStatus.textContent = 'Invalid token or provider.';
-      }
-    }
-
-    document.getElementById('login-btn').addEventListener('click', unlock);
-
     async function saveChanges() {
-      if (!dashToken || !currentProvider) return;
+      if (!currentProvider) return;
       saveStatus.textContent = 'Saving...';
       const clientEmail = document.getElementById('f-email').value.trim();
       const secondaryClientEmail = document.getElementById('f-secondary-email').value.trim();
@@ -226,8 +191,7 @@
         const res = await fetch(`/api/providers/${encodeURIComponent(currentProvider.id)}`, {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json',
-            'x-admin-token': dashToken
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(body)
         });
@@ -246,13 +210,11 @@
     document.getElementById('save-btn').addEventListener('click', saveChanges);
 
     async function loadLeads() {
-      if (!dashToken || !currentProvider) return;
+      if (!currentProvider) return;
       leadsStatus.textContent = 'Loading leads...';
       leadsList.innerHTML = '';
       try {
-        const res = await fetch(`/api/admin/providers/${encodeURIComponent(currentProvider.id)}/leads?limit=25`, {
-          headers: { 'x-admin-token': dashToken }
-        });
+        const res = await fetch(`/api/admin/providers/${encodeURIComponent(currentProvider.id)}/leads?limit=25`);
         const data = await res.json();
         if (!res.ok) {
           leadsStatus.textContent = data.error || 'Failed to load leads.';
@@ -282,6 +244,16 @@
     }
 
     document.getElementById('load-leads-btn').addEventListener('click', loadLeads);
+    window.adminAuth.requireSession().then(async () => {
+      const providers = await fetchProviders();
+      const found = (providers || []).find((p) => p.id === providerId);
+      if (!found) {
+        saveStatus.textContent = 'Provider not found.';
+        return;
+      }
+      detailCard.classList.remove('hidden');
+      renderProvider(found);
+    }).catch(() => {});
   </script>
 </body>
 </html>

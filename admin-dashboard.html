@@ -25,17 +25,10 @@
     .pager .button { color: #0f172a; }
     .input-text { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; }
   </style><script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
 </head>
 <body>
   <div class="admin-shell">
-    <div id="login-card" class="login-card">
-      <h2>Provider Information</h2>
-      <p class="note">Enter the Provider Dashboard Token to view and edit providers.</p>
-      <input id="token" type="password" placeholder="Type token here" />
-      <button class="button" id="login-btn">Unlock dashboard</button>
-      <p id="login-status" class="note"></p>
-    </div>
-
     <div id="dashboard-card" class="card hidden">
       <h1>All Providers</h1>
       <input id="search" class="input-text" type="search" placeholder="Search providers by name" />
@@ -50,7 +43,6 @@
     </div>
   </div>
   <script>
-    let dashToken = '';
     let allProviders = [];
     let page = 1;
     const perPage = 10;
@@ -58,34 +50,10 @@
     const searchInput = document.getElementById('search');
     const statusEl = document.getElementById('status');
     const listEl = document.getElementById('list');
-    const loginCard = document.getElementById('login-card');
     const dashboardCard = document.getElementById('dashboard-card');
-    const loginStatus = document.getElementById('login-status');
     const pageInfo = document.getElementById('page-info');
     const prevBtn = document.getElementById('prev-btn');
     const nextBtn = document.getElementById('next-btn');
-
-    async function verifyToken(token) {
-      // Reuse the secure providers endpoint for auth
-      try {
-        const res = await fetch('/api/providers/secure', { headers: { 'x-admin-token': token } });
-        if (!res.ok) {
-          loginStatus.textContent = 'Invalid token.';
-          return false;
-        }
-        const data = await res.json();
-        dashToken = token;
-        allProviders = Array.isArray(data) ? data : [];
-        filteredProviders = allProviders;
-        loginCard.classList.add('hidden');
-        dashboardCard.classList.remove('hidden');
-        renderPage();
-        return true;
-      } catch (err) {
-        loginStatus.textContent = 'Error verifying token.';
-        return false;
-      }
-    }
 
     function renderPage() {
       listEl.innerHTML = '';
@@ -123,16 +91,6 @@
       nextBtn.disabled = page >= totalPages;
     }
 
-    document.getElementById('login-btn').addEventListener('click', () => {
-      const token = document.getElementById('token').value.trim();
-      if (!token) {
-        loginStatus.textContent = 'Enter your Provider Dashboard Token.';
-        return;
-      }
-      loginStatus.textContent = 'Verifying...';
-      verifyToken(token);
-    });
-
     prevBtn.addEventListener('click', () => {
       if (page > 1) {
         page -= 1;
@@ -158,6 +116,15 @@
     }
 
     searchInput?.addEventListener('input', applySearch);
+    window.adminAuth.requireSession().then(async () => {
+      const res = await fetch('/api/providers/secure');
+      if (!res.ok) throw new Error('Unable to load providers');
+      const data = await res.json();
+      allProviders = Array.isArray(data) ? data : [];
+      filteredProviders = allProviders;
+      dashboardCard.classList.remove('hidden');
+      renderPage();
+    }).catch(() => {});
   </script>
 </body>
 </html>

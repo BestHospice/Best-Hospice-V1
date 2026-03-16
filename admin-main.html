@@ -103,14 +103,13 @@
       .input-row { grid-template-columns: 1fr; }
     }
   </style><script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
 </head>
 <body>
   <div class="admin-shell">
     <div id="login-card" class="card login-card">
       <h1>Admin Main</h1>
-      <p class="note">Use the same Provider Dashboard Token to view full site analytics.</p>
-      <input id="token" type="password" placeholder="Enter Provider Dashboard Token" />
-      <button class="button" id="unlock-btn">Unlock Analytics</button>
+      <p class="note">Checking your admin session…</p>
       <p id="login-status" class="note"></p>
       <a class="button" href="admin.html">Main Menu</a>
     </div>
@@ -314,7 +313,6 @@
     const loginCard = document.getElementById('login-card');
     const dashboard = document.getElementById('dashboard');
     const loginStatus = document.getElementById('login-status');
-    const tokenInput = document.getElementById('token');
     const fromInput = document.getElementById('from-date');
     const toInput = document.getElementById('to-date');
     const statsGrid = document.getElementById('stats-grid');
@@ -340,7 +338,6 @@
     const geoAdmitBody = document.getElementById('geo-admit-body');
     const noUpdateBody = document.getElementById('no-update-body');
     const clearWebsiteEventsBtn = document.getElementById('clear-website-events-btn');
-    let adminToken = '';
     let leadMap = null;
     let heatLayer = null;
     let currentRecentLeads = [];
@@ -776,8 +773,7 @@
           btn.textContent = 'Deleting...';
           try {
             const res = await fetch(`/api/admin/main/leads/${encodeURIComponent(leadId)}`, {
-              method: 'DELETE',
-              headers: { 'x-admin-token': adminToken }
+              method: 'DELETE'
             });
             if (!res.ok) throw new Error('Delete failed');
             await loadAnalytics();
@@ -896,14 +892,13 @@
     }
 
     async function loadAnalytics() {
-      if (!adminToken) return;
       const from = fromInput.value;
       const to = toInput.value;
       const qs = new URLSearchParams();
       if (from) qs.set('from', from);
       if (to) qs.set('to', to);
       const res = await fetch(`/api/admin/main/analytics?${qs.toString()}`, {
-        headers: { 'x-admin-token': adminToken }
+        credentials: 'same-origin'
       });
       if (!res.ok) {
         let details = '';
@@ -968,51 +963,15 @@
       fromInput.value = from.toISOString().slice(0, 10);
     }
 
-    async function unlock() {
-      const token = tokenInput.value.trim();
-      if (!token) {
-        loginStatus.textContent = 'Please enter your token.';
-        return;
-      }
-      try {
-        loginStatus.textContent = 'Verifying...';
-        adminToken = token;
-        const verifyRes = await fetch('/api/admin/main/verify', {
-          headers: { 'x-admin-token': adminToken }
-        });
-        if (!verifyRes.ok) {
-          let details = '';
-          try {
-            const body = await verifyRes.json();
-            details = body?.error ? String(body.error) : '';
-          } catch (_) {}
-          throw new Error(details || `Token verification failed (HTTP ${verifyRes.status}).`);
-        }
-        loginCard.classList.add('hidden');
-        dashboard.classList.remove('hidden');
-        rangeLabel.textContent = 'Loading analytics...';
-        await loadAnalytics();
-        refreshLeadMapLayout();
-      } catch (err) {
-        adminToken = '';
-        dashboard.classList.add('hidden');
-        loginCard.classList.remove('hidden');
-        loginStatus.textContent = err?.message || 'Invalid token or unable to load analytics.';
-      }
-    }
-
-    document.getElementById('unlock-btn').addEventListener('click', unlock);
     leadSearchInput?.addEventListener('input', applyLeadSearch);
     clearWebsiteEventsBtn?.addEventListener('click', async () => {
-      if (!adminToken) return;
       const confirmation = prompt('Type CLEAR_WEBSITE_EVENTS to delete all website analytics events.');
       if (confirmation == null) return;
       try {
         const res = await fetch('/api/admin/main/website-events', {
           method: 'DELETE',
           headers: {
-            'Content-Type': 'application/json',
-            'x-admin-token': adminToken
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({ confirmation: String(confirmation || '').trim() })
         });
@@ -1038,7 +997,16 @@
 
     setDefaultDates();
     window.addEventListener('resize', refreshLeadMapLayout);
-    // Require manual token entry every time.
+    window.adminAuth.requireSession().then(async () => {
+      loginCard.classList.add('hidden');
+      dashboard.classList.remove('hidden');
+      rangeLabel.textContent = 'Loading analytics...';
+      loginStatus.textContent = '';
+      await loadAnalytics();
+      refreshLeadMapLayout();
+    }).catch((err) => {
+      loginStatus.textContent = err?.message || 'Unable to verify admin session.';
+    });
   </script>
 </body>
 </html>

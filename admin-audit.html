@@ -21,17 +21,10 @@
     th, td { padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: left; }
     th { background: #f8fafc; }
   </style><script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
 </head>
 <body>
   <div class="shell">
-    <div id="login-card" class="login-card">
-      <h2>Audit Log</h2>
-      <p class="note">Enter the Audit Token to view admin actions.</p>
-      <input id="token" type="password" placeholder="Type token here" />
-      <button class="button" id="login-btn">Unlock audit log</button>
-      <p id="login-status" class="note"></p>
-    </div>
-
     <div id="audit-card" class="card hidden">
       <h1>Admin Audit Log</h1>
       <table>
@@ -50,13 +43,11 @@
     </div>
   </div>
   <script>
-    const loginStatus = document.getElementById('login-status');
-    const loginCard = document.getElementById('login-card');
     const auditCard = document.getElementById('audit-card');
     const auditBody = document.getElementById('audit-body');
 
-    async function fetchLogs(token) {
-      const res = await fetch('/api/admin/audit', { headers: { 'x-admin-token': token } });
+    async function fetchLogs() {
+      const res = await fetch('/api/admin/audit');
       if (!res.ok) throw new Error('Unauthorized');
       return res.json();
     }
@@ -77,24 +68,11 @@
       });
     }
 
-    async function unlock() {
-      const token = document.getElementById('token').value.trim();
-      if (!token) {
-        loginStatus.textContent = 'Enter your Audit Token.';
-        return;
-      }
-      loginStatus.textContent = 'Loading...';
-      try {
-        const logs = await fetchLogs(token);
-        loginCard.classList.add('hidden');
-        auditCard.classList.remove('hidden');
-        renderLogs(logs);
-      } catch (err) {
-        loginStatus.textContent = 'Invalid token.';
-      }
-    }
-
-    document.getElementById('login-btn').addEventListener('click', unlock);
+    window.adminAuth.requireSession().then(async () => {
+      const logs = await fetchLogs();
+      auditCard.classList.remove('hidden');
+      renderLogs(logs);
+    }).catch(() => {});
   </script>
 </body>
 </html>

@@ -33,9 +33,84 @@ const ADMIN_TOKEN_ADD = getRequiredSecret('ADMIN_TOKEN_ADD');
 const ADMIN_TOKEN_REMOVE = getRequiredSecret('ADMIN_TOKEN_REMOVE');
 const ADMIN_TOKEN_DASH = getRequiredSecret('ADMIN_TOKEN_DASH');
 const ADMIN_TOKEN_AUDIT = String(process.env.ADMIN_TOKEN_AUDIT || '').trim() || ADMIN_TOKEN_DASH;
+const ADMIN_LOGIN_EMAIL = String(process.env.ADMIN_LOGIN_EMAIL || 'admin@besthospice.com').trim().toLowerCase();
+const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || '$2a$10$yUoJWY8ZQH3FDiRdN0V0e.g4HuYr/7OpuyGBIIcoqiPkCO9ezwk4K').trim();
+const ADMIN_SESSION_COOKIE = 'bh_admin_session';
+const ADMIN_PROTECTED_PAGES = new Set([
+  '/admin-add.html',
+  '/admin-manage.html',
+  '/admin-dashboard.html',
+  '/admin-provider-detail.html',
+  '/admin-main.html',
+  '/admin-audit.html'
+]);
 
 function isAdminMainToken(token) {
   return token === ADMIN_TOKEN_DASH || token === ADMIN_TOKEN_AUDIT;
+}
+function parseCookies(req) {
+  const raw = String(req.headers.cookie || '');
+  return raw.split(';').reduce((acc, part) => {
+    const idx = part.indexOf('=');
+    if (idx <= 0) return acc;
+    const key = part.slice(0, idx).trim();
+    const value = part.slice(idx + 1).trim();
+    if (!key) return acc;
+    try {
+      acc[key] = decodeURIComponent(value);
+    } catch (_err) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+function getAdminSession(req) {
+  const token = parseCookies(req)[ADMIN_SESSION_COOKIE];
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, ADMIN_SESSION_SECRET);
+    if (payload?.type !== 'admin_session') return null;
+    if (String(payload.email || '').trim().toLowerCase() !== ADMIN_LOGIN_EMAIL) return null;
+    return payload;
+  } catch (_err) {
+    return null;
+  }
+}
+function setAdminSessionCookie(res, token) {
+  const secure = process.env.NODE_ENV === 'production';
+  const cookieParts = [
+    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Max-Age=43200'
+  ];
+  if (secure) cookieParts.push('Secure');
+  res.setHeader('Set-Cookie', cookieParts.join('; '));
+}
+function clearAdminSessionCookie(res) {
+  const secure = process.env.NODE_ENV === 'production';
+  const cookieParts = [
+    `${ADMIN_SESSION_COOKIE}=`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Max-Age=0'
+  ];
+  if (secure) cookieParts.push('Secure');
+  res.setHeader('Set-Cookie', cookieParts.join('; '));
+}
+function hasAdminAccess(req, scopes = []) {
+  if (getAdminSession(req)) return true;
+  const token = String(req.headers['x-admin-token'] || '').trim();
+  return scopes.some((scope) => {
+    if (scope === 'add') return token === ADMIN_TOKEN_ADD;
+    if (scope === 'remove') return token === ADMIN_TOKEN_REMOVE;
+    if (scope === 'dash') return token === ADMIN_TOKEN_DASH;
+    if (scope === 'audit') return token === ADMIN_TOKEN_AUDIT;
+    if (scope === 'main') return isAdminMainToken(token);
+    return false;
+  });
 }
 const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET || '';
 const TURNSTILE_BYPASS = process.env.TURNSTILE_BYPASS === 'true';
@@ -47,6 +122,7 @@ const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
+const ADMIN_SESSION_SECRET = String(process.env.ADMIN_SESSION_SECRET || PROVIDER_JWT_SECRET).trim();
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
 const PROVIDER_PLAN_DEFAULT = 'active';
 const normalizePlanTier = (value) => {
@@ -504,6 +580,48 @@ app.use((req, res, next) => {
     }
   }
   return next();
+});
+
+app.use((req, res, next) => {
+  if ((req.method !== 'GET' && req.method !== 'HEAD') || !ADMIN_PROTECTED_PAGES.has(req.path)) {
+    return next();
+  }
+  if (getAdminSession(req)) return next();
+  const nextPath = encodeURIComponent(req.originalUrl || req.path || '/admin.html');
+  return res.redirect(302, `/admin.html?next=${nextPath}`);
+});
+
+app.get('/api/admin/session', (req, res) => {
+  const session = getAdminSession(req);
+  if (!session) return res.status(401).json({ error: 'Unauthorized' });
+  return res.json({ ok: true, email: session.email });
+});
+
+app.post('/api/admin/login', authRateLimit, async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  if (email !== ADMIN_LOGIN_EMAIL) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  const ok = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+  if (!ok) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  const token = jwt.sign(
+    { type: 'admin_session', email: ADMIN_LOGIN_EMAIL },
+    ADMIN_SESSION_SECRET,
+    { expiresIn: '12h' }
+  );
+  setAdminSessionCookie(res, token);
+  return res.json({ ok: true, email: ADMIN_LOGIN_EMAIL });
+});
+
+app.post('/api/admin/logout', (req, res) => {
+  clearAdminSessionCookie(res);
+  return res.json({ ok: true });
 });
 
 // Dynamic city/state pages (server-rendered from live DB for automatic updates)
@@ -1953,7 +2071,10 @@ function relationshipLabel(relationship) {
   return 'Other';
 }
 
-app.get('/api/providers', async (_req, res) => {
+app.get('/api/providers', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const providers = await prisma.provider.findMany({
     select: {
       id: true,
@@ -2053,8 +2174,7 @@ app.get('/api/provider/me', requireProviderAuth, async (req, res) => {
 });
 
 app.get('/api/providers/secure', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_DASH) {
+  if (!hasAdminAccess(req, ['dash'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const providers = await prisma.provider.findMany();
@@ -2106,8 +2226,14 @@ app.post('/api/providers/:id/checkout', async (req, res) => {
 
 app.post('/api/providers', async (req, res) => {
   const token = req.headers['x-admin-token'];
-  const adminIdentifier = token === ADMIN_TOKEN_ADD ? 'add_token' : token === ADMIN_TOKEN_REMOVE ? 'remove_token' : 'unknown';
-  if (token !== ADMIN_TOKEN_ADD && token !== ADMIN_TOKEN_REMOVE) {
+  const adminIdentifier = getAdminSession(req)
+    ? 'admin_session'
+    : token === ADMIN_TOKEN_ADD
+      ? 'add_token'
+      : token === ADMIN_TOKEN_REMOVE
+        ? 'remove_token'
+        : 'unknown';
+  if (!hasAdminAccess(req, ['add', 'remove'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const {
@@ -2184,8 +2310,7 @@ app.post('/api/providers', async (req, res) => {
 
 // Update provider (admin)
 app.put('/api/providers/:id', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_REMOVE && token !== ADMIN_TOKEN_DASH) {
+  if (!hasAdminAccess(req, ['remove', 'dash'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const id = req.params.id;
@@ -2270,8 +2395,7 @@ app.put('/api/providers/:id', async (req, res) => {
 });
 
 app.delete('/api/providers/:id', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_REMOVE) {
+  if (!hasAdminAccess(req, ['remove'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const id = req.params.id;
@@ -2655,8 +2779,7 @@ app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
 });
 
 app.get('/api/admin/main/analytics', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (!isAdminMainToken(token)) {
+  if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
@@ -3256,16 +3379,14 @@ app.get('/api/admin/main/analytics', async (req, res) => {
 });
 
 app.get('/api/admin/main/verify', (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (!isAdminMainToken(token)) {
+  if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   res.json({ ok: true });
 });
 
 app.delete('/api/admin/main/website-events', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (!isAdminMainToken(token)) {
+  if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const confirmation = String(req.body?.confirmation || '').trim();
@@ -3283,8 +3404,7 @@ app.delete('/api/admin/main/website-events', async (req, res) => {
 });
 
 app.delete('/api/admin/main/leads/:id', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (!isAdminMainToken(token)) {
+  if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const leadId = String(req.params.id || '').trim();
@@ -3325,8 +3445,7 @@ app.delete('/api/admin/main/leads/:id', async (req, res) => {
 });
 
 app.post('/api/admin/verify', (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_REMOVE) {
+  if (!hasAdminAccess(req, ['remove'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   res.json({ ok: true });
@@ -3503,8 +3622,14 @@ app.post('/api/blog/posts/:id/comments', async (req, res) => {
 // Admin: delete blog comment
 app.delete('/api/admin/blog/comments/:id', async (req, res) => {
   const token = req.headers['x-admin-token'];
-  const adminIdentifier = token === ADMIN_TOKEN_DASH ? 'dash_token' : token === ADMIN_TOKEN_AUDIT ? 'audit_token' : 'unknown';
-  if (token !== ADMIN_TOKEN_DASH && token !== ADMIN_TOKEN_AUDIT) {
+  const adminIdentifier = getAdminSession(req)
+    ? 'admin_session'
+    : token === ADMIN_TOKEN_DASH
+      ? 'dash_token'
+      : token === ADMIN_TOKEN_AUDIT
+        ? 'audit_token'
+        : 'unknown';
+  if (!hasAdminAccess(req, ['dash', 'audit'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const commentId = req.params.id;
@@ -3525,8 +3650,14 @@ app.delete('/api/admin/blog/comments/:id', async (req, res) => {
 // Admin: delete blog post (and comments)
 app.delete('/api/admin/blog/posts/:id', async (req, res) => {
   const token = req.headers['x-admin-token'];
-  const adminIdentifier = token === ADMIN_TOKEN_DASH ? 'dash_token' : token === ADMIN_TOKEN_AUDIT ? 'audit_token' : 'unknown';
-  if (token !== ADMIN_TOKEN_DASH && token !== ADMIN_TOKEN_AUDIT) {
+  const adminIdentifier = getAdminSession(req)
+    ? 'admin_session'
+    : token === ADMIN_TOKEN_DASH
+      ? 'dash_token'
+      : token === ADMIN_TOKEN_AUDIT
+        ? 'audit_token'
+        : 'unknown';
+  if (!hasAdminAccess(req, ['dash', 'audit'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const postId = req.params.id;
@@ -3548,8 +3679,7 @@ app.delete('/api/admin/blog/posts/:id', async (req, res) => {
 });
 
 app.get('/api/admin/audit', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_AUDIT) {
+  if (!hasAdminAccess(req, ['audit'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const logs = await prisma.adminAuditLog.findMany({
@@ -3561,8 +3691,7 @@ app.get('/api/admin/audit', async (req, res) => {
 
 // Admin: provider lead details
 app.get('/api/admin/providers/:id/leads', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_TOKEN_DASH && token !== ADMIN_TOKEN_AUDIT) {
+  if (!hasAdminAccess(req, ['dash', 'audit'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const providerId = req.params.id;
@@ -3605,8 +3734,7 @@ app.get('/api/admin/providers/:id/leads', async (req, res) => {
 });
 
 app.post('/api/test-email', async (req, res) => {
-  const token = req.headers['x-admin-token'];
-  if (!isAdminMainToken(token)) {
+  if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });

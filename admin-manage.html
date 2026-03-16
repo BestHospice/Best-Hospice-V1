@@ -24,17 +24,10 @@
     .provider-item:last-child { border-bottom: none; }
     .muted { color: #6b7280; font-size: 13px; }
   </style><script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
 </head>
 <body>
   <div class="admin-shell">
-    <div id="login-card" class="login-card">
-      <h2>Manage Providers</h2>
-      <p class="note">Enter the Admin Remove Token to view and remove providers.</p>
-      <input id="token" type="password" placeholder="Type token here" />
-      <button class="button" id="login-btn">Unlock management</button>
-      <p id="login-status" class="note"></p>
-    </div>
-
     <div id="admin-card" class="admin-card hidden">
       <div class="list">
         <h3>All Providers (alphabetical)</h3>
@@ -49,45 +42,17 @@
     </div>
   </div>
   <script>
-    let adminToken = '';
     let allProviders = [];
     let filteredProviders = [];
     const statusEl = document.getElementById('status');
     const listEl = document.getElementById('list');
-    const loginCard = document.getElementById('login-card');
     const adminCard = document.getElementById('admin-card');
-    const loginStatus = document.getElementById('login-status');
     const searchInput = document.getElementById('search');
     const clearSearch = document.getElementById('clear-search');
 
-    async function verifyToken(token) {
-      loginStatus.textContent = 'Verifying...';
-      try {
-        const res = await fetch('/api/admin/verify', {
-          method: 'POST',
-          headers: { 'x-admin-token': token }
-        });
-        if (!res.ok) {
-          loginStatus.textContent = 'Invalid token.';
-          return false;
-        }
-        loginStatus.textContent = '';
-        adminToken = token;
-        loginCard.classList.add('hidden');
-        adminCard.classList.remove('hidden');
-        statusEl.textContent = 'Ready.';
-        await loadProviders();
-        return true;
-      } catch (err) {
-        loginStatus.textContent = 'Error verifying token.';
-        return false;
-      }
-    }
-
     async function loadProviders() {
-      if (!adminToken) return;
       try {
-        const res = await fetch('/api/providers', { headers: { 'x-admin-token': adminToken } });
+        const res = await fetch('/api/providers');
         const data = await res.json();
         allProviders = Array.isArray(data) ? data : [];
         applyFilter();
@@ -142,16 +107,11 @@
     }
 
     async function removeProvider(id) {
-      if (!adminToken) {
-        statusEl.textContent = 'Unlock admin first.';
-        return;
-      }
       if (!confirm('Remove this provider?')) return;
       statusEl.textContent = 'Removing...';
       try {
         const res = await fetch(`/api/providers/${encodeURIComponent(id)}`, {
-          method: 'DELETE',
-          headers: { 'x-admin-token': adminToken }
+          method: 'DELETE'
         });
         const data = await res.json();
         if (!res.ok) {
@@ -165,20 +125,16 @@
       }
     }
 
-    document.getElementById('login-btn').addEventListener('click', () => {
-      const token = document.getElementById('token').value.trim();
-      if (!token) {
-        loginStatus.textContent = 'Enter your Admin Remove Token.';
-        return;
-      }
-      verifyToken(token);
-    });
-
     searchInput.addEventListener('input', applyFilter);
     clearSearch.addEventListener('click', () => {
       searchInput.value = '';
       applyFilter();
     });
+    window.adminAuth.requireSession().then(async () => {
+      adminCard.classList.remove('hidden');
+      statusEl.textContent = 'Ready.';
+      await loadProviders();
+    }).catch(() => {});
   </script>
 </body>
 </html>
