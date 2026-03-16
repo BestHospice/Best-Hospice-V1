@@ -15,16 +15,7 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const prisma = new PrismaClient();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
-
-app.use((req, res, next) => {
-  if (req.headers['x-forwarded-proto'] !== 'https') {
-    return res.redirect(301, 'https://www.besthospice.com' + req.url);
-  }
-  if (req.headers.host === 'besthospice.com') {
-    return res.redirect(301, 'https://www.besthospice.com' + req.url);
-  }
-  next();
-});
+app.set('trust proxy', true);
 
 const PORT = process.env.PORT || 8080;
 const ADMIN_TOKEN_ADD = process.env.ADMIN_TOKEN_ADD || 'TimetoProvideHelp12!';
@@ -482,8 +473,17 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 
 app.use(express.json());
 app.use((req, res, next) => {
-  const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').split(',')[0];
-  const host = req.headers.host;
+  const hostHeader = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+  const host = hostHeader.replace(/:\d+$/, '');
+  let proto = (req.headers['x-forwarded-proto'] || req.protocol || '').split(',')[0].trim();
+  const cfVisitor = String(req.headers['cf-visitor'] || '').trim();
+  if (cfVisitor && !proto) {
+    try {
+      proto = JSON.parse(cfVisitor).scheme || proto;
+    } catch (_err) {
+      // Ignore malformed Cloudflare visitor header.
+    }
+  }
   if (host && host.includes('besthospice.com')) {
     const needsRedirect = host !== CANONICAL_HOST || proto !== CANONICAL_PROTOCOL;
     if (needsRedirect && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -531,14 +531,14 @@ app.get('/cities.html', async (_req, res) => {
             .map((stateName) => {
               const cityLinks = Array.from(grouped[key].get(stateName))
                 .sort((a, b) => a.localeCompare(b))
-                .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}.html">${city}, ${stateName}</a></li>`)
+                .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}">${city}, ${stateName}</a></li>`)
                 .join('');
               return `
                 <h3 class="mt-sm">${stateName}</h3>
                 <ul class="link-list">
                   ${Array.from(grouped[key].get(stateName))
                     .sort((a, b) => a.localeCompare(b))
-                    .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}.html">${city}, ${stateName}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
+                    .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}">${city}, ${stateName}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
                     .join('')}
                 </ul>`;
             })
@@ -631,7 +631,12 @@ app.get('/cities.html', async (_req, res) => {
   }
 });
 
-app.get(['/states/:state.html', '/states/:state'], async (req, res) => {
+app.get('/states/:state.html', (req, res) => {
+  const { state } = req.params;
+  return res.redirect(301, `/states/${state}`);
+});
+
+app.get('/states/:state', async (req, res) => {
   try {
     const stateSlug = req.params.state;
     const candidates = stateCandidatesFromSlug(stateSlug);
@@ -657,7 +662,7 @@ app.get(['/states/:state.html', '/states/:state'], async (req, res) => {
 
     const cityListHtml = Array.from(cityMap.keys())
       .sort((a, b) => a.localeCompare(b))
-      .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}.html">${city}, ${stateName}</a></li>`)
+      .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}">${city}, ${stateName}</a></li>`)
       .join('');
 
     const html = `<!DOCTYPE html>
@@ -667,7 +672,7 @@ app.get(['/states/:state.html', '/states/:state'], async (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Hospice & Home Care Providers in ${stateName} | Best Hospice</title>
   <meta name="description" content="Find verified hospice and home care providers across ${stateName}. Browse providers by city. 100% free for families." />
-  <link rel="canonical" href="${CANONICAL_DOMAIN}/states/${slugify(stateName)}.html" />
+  <link rel="canonical" href="${CANONICAL_DOMAIN}/states/${slugify(stateName)}" />
   <link rel="stylesheet" href="/styles-modern.css" />
   <script src="/abel-chat.js" defer></script>
 </head>
@@ -704,7 +709,12 @@ app.get(['/states/:state.html', '/states/:state'], async (req, res) => {
   }
 });
 
-app.get(['/cities/:city-:state.html', '/cities/:city-:state'], async (req, res) => {
+app.get('/cities/:city-:state.html', (req, res) => {
+  const { city, state } = req.params;
+  return res.redirect(301, `/cities/${city}-${state}`);
+});
+
+app.get('/cities/:city-:state', async (req, res) => {
   try {
     const citySlug = String(req.params.city || '').toLowerCase();
     const stateSlug = String(req.params.state || '').toLowerCase();
@@ -4592,14 +4602,14 @@ async function buildSitemapUrls() {
     if (!seenStates.has(state)) {
       seenStates.add(state);
       SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${state}`));
-      if (stateLabel) urls.add(`${CANONICAL_DOMAIN}/states/${slugify(stateLabel)}.html`);
+      if (stateLabel) urls.add(`${CANONICAL_DOMAIN}/states/${slugify(stateLabel)}`);
     }
     if (!city) continue;
     const cityKey = `${city.toLowerCase()}-${state}`;
     if (seenCities.has(cityKey)) continue;
     seenCities.add(cityKey);
     SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${slugify(city)}-${state}`));
-    if (stateLabel) urls.add(`${CANONICAL_DOMAIN}/cities/${slugify(city)}-${slugify(stateLabel)}.html`);
+    if (stateLabel) urls.add(`${CANONICAL_DOMAIN}/cities/${slugify(city)}-${slugify(stateLabel)}`);
   }
 
   providers.forEach((p) => {
