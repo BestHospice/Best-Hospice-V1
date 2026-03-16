@@ -995,18 +995,33 @@
       }
     });
 
-    setDefaultDates();
-    window.addEventListener('resize', refreshLeadMapLayout);
-    window.adminAuth.requireSession().then(async () => {
+    async function initAdminMain() {
+      setDefaultDates();
+      window.addEventListener('resize', refreshLeadMapLayout);
+
+      try {
+        await window.adminAuth.getSession();
+      } catch (_err) {
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/admin.html?next=${next}`;
+        return;
+      }
+
       loginCard.classList.add('hidden');
       dashboard.classList.remove('hidden');
       rangeLabel.textContent = 'Loading analytics...';
       loginStatus.textContent = '';
-      await loadAnalytics();
-      refreshLeadMapLayout();
-    }).catch((err) => {
-      loginStatus.textContent = err?.message || 'Unable to verify admin session.';
-    });
+
+      try {
+        await loadAnalytics();
+        refreshLeadMapLayout();
+      } catch (err) {
+        console.error('Admin Main analytics load failed', err);
+        rangeLabel.textContent = 'Logged in, but analytics could not be loaded right now.';
+      }
+    }
+
+    initAdminMain();
   </script>
 </body>
 </html>
