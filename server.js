@@ -37,6 +37,7 @@ const ADMIN_LOGIN_EMAIL = String(process.env.ADMIN_LOGIN_EMAIL || 'admin@besthos
 const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || '$2a$10$yUoJWY8ZQH3FDiRdN0V0e.g4HuYr/7OpuyGBIIcoqiPkCO9ezwk4K').trim();
 const ADMIN_SESSION_COOKIE = 'bh_admin_session_v2';
 const ADMIN_PROTECTED_PAGES = new Set([
+  '/admin-menu.html',
   '/admin-add.html',
   '/admin-manage.html',
   '/admin-dashboard.html',
@@ -612,7 +613,7 @@ async function handleAdminLogin(req, res, { redirectOnSuccess = false } = {}) {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const nextPathRaw = String(req.body?.next || req.query?.next || '').trim();
-  const safeNextPath = nextPathRaw.startsWith('/') ? nextPathRaw : '/admin.html';
+  const safeNextPath = nextPathRaw.startsWith('/') ? nextPathRaw : '/admin-menu.html';
   const fail = (status, error) => {
     if (redirectOnSuccess) {
       return res.redirect(302, `/admin.html?error=${encodeURIComponent(error)}&next=${encodeURIComponent(safeNextPath)}`);

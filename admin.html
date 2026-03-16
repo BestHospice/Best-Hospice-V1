@@ -79,15 +79,10 @@
     const loginStatus = document.getElementById('login-status');
     const nextInput = document.getElementById('admin-next');
 
-    async function showAdminHome() {
-      loginCard.classList.add('hidden');
-      adminHome.classList.remove('hidden');
-    }
-
     async function checkSession() {
       try {
         await window.adminAuth.getSession();
-        await showAdminHome();
+        window.location.href = 'admin-menu.html';
       } catch (_err) {
         loginCard.classList.remove('hidden');
         adminHome.classList.add('hidden');
