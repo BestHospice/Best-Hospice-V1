@@ -42,6 +42,8 @@ const TURNSTILE_BYPASS = process.env.TURNSTILE_BYPASS === 'true';
 const TURNSTILE_SITE_KEY = process.env.TURNSTILE_SITE_KEY || '';
 const RATE_LIMIT_PER_WINDOW = 5;
 const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
+const AUTH_RATE_LIMIT_PER_WINDOW = 10;
+const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
@@ -1220,6 +1222,27 @@ async function rateLimit(req, res, next) {
     next();
   } catch (err) {
     console.error('Rate limit check failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+async function authRateLimit(req, res, next) {
+  try {
+    const ipHash = hashIp(`auth:${req.ip || ''}`);
+    const cutoff = new Date(Date.now() - AUTH_RATE_LIMIT_WINDOW_MS);
+    const count = await prisma.rateLimitEvent.count({
+      where: {
+        ipHash,
+        createdAt: { gte: cutoff }
+      }
+    });
+    if (count >= AUTH_RATE_LIMIT_PER_WINDOW) {
+      return res.status(429).json({ error: 'Too many authentication attempts. Please try again later.' });
+    }
+    await prisma.rateLimitEvent.create({ data: { id: uuid(), ipHash } });
+    next();
+  } catch (err) {
+    console.error('Auth rate limit check failed', err);
     res.status(500).json({ error: 'Server error' });
   }
 }
@@ -3581,7 +3604,11 @@ app.get('/api/admin/providers/:id/leads', async (req, res) => {
   }
 });
 
-app.post('/api/test-email', async (_req, res) => {
+app.post('/api/test-email', async (req, res) => {
+  const token = req.headers['x-admin-token'];
+  if (!isAdminMainToken(token)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {
     await sendTestEmail('admin@besthospice.com');
@@ -3593,7 +3620,7 @@ app.post('/api/test-email', async (_req, res) => {
 });
 
 // Provider auth: signup start via provider login email
-app.post('/api/provider-auth/signup-start', async (req, res) => {
+app.post('/api/provider-auth/signup-start', authRateLimit, async (req, res) => {
   const { providerEmail, providerId } = req.body || {};
   if (!providerEmail || !providerId) return res.status(400).json({ error: 'Provider and email required' });
   const normEmail = String(providerEmail).trim().toLowerCase();
@@ -3657,7 +3684,7 @@ app.post('/api/provider-auth/signup-start', async (req, res) => {
 });
 
 // Provider auth: complete signup with code + password
-app.post('/api/provider-auth/complete', async (req, res) => {
+app.post('/api/provider-auth/complete', authRateLimit, async (req, res) => {
   const { email, code, password } = req.body || {};
   if (!email || !code || !password) return res.status(400).json({ error: 'Email, code, and password are required' });
   if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -3693,7 +3720,7 @@ app.post('/api/provider-auth/complete', async (req, res) => {
 });
 
 // Provider auth: login
-app.post('/api/provider-auth/login', async (req, res) => {
+app.post('/api/provider-auth/login', authRateLimit, async (req, res) => {
   const { email, password, providerId } = req.body || {};
   if (!email || !password || !providerId) return res.status(400).json({ error: 'Provider, email and password required' });
   const normEmail = String(email).trim().toLowerCase();

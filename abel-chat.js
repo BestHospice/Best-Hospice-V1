@@ -19,7 +19,7 @@
   const bubble = (text, from) => {
     const div = document.createElement('div');
     div.style.cssText = `padding:10px; border-radius:10px; max-width:90%; font-size:14px; line-height:1.4; ${from === 'agent' ? 'background:#eef2ff; color:#1f2937;' : 'background:#f8fafc; color:#111827; align-self:flex-end;'} `;
-    div.innerHTML = text;
+    div.textContent = String(text || '');
     return div;
   };
 
