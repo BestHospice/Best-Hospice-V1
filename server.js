@@ -571,6 +571,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 });
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {
   const hostHeader = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
   const host = hostHeader.replace(/:\d+$/, '');
@@ -607,25 +608,33 @@ app.get('/api/admin/session', (req, res) => {
   return res.json({ ok: true, email: session.email });
 });
 
-app.post('/api/admin/login', async (req, res) => {
+async function handleAdminLogin(req, res, { redirectOnSuccess = false } = {}) {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
+  const nextPathRaw = String(req.body?.next || req.query?.next || '').trim();
+  const safeNextPath = nextPathRaw.startsWith('/') ? nextPathRaw : '/admin.html';
+  const fail = (status, error) => {
+    if (redirectOnSuccess) {
+      return res.redirect(302, `/admin.html?error=${encodeURIComponent(error)}&next=${encodeURIComponent(safeNextPath)}`);
+    }
+    return res.status(status).json({ error });
+  };
   try {
     const failedCount = await getAdminFailedLoginCount(req);
     if (failedCount >= ADMIN_LOGIN_FAILED_LIMIT) {
-      return res.status(429).json({ error: 'Too many failed admin login attempts. Please try again later.' });
+      return fail(429, 'Too many failed admin login attempts. Please try again later.');
     }
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return fail(400, 'Email and password are required');
     }
     if (email !== ADMIN_LOGIN_EMAIL) {
       await recordAdminFailedLogin(req);
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return fail(401, 'Invalid credentials');
     }
     const ok = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
     if (!ok) {
       await recordAdminFailedLogin(req);
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return fail(401, 'Invalid credentials');
     }
     const token = jwt.sign(
       { type: 'admin_session', email: ADMIN_LOGIN_EMAIL },
@@ -633,11 +642,22 @@ app.post('/api/admin/login', async (req, res) => {
       { expiresIn: '12h' }
     );
     setAdminSessionCookie(res, token);
+    if (redirectOnSuccess) {
+      return res.redirect(302, safeNextPath || '/admin.html');
+    }
     return res.json({ ok: true, email: ADMIN_LOGIN_EMAIL });
   } catch (err) {
     console.error('Admin login failed', err);
-    return res.status(500).json({ error: 'Server error' });
+    return fail(500, 'Server error');
   }
+}
+
+app.post('/api/admin/login', async (req, res) => {
+  return handleAdminLogin(req, res, { redirectOnSuccess: false });
+});
+
+app.post('/admin/login', async (req, res) => {
+  return handleAdminLogin(req, res, { redirectOnSuccess: true });
 });
 
 app.post('/api/admin/logout', (req, res) => {

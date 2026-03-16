@@ -27,11 +27,14 @@
     <div id="login-card" class="card login-card">
       <h1>Admin Login</h1>
       <p class="note">Use your admin email and password to access internal Best Hospice and Home Health tools.</p>
-      <label for="admin-email">Email</label>
-      <input id="admin-email" type="email" autocomplete="username" />
-      <label for="admin-password">Password</label>
-      <input id="admin-password" type="password" autocomplete="current-password" />
-      <button class="button" id="admin-login-btn">Log In</button>
+      <form id="admin-login-form" method="post" action="/admin/login" style="display:grid; gap:10px;">
+        <input id="admin-next" name="next" type="hidden" value="" />
+        <label for="admin-email">Email</label>
+        <input id="admin-email" name="email" type="email" autocomplete="username" />
+        <label for="admin-password">Password</label>
+        <input id="admin-password" name="password" type="password" autocomplete="current-password" />
+        <button class="button" id="admin-login-btn" type="submit">Log In</button>
+      </form>
       <p id="login-status" class="note"></p>
       <p><a class="button" href="index.html">Back to main site</a></p>
     </div>
@@ -74,8 +77,7 @@
     const loginCard = document.getElementById('login-card');
     const adminHome = document.getElementById('admin-home');
     const loginStatus = document.getElementById('login-status');
-    const emailInput = document.getElementById('admin-email');
-    const passwordInput = document.getElementById('admin-password');
+    const nextInput = document.getElementById('admin-next');
 
     async function showAdminHome() {
       loginCard.classList.add('hidden');
@@ -92,21 +94,13 @@
       }
     }
 
-    document.getElementById('admin-login-btn').addEventListener('click', async () => {
-      loginStatus.textContent = 'Logging in...';
-      try {
-        await window.adminAuth.loginAndConfirmSession(emailInput.value.trim(), passwordInput.value);
-        const nextPath = new URLSearchParams(window.location.search).get('next');
-        if (nextPath) {
-          window.location.href = new URL(nextPath, window.location.origin).toString();
-          return;
-        }
-        await showAdminHome();
-        loginStatus.textContent = '';
-      } catch (err) {
-        loginStatus.textContent = err.message || 'Login failed.';
-      }
-    });
+    const params = new URLSearchParams(window.location.search);
+    const nextPath = params.get('next') || '';
+    const errorText = params.get('error') || '';
+    nextInput.value = nextPath;
+    if (errorText) {
+      loginStatus.textContent = errorText;
+    }
 
     document.getElementById('admin-logout-btn').addEventListener('click', async () => {
       await window.adminAuth.logout();
