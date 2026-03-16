@@ -85,6 +85,7 @@ function setAdminSessionCookie(res, token) {
     'SameSite=Lax',
     'Max-Age=43200'
   ];
+  if (secure) cookieParts.push('Domain=.besthospice.com');
   if (secure) cookieParts.push('Secure');
   res.setHeader('Set-Cookie', cookieParts.join('; '));
 }
@@ -97,6 +98,7 @@ function clearAdminSessionCookie(res) {
     'SameSite=Lax',
     'Max-Age=0'
   ];
+  if (secure) cookieParts.push('Domain=.besthospice.com');
   if (secure) cookieParts.push('Secure');
   res.setHeader('Set-Cookie', cookieParts.join('; '));
 }
