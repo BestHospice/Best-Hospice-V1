@@ -86,7 +86,7 @@
       body: JSON.stringify(payload)
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Request failed');
+    if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
     conversationHistory.push({ role: 'user', content: message });
     if (data.reply) conversationHistory.push({ role: 'assistant', content: data.reply });
     return data;
@@ -145,6 +145,9 @@
     });
     header.querySelector('#abel-close').addEventListener('click', () => panel.style.display = 'none');
 
+    const SESSION_MSG_LIMIT = 15;
+    const SESSION_KEY = 'abel_msg_count';
+
     const sendAction = async () => {
       const msg = input.value.trim();
       if (!msg) return;
@@ -154,6 +157,17 @@
         body.appendChild(bubble('Please log in on the Provider Dashboard to continue this chat as a provider.', 'agent'));
         body.scrollTop = body.scrollHeight;
         return;
+      }
+
+      // Session message limit for non-authenticated users
+      if (!token) {
+        const msgCount = parseInt(sessionStorage.getItem(SESSION_KEY) || '0', 10);
+        if (msgCount >= SESSION_MSG_LIMIT) {
+          body.appendChild(bubble("You've reached the message limit for this session. Please start a new browser session or contact us directly for more help.", 'agent'));
+          body.scrollTop = body.scrollHeight;
+          return;
+        }
+        sessionStorage.setItem(SESSION_KEY, msgCount + 1);
       }
       const mode = token ? 'provider' : 'client';
       body.appendChild(bubble(msg, 'user'));

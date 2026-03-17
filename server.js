@@ -123,6 +123,8 @@ const RATE_LIMIT_PER_WINDOW = 5;
 const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 const AUTH_RATE_LIMIT_PER_WINDOW = 10;
 const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const CHAT_RATE_LIMIT = 20; // max Abel messages per IP per hour
+const CHAT_RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const ADMIN_LOGIN_FAILED_LIMIT = 5;
 const ADMIN_LOGIN_FAILED_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const AUTH_RATE_LIMIT_BYPASS_IPS = new Set(
@@ -132,6 +134,18 @@ const AUTH_RATE_LIMIT_BYPASS_IPS = new Set(
     .filter(Boolean)
 );
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
+const chatRateLimitMap = new Map(); // ipHash -> { count, windowStart }
+function checkChatRateLimit(ipHash) {
+  const now = Date.now();
+  const entry = chatRateLimitMap.get(ipHash);
+  if (!entry || now - entry.windowStart > CHAT_RATE_WINDOW_MS) {
+    chatRateLimitMap.set(ipHash, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= CHAT_RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
 const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
 const ADMIN_SESSION_SECRET = getRequiredSecret('ADMIN_SESSION_SECRET');
@@ -4551,6 +4565,14 @@ async function handleAbelWithClaude(req, res) {
     if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
   }
 
+  // IP rate limit — skip for authenticated providers (paying customers)
+  if (mode !== 'provider_authed') {
+    const ipHash = hashIp(req.ip || '');
+    if (!checkChatRateLimit(ipHash)) {
+      return res.status(429).json({ error: 'Too many messages. Please try again in an hour.' });
+    }
+  }
+
   const NAV_INSTRUCTION = `
 NAVIGATION: When your response would benefit from sending the user to a specific page, append exactly one line at the very end in this format (nothing after it):
 [NAVIGATE:/path/here|Friendly button label]
@@ -4674,8 +4696,8 @@ ${NAV_INSTRUCTION.replace('- [NAVIGATE:/index.html|Start the questionnaire] — 
     let currentMessages = [...messages];
     for (let i = 0; i < 5; i++) {
       const response = await anthropic.messages.create({
-        model: 'claude-opus-4-6',
-        max_tokens: 1024,
+        model: mode === 'provider_authed' ? 'claude-opus-4-6' : 'claude-haiku-4-5',
+        max_tokens: mode === 'provider_authed' ? 1024 : 512,
         system: systemPrompt,
         ...(tools.length > 0 ? { tools } : {}),
         messages: currentMessages
