@@ -4520,103 +4520,124 @@ async function handleAbelWithClaude(req, res) {
 
   if (maybePhi(text)) {
     return res.json({
-      reply: "Please don't share private medical details here. Best Hospice and Home Health helps connect you with licensed providers who can collect that information securely.",
-      navigateTo: null
+      reply: "Please don't share private medical details here. Best Hospice and Home Health connects you with licensed providers who can handle that information securely.",
+      navigateTo: null,
+      navigateLabel: null
     });
   }
 
+  // Only JWT validation can set provider_authed — never keyword guessing
   let providerCtx = null;
   const auth = req.headers['authorization'];
   if (auth && auth.toLowerCase().startsWith('bearer ')) {
     try {
       const payload = jwt.verify(auth.slice(7), PROVIDER_JWT_SECRET);
       providerCtx = await getProviderContext(payload.sub);
-    } catch (_err) { /* invalid token — stay as client */ }
+    } catch (_err) { /* invalid token — treat as client */ }
   }
 
-  const lower = text.toLowerCase();
-  let mode = 'client';
-  if (providerCtx) {
-    mode = 'provider_authed';
-  } else if (/provider|agency|log in|sign in|login|create an account/i.test(lower)) {
-    mode = 'provider_public';
-  }
+  const mode = providerCtx ? 'provider_authed' : 'client';
 
   if (mode === 'client' && !TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
     const captcha = await verifyTurnstile(turnstileToken, req.ip);
     if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
   }
 
-  const systemPrompts = {
-    client: `You are Abel, a compassionate AI assistant for Best Hospice and Home Health — a free platform connecting families with licensed hospice, palliative care, and home care providers.
+  const NAV_INSTRUCTION = `
+NAVIGATION: When your response would benefit from sending the user to a specific page, append exactly one line at the very end in this format (nothing after it):
+[NAVIGATE:/path/here|Friendly button label]
 
-Your role:
-- Help families and caregivers understand hospice, palliative, and home care
-- Guide visitors through the questionnaire to find nearby providers
-- Answer questions warmly and clearly — people reaching out may be going through a very difficult time
-- Keep responses concise and conversational
+Available pages and when to use them:
+- [NAVIGATE:/index.html|Start the questionnaire] — finding providers, starting a search, entering a ZIP code
+- [NAVIGATE:/provider-dashboard.html|Provider login] — provider login, signing in, creating a provider account
+- [NAVIGATE:/education.html|Learn about care options] — general education about care types
+- [NAVIGATE:/why.html|About Best Hospice] — about the platform, mission, how it works
+- [NAVIGATE:/contact.html|Contact us] — contact, questions for the team
+- [NAVIGATE:/locations.html|View all locations] — what states/cities are covered
+- [NAVIGATE:/faq-blog.html|FAQ & Blog] — frequently asked questions, blog posts
+State pages (use when user asks about a specific state):
+- [NAVIGATE:/states/arizona.html|Hospice providers in Arizona]
+- [NAVIGATE:/states/texas.html|Hospice providers in Texas]
+- [NAVIGATE:/states/california.html|Hospice providers in California]
+- [NAVIGATE:/states/georgia.html|Hospice providers in Georgia]
+- [NAVIGATE:/states/alabama.html|Hospice providers in Alabama]
+- [NAVIGATE:/states/colorado.html|Hospice providers in Colorado]
+- [NAVIGATE:/states/maryland.html|Hospice providers in Maryland]
+- [NAVIGATE:/states/new-jersey.html|Hospice providers in New Jersey]
+- [NAVIGATE:/states/pennsylvania.html|Hospice providers in Pennsylvania]
+- [NAVIGATE:/states/south-carolina.html|Hospice providers in South Carolina]
+- [NAVIGATE:/states/tennessee.html|Hospice providers in Tennessee]
+- [NAVIGATE:/states/utah.html|Hospice providers in Utah]
+- [NAVIGATE:/states/virginia.html|Hospice providers in Virginia]
+- [NAVIGATE:/states/west-virginia.html|Hospice providers in West Virginia]
+Guide pages (use when the topic matches):
+- [NAVIGATE:/guides/hospice-care.html|Hospice care guide]
+- [NAVIGATE:/guides/palliative-care.html|Palliative care guide]
+- [NAVIGATE:/guides/home-care.html|Home care guide]
+- [NAVIGATE:/guides/hospice-vs-palliative-care.html|Hospice vs palliative care]
+- [NAVIGATE:/guides/when-is-it-time-for-hospice.html|When is it time for hospice?]
+- [NAVIGATE:/guides/when-is-it-time-for-hospice-arizona.html|When is it time for hospice in Arizona?]
+- [NAVIGATE:/guides/medicare-hospice-coverage.html|Medicare hospice coverage]
+- [NAVIGATE:/guides/how-to-choose-hospice-provider.html|How to choose a hospice provider]
+- [NAVIGATE:/guides/home-health-care-costs.html|Home health care costs]
+- [NAVIGATE:/guides/hospice-care-cancer-arizona.html|Hospice care for cancer in Arizona]
+- [NAVIGATE:/guides/hospice-care-dementia-alzheimers-arizona.html|Hospice care for dementia in Arizona]
+- [NAVIGATE:/guides/hospice-care-heart-failure-arizona.html|Hospice care for heart failure in Arizona]
+- [NAVIGATE:/guides/hospice-care-copd-arizona.html|Hospice care for COPD in Arizona]
+- [NAVIGATE:/guides/palliative-care-vs-hospice-arizona.html|Palliative vs hospice care in Arizona]
+- [NAVIGATE:/guides/veteran-hospice-care-arizona.html|Veteran hospice care in Arizona]
+- [NAVIGATE:/guides/how-to-pay-for-hospice-care-arizona.html|How to pay for hospice care in Arizona]
+- [NAVIGATE:/guides/altcs-home-care-arizona.html|ALTCS home care in Arizona]
+Only include a NAVIGATE line when it genuinely helps the user take a next step. Do not include it for every response.`;
 
-Key facts:
-- 100% free for families; providers pay to be listed
-- Families enter their ZIP code, answer guided questions, and get matched to providers within ~60 miles
-- Services: hospice care, palliative care, home care
+  const clientSystemPrompt = `You are Abel, a warm and knowledgeable AI assistant for Best Hospice and Home Health — a free platform that connects families with licensed hospice, palliative care, and home care providers.
 
-Care type explanations:
-- Hospice: Comfort-focused care when curative treatment is no longer the goal. Covers nursing visits, medications, emotional/spiritual support, caregiver support.
-- Palliative: Comfort-focused care at any stage of serious illness — can run alongside treatment.
-- Home care: Help with daily living (bathing, meals, companionship) — not necessarily end-of-life care.
+CRITICAL RULES:
+- Answer the SPECIFIC question the user just asked. Do not give generic overviews when someone asks a specific question.
+- Use the conversation history to maintain context. If the user said they are a family member or a provider earlier, remember that — do not reset.
+- Be conversational and natural. Vary your responses. Never repeat the same phrasing twice in a conversation.
+- Keep responses concise — 2-4 sentences for most questions. Only go longer when the question genuinely requires detail.
+- You are talking to both families/caregivers AND hospice providers who are not yet logged in. Handle each naturally based on context.
 
-Guide pages available: /guides/hospice-care, /guides/palliative-care, /guides/home-care, /guides/hospice-vs-palliative-care, /guides/when-is-it-time-for-hospice, /guides/medicare-hospice-coverage, /guides/how-to-choose-hospice-provider, /guides/home-health-care-costs
+About Best Hospice and Home Health:
+- 100% free for families — providers pay to be listed
+- Families enter ZIP code, answer a few questions, and get matched to providers within ~60 miles
+- Providers are notified and can reach out directly
+- Services covered: hospice care, palliative care, home care
 
-Navigation: Home/questionnaire is at /index.html. Provider login is at /provider-dashboard.html.
+Care type knowledge:
+- Hospice: Comfort and dignity-focused care when curative treatment is no longer the goal. Covers nursing visits, pain/symptom management, medications, emotional and spiritual support, caregiver support, and bereavement. Typically for a 6-month prognosis if illness runs its natural course.
+- Palliative care: Comfort-focused care at any stage of serious illness — can run alongside curative treatment. Focuses on quality of life, symptom relief, and care coordination.
+- Home care: Help with daily living at home — bathing, dressing, meals, companionship, light household tasks. Not necessarily medical or end-of-life.
+- Medicare Part A covers most hospice services including nursing, medications related to the diagnosis, equipment, aide support, social work, and bereavement counseling.
 
-IMPORTANT: Never ask for or encourage sharing of private medical details (PHI). Guide users to providers for sensitive discussions.`,
+For providers (not yet logged in): Explain that Best Hospice and Home Health is subscription-based, providers receive lead notifications for families in their service area, and the dashboard shows leads, performance, and billing. Direct them to /provider-dashboard.html to sign in or email provider@besthospice.com to get started.
 
-    provider_public: `You are Abel, an AI assistant for Best Hospice and Home Health — a platform connecting families with licensed hospice, palliative care, and home care providers.
+IMPORTANT: Never encourage sharing private medical details (PHI). Guide users to providers for sensitive medical discussions.
 
-You're speaking with a hospice/home care provider or someone interested in listing their agency.
+${NAV_INSTRUCTION}`;
 
-Your role:
-- Explain how the platform works for providers
-- Help them sign in or get started
-- Answer questions about leads, pricing, and the dashboard
+  const providerSystemPrompt = `You are Abel, an AI assistant for Best Hospice and Home Health. You are speaking with an authenticated provider: ${providerCtx?.provider?.name || 'a provider'} (ID: ${providerCtx?.providerId || ''}).
 
-Key facts:
-- Subscription-based platform, no long-term lock-in
-- Providers receive lead notifications when families in their service area submit care requests
-- Dashboard shows leads, performance metrics, billing
-- Tiers: Verified, Featured, Priority, Enterprise
-- To join or get help: email provider@besthospice.com
-- Provider login/signup: /provider-dashboard.html
+CRITICAL RULES:
+- Answer the SPECIFIC question asked. Use tools to get real data — never guess numbers.
+- Use conversation history for context. Remember what was discussed earlier in this conversation.
+- Be professional, concise, and data-driven.
+- After fetching data with a tool, present it clearly and offer a useful next step.
 
-Keep responses brief and direct. Guide them toward signing in or contacting us to get started.`,
+Tools you have: get_lead_count, get_lead_list, get_metrics, get_spend_estimate, get_revenue_estimate, get_account_info.
+Use them proactively when the provider asks about their performance, leads, spend, or account.
 
-    provider_authed: `You are Abel, an AI assistant for Best Hospice and Home Health. You're speaking with an authenticated provider: ${providerCtx?.provider?.name || 'a provider'}.
+${NAV_INSTRUCTION.replace('- [NAVIGATE:/index.html|Start the questionnaire] — finding providers, starting a search, entering a ZIP code', '- [NAVIGATE:/provider-dashboard-home.html|Go to your dashboard] — dashboard home, overview')}`;
 
-Your role:
-- Help the provider understand their leads, performance, and account
-- Use the available tools to fetch their real data whenever they ask about numbers or details
-- Be professional, data-driven, and helpful
-
-Tools available: get_lead_count, get_lead_list, get_metrics, get_spend_estimate, get_revenue_estimate, get_account_info.
-
-Always use a tool to get accurate data rather than guessing. After fetching data, summarize it clearly.
-
-Navigation: Provider dashboard home is at /provider-dashboard-home.html.`
-  };
-
-  const systemPrompt = systemPrompts[mode] || systemPrompts.client;
-  const defaultNav = mode === 'provider_authed' ? '/provider-dashboard-home.html'
-    : mode === 'provider_public' ? '/provider-dashboard.html'
-    : '/index.html';
+  const systemPrompt = mode === 'provider_authed' ? providerSystemPrompt : clientSystemPrompt;
 
   const safeHistory = (Array.isArray(history) ? history : [])
-    .slice(-10)
+    .slice(-14)
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
     .map((m) => ({ role: m.role, content: String(m.content) }));
 
   const messages = [...safeHistory, { role: 'user', content: text }];
-
   const tools = mode === 'provider_authed' ? ABEL_PROVIDER_TOOLS : [];
 
   try {
@@ -4629,11 +4650,6 @@ Navigation: Provider dashboard home is at /provider-dashboard-home.html.`
         ...(tools.length > 0 ? { tools } : {}),
         messages: currentMessages
       });
-
-      if (response.stop_reason === 'end_turn') {
-        const textBlock = response.content.find((b) => b.type === 'text');
-        return res.json({ reply: textBlock?.text || '', navigateTo: defaultNav });
-      }
 
       if (response.stop_reason === 'tool_use') {
         const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
@@ -4649,9 +4665,21 @@ Navigation: Provider dashboard home is at /provider-dashboard-home.html.`
       }
 
       const textBlock = response.content.find((b) => b.type === 'text');
-      return res.json({ reply: textBlock?.text || 'Something went wrong. Please try again.', navigateTo: defaultNav });
+      let reply = textBlock?.text || 'Something went wrong. Please try again.';
+
+      // Parse [NAVIGATE:/path|Label] from the end of Claude's response
+      let navigateTo = null;
+      let navigateLabel = null;
+      const navMatch = reply.match(/\[NAVIGATE:([^\]|]+)\|([^\]]+)\]\s*$/);
+      if (navMatch) {
+        navigateTo = navMatch[1].trim();
+        navigateLabel = navMatch[2].trim();
+        reply = reply.slice(0, navMatch.index).trimEnd();
+      }
+
+      return res.json({ reply, navigateTo, navigateLabel });
     }
-    return res.json({ reply: "I wasn't able to complete your request. Please try again.", navigateTo: defaultNav });
+    return res.json({ reply: "I wasn't able to complete your request. Please try again.", navigateTo: null, navigateLabel: null });
   } catch (err) {
     console.error('Abel Claude error', err);
     return res.status(500).json({ error: 'AI chat failed' });

@@ -50,7 +50,7 @@
   const conversationHistory = [];
 
   async function chat(message, mode, token) {
-    const payload = { message, mode, history: conversationHistory.slice(-10), turnstileToken: null };
+    const payload = { message, mode, history: conversationHistory.slice(-14), turnstileToken: null };
     const headers = { 'Content-Type': 'application/json' };
     if (mode === 'provider' && token) headers['Authorization'] = 'Bearer ' + token;
     const res = await fetch('/api/ai/chat', {
@@ -139,8 +139,8 @@
           const nav = document.createElement('div');
           nav.style.cssText = 'margin-top:6px;';
           const linkBtn = document.createElement('button');
-          linkBtn.style.cssText = `${btnStyles} padding:8px 10px; box-shadow:none;`;
-          linkBtn.textContent = 'Go to ' + resp.navigateTo;
+          linkBtn.style.cssText = `${btnStyles} padding:8px 10px; box-shadow:none; font-size:13px;`;
+          linkBtn.textContent = resp.navigateLabel || resp.navigateTo;
           linkBtn.addEventListener('click', () => { window.location.href = resp.navigateTo; });
           nav.appendChild(linkBtn);
           body.appendChild(nav);
