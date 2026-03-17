@@ -47,12 +47,12 @@
     return token ? 'provider' : 'client';
   }
 
+  const conversationHistory = [];
+
   async function chat(message, mode, token) {
-    const payload = { message, mode };
+    const payload = { message, mode, history: conversationHistory.slice(-10), turnstileToken: null };
     const headers = { 'Content-Type': 'application/json' };
     if (mode === 'provider' && token) headers['Authorization'] = 'Bearer ' + token;
-    // best effort to include turnstile token if you later wire one
-    payload.turnstileToken = null;
     const res = await fetch('/api/ai/chat', {
       method: 'POST',
       headers,
@@ -60,6 +60,8 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Request failed');
+    conversationHistory.push({ role: 'user', content: message });
+    if (data.reply) conversationHistory.push({ role: 'assistant', content: data.reply });
     return data;
   }
 

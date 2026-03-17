@@ -4,17 +4,18 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
 const { v4: uuid } = require('uuid');
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { PrismaClient } = require('@prisma/client');
 const { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, emailEnabled } = require('./email');
 const { sendProviderSms, smsEnabled } = require('./sms');
 const Stripe = require('stripe');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const Anthropic = require('@anthropic-ai/sdk');
 
 const app = express();
 const prisma = new PrismaClient();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
 app.set('trust proxy', true);
 
 function getRequiredSecret(name) {
@@ -86,7 +87,7 @@ function setAdminSessionCookie(res, token) {
     'SameSite=Lax',
     'Max-Age=43200'
   ];
-  if (secure) cookieParts.push('Domain=.besthospice.com');
+  if (secure) cookieParts.push(`Domain=${process.env.COOKIE_DOMAIN || '.besthospice.com'}`);
   if (secure) cookieParts.push('Secure');
   res.setHeader('Set-Cookie', cookieParts.join('; '));
 }
@@ -99,7 +100,7 @@ function clearAdminSessionCookie(res) {
     'SameSite=Lax',
     'Max-Age=0'
   ];
-  if (secure) cookieParts.push('Domain=.besthospice.com');
+  if (secure) cookieParts.push(`Domain=${process.env.COOKIE_DOMAIN || '.besthospice.com'}`);
   if (secure) cookieParts.push('Secure');
   res.setHeader('Set-Cookie', cookieParts.join('; '));
 }
@@ -133,7 +134,7 @@ const AUTH_RATE_LIMIT_BYPASS_IPS = new Set(
 const IP_SALT = process.env.IP_SALT || 'besthospice-salt';
 const EMAIL_ENABLED = emailEnabled();
 const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
-const ADMIN_SESSION_SECRET = String(process.env.ADMIN_SESSION_SECRET || PROVIDER_JWT_SECRET).trim();
+const ADMIN_SESSION_SECRET = getRequiredSecret('ADMIN_SESSION_SECRET');
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
 const PROVIDER_PLAN_DEFAULT = 'active';
 const normalizePlanTier = (value) => {
@@ -3514,13 +3515,6 @@ app.delete('/api/admin/main/leads/:id', async (req, res) => {
   }
 });
 
-app.post('/api/admin/verify', (req, res) => {
-  if (!hasAdminAccess(req, ['remove'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  res.json({ ok: true });
-});
-
 // Blog: email verification start
 app.post('/api/blog/verify/start', async (req, res) => {
   try {
@@ -4365,9 +4359,310 @@ app.post('/api/provider/billing', requireProviderAuth, async (req, res) => {
 });
 
 // AI chat endpoint (rich intents for client and provider)
+// ---------- Abel AI Chat (Claude-powered) ----------
+
+const ABEL_PROVIDER_TOOLS = [
+  {
+    name: 'get_lead_count',
+    description: 'Get the number of leads for this provider, optionally since a specific date.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        since_date: { type: 'string', description: 'ISO date (YYYY-MM-DD). Omit for all-time count.' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'get_lead_list',
+    description: 'Get a list of recent leads for this provider.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        since_date: { type: 'string', description: 'ISO date (YYYY-MM-DD). Defaults to 30 days ago.' },
+        limit: { type: 'number', description: 'Max leads to return. Defaults to 20, max 50.' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'get_metrics',
+    description: 'Get performance metrics: impressions, emails sent, and leads generated for a date range.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'Start date (YYYY-MM-DD). Defaults to 30 days ago.' },
+        end_date: { type: 'string', description: 'End date (YYYY-MM-DD). Defaults to today.' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'get_spend_estimate',
+    description: 'Get estimated subscription spend on Best Hospice and Home Health since a date.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        since_date: { type: 'string', description: 'ISO date. Defaults to 30 days ago.' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'get_revenue_estimate',
+    description: 'Get estimated revenue from leads and ROI based on assumed admission value.',
+    input_schema: { type: 'object', properties: {}, required: [] }
+  },
+  {
+    name: 'get_account_info',
+    description: 'Get the provider account info: name, email, plan status, provider ID.',
+    input_schema: { type: 'object', properties: {}, required: [] }
+  }
+];
+
+async function executeAbelTool(toolName, toolInput, providerCtx) {
+  const providerId = providerCtx.providerId;
+  const iso = (d) => d.toISOString().split('T')[0];
+  const parseDate = (str, defaultDaysAgo = 30) => {
+    if (!str) return new Date(Date.now() - defaultDaysAgo * 24 * 60 * 60 * 1000);
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? new Date(Date.now() - defaultDaysAgo * 24 * 60 * 60 * 1000) : d;
+  };
+
+  const leadCountSince = async (sinceDate) => {
+    const notifs = await prisma.leadNotification.findMany({
+      where: { providerId, createdAt: { gte: sinceDate } },
+      select: { leadId: true }
+    });
+    return new Set(notifs.map((n) => n.leadId)).size;
+  };
+  const leadCountAll = async () => {
+    const notifs = await prisma.leadNotification.findMany({ where: { providerId }, select: { leadId: true } });
+    return new Set(notifs.map((n) => n.leadId)).size;
+  };
+  const leadListSince = async (sinceDate, limit = 20) => {
+    const notifs = await prisma.leadNotification.findMany({
+      where: { providerId, createdAt: { gte: sinceDate } },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 50),
+      select: { lead: { select: { id: true, createdAt: true, zip: true, submittedBy: true } } }
+    });
+    return notifs.map((n) => n.lead).filter(Boolean)
+      .map((l) => ({ leadId: l.id, createdAt: l.createdAt, zip: l.zip, submittedBy: l.submittedBy }));
+  };
+  const metricsRange = async (start, end) => {
+    const [impressions, emailsSent, leadNotifications] = await Promise.all([
+      prisma.providerImpression.count({ where: { providerId, createdAt: { gte: start, lte: end } } }),
+      prisma.leadNotification.count({ where: { providerId, status: 'sent', createdAt: { gte: start, lte: end } } }),
+      prisma.leadNotification.findMany({ where: { providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true } })
+    ]);
+    return { impressions, emailsSent, leadsGenerated: new Set(leadNotifications.map((n) => n.leadId)).size };
+  };
+  const spendSince = async (sinceDate) => {
+    const diffDays = Math.max(0, (Date.now() - sinceDate.getTime()) / (1000 * 60 * 60 * 24));
+    const months = Math.max(1, Math.ceil(diffDays / 30));
+    return { monthlyRate: PROVIDER_MONTHLY_RATE, months, totalSpend: months * PROVIDER_MONTHLY_RATE };
+  };
+
+  switch (toolName) {
+    case 'get_lead_count': {
+      const countAll = await leadCountAll();
+      if (toolInput.since_date) {
+        const sinceDate = parseDate(toolInput.since_date);
+        const countSince = await leadCountSince(sinceDate);
+        return `Leads since ${toolInput.since_date}: ${countSince}. All-time leads: ${countAll}.`;
+      }
+      return `All-time leads: ${countAll}.`;
+    }
+    case 'get_lead_list': {
+      const sinceDate = parseDate(toolInput.since_date, 30);
+      const leads = await leadListSince(sinceDate, toolInput.limit || 20);
+      return JSON.stringify({ since: iso(sinceDate), count: leads.length, leads });
+    }
+    case 'get_metrics': {
+      const start = parseDate(toolInput.start_date, 30);
+      const end = toolInput.end_date ? new Date(toolInput.end_date) : new Date();
+      const m = await metricsRange(start, end);
+      return `From ${iso(start)} to ${iso(end)}: Impressions: ${m.impressions}, Emails sent: ${m.emailsSent}, Leads generated: ${m.leadsGenerated}.`;
+    }
+    case 'get_spend_estimate': {
+      const sinceDate = parseDate(toolInput.since_date, 30);
+      const spend = await spendSince(sinceDate);
+      return `Estimated spend since ${iso(sinceDate)}: $${spend.totalSpend.toLocaleString()} ($${spend.monthlyRate}/month × ${spend.months} months).`;
+    }
+    case 'get_revenue_estimate': {
+      const countAll = await leadCountAll();
+      const estimatedRevenue = countAll * 8000;
+      const firstNotif = await prisma.leadNotification.findFirst({
+        where: { providerId }, orderBy: { createdAt: 'asc' }, select: { createdAt: true }
+      });
+      const sinceDate = firstNotif?.createdAt ? new Date(firstNotif.createdAt) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const spend = await spendSince(sinceDate);
+      const net = estimatedRevenue - spend.totalSpend;
+      return `All-time leads: ${countAll}. Estimated revenue (at $8,000/admission): ~$${estimatedRevenue.toLocaleString()}. Estimated spend: ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}.`;
+    }
+    case 'get_account_info': {
+      return JSON.stringify({
+        providerId: providerCtx.providerId,
+        providerName: providerCtx.provider?.name || '',
+        providerEmail: providerCtx.provider?.email || '',
+        planStatus: providerCtx.provider?.planStatus || 'active'
+      });
+    }
+    default:
+      return 'Unknown tool.';
+  }
+}
+
+async function handleAbelWithClaude(req, res) {
+  const { message, turnstileToken, history = [] } = req.body || {};
+  const text = String(message || '').trim();
+
+  if (maybePhi(text)) {
+    return res.json({
+      reply: "Please don't share private medical details here. Best Hospice and Home Health helps connect you with licensed providers who can collect that information securely.",
+      navigateTo: null
+    });
+  }
+
+  let providerCtx = null;
+  const auth = req.headers['authorization'];
+  if (auth && auth.toLowerCase().startsWith('bearer ')) {
+    try {
+      const payload = jwt.verify(auth.slice(7), PROVIDER_JWT_SECRET);
+      providerCtx = await getProviderContext(payload.sub);
+    } catch (_err) { /* invalid token — stay as client */ }
+  }
+
+  const lower = text.toLowerCase();
+  let mode = 'client';
+  if (providerCtx) {
+    mode = 'provider_authed';
+  } else if (/provider|agency|log in|sign in|login|create an account/i.test(lower)) {
+    mode = 'provider_public';
+  }
+
+  if (mode === 'client' && !TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
+    const captcha = await verifyTurnstile(turnstileToken, req.ip);
+    if (!captcha.success) return res.status(403).json({ error: 'Captcha verification failed.' });
+  }
+
+  const systemPrompts = {
+    client: `You are Abel, a compassionate AI assistant for Best Hospice and Home Health — a free platform connecting families with licensed hospice, palliative care, and home care providers.
+
+Your role:
+- Help families and caregivers understand hospice, palliative, and home care
+- Guide visitors through the questionnaire to find nearby providers
+- Answer questions warmly and clearly — people reaching out may be going through a very difficult time
+- Keep responses concise and conversational
+
+Key facts:
+- 100% free for families; providers pay to be listed
+- Families enter their ZIP code, answer guided questions, and get matched to providers within ~60 miles
+- Services: hospice care, palliative care, home care
+
+Care type explanations:
+- Hospice: Comfort-focused care when curative treatment is no longer the goal. Covers nursing visits, medications, emotional/spiritual support, caregiver support.
+- Palliative: Comfort-focused care at any stage of serious illness — can run alongside treatment.
+- Home care: Help with daily living (bathing, meals, companionship) — not necessarily end-of-life care.
+
+Guide pages available: /guides/hospice-care, /guides/palliative-care, /guides/home-care, /guides/hospice-vs-palliative-care, /guides/when-is-it-time-for-hospice, /guides/medicare-hospice-coverage, /guides/how-to-choose-hospice-provider, /guides/home-health-care-costs
+
+Navigation: Home/questionnaire is at /index.html. Provider login is at /provider-dashboard.html.
+
+IMPORTANT: Never ask for or encourage sharing of private medical details (PHI). Guide users to providers for sensitive discussions.`,
+
+    provider_public: `You are Abel, an AI assistant for Best Hospice and Home Health — a platform connecting families with licensed hospice, palliative care, and home care providers.
+
+You're speaking with a hospice/home care provider or someone interested in listing their agency.
+
+Your role:
+- Explain how the platform works for providers
+- Help them sign in or get started
+- Answer questions about leads, pricing, and the dashboard
+
+Key facts:
+- Subscription-based platform, no long-term lock-in
+- Providers receive lead notifications when families in their service area submit care requests
+- Dashboard shows leads, performance metrics, billing
+- Tiers: Verified, Featured, Priority, Enterprise
+- To join or get help: email provider@besthospice.com
+- Provider login/signup: /provider-dashboard.html
+
+Keep responses brief and direct. Guide them toward signing in or contacting us to get started.`,
+
+    provider_authed: `You are Abel, an AI assistant for Best Hospice and Home Health. You're speaking with an authenticated provider: ${providerCtx?.provider?.name || 'a provider'}.
+
+Your role:
+- Help the provider understand their leads, performance, and account
+- Use the available tools to fetch their real data whenever they ask about numbers or details
+- Be professional, data-driven, and helpful
+
+Tools available: get_lead_count, get_lead_list, get_metrics, get_spend_estimate, get_revenue_estimate, get_account_info.
+
+Always use a tool to get accurate data rather than guessing. After fetching data, summarize it clearly.
+
+Navigation: Provider dashboard home is at /provider-dashboard-home.html.`
+  };
+
+  const systemPrompt = systemPrompts[mode] || systemPrompts.client;
+  const defaultNav = mode === 'provider_authed' ? '/provider-dashboard-home.html'
+    : mode === 'provider_public' ? '/provider-dashboard.html'
+    : '/index.html';
+
+  const safeHistory = (Array.isArray(history) ? history : [])
+    .slice(-10)
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
+    .map((m) => ({ role: m.role, content: String(m.content) }));
+
+  const messages = [...safeHistory, { role: 'user', content: text }];
+
+  const tools = mode === 'provider_authed' ? ABEL_PROVIDER_TOOLS : [];
+
+  try {
+    let currentMessages = [...messages];
+    for (let i = 0; i < 5; i++) {
+      const response = await anthropic.messages.create({
+        model: 'claude-opus-4-6',
+        max_tokens: 1024,
+        system: systemPrompt,
+        ...(tools.length > 0 ? { tools } : {}),
+        messages: currentMessages
+      });
+
+      if (response.stop_reason === 'end_turn') {
+        const textBlock = response.content.find((b) => b.type === 'text');
+        return res.json({ reply: textBlock?.text || '', navigateTo: defaultNav });
+      }
+
+      if (response.stop_reason === 'tool_use') {
+        const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
+        currentMessages.push({ role: 'assistant', content: response.content });
+        const toolResults = [];
+        for (const toolUse of toolUseBlocks) {
+          const result = await executeAbelTool(toolUse.name, toolUse.input, providerCtx);
+          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
+          await logAdminAction('provider_user', `PROVIDER_AI_${toolUse.name.toUpperCase()}`, providerCtx?.providerId || '', toolUse.input, hashIp(req.ip || ''));
+        }
+        currentMessages.push({ role: 'user', content: toolResults });
+        continue;
+      }
+
+      const textBlock = response.content.find((b) => b.type === 'text');
+      return res.json({ reply: textBlock?.text || 'Something went wrong. Please try again.', navigateTo: defaultNav });
+    }
+    return res.json({ reply: "I wasn't able to complete your request. Please try again.", navigateTo: defaultNav });
+  } catch (err) {
+    console.error('Abel Claude error', err);
+    return res.status(500).json({ error: 'AI chat failed' });
+  }
+}
+
 app.post('/api/ai/chat', async (req, res) => {
-  const { message, turnstileToken } = req.body || {};
+  const { message, turnstileToken, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
+
+  if (anthropic) return handleAbelWithClaude(req, res);
 
   const text = String(message || '').trim();
   const lower = text.toLowerCase();
