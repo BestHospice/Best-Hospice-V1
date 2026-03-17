@@ -47,6 +47,33 @@
     return token ? 'provider' : 'client';
   }
 
+  // Friendly labels for known paths — used when the server returns no label (old fallback)
+  const NAV_LABELS = {
+    '/index.html': 'Find providers near you',
+    '/': 'Find providers near you',
+    '/provider-dashboard.html': 'Provider login',
+    '/provider-dashboard-home.html': 'Your dashboard',
+    '/education.html': 'Learn about care options',
+    '/contact.html': 'Contact us',
+    '/why.html': 'About Best Hospice',
+    '/locations.html': 'View all locations',
+    '/faq-blog.html': 'FAQ & Blog',
+    '/states/arizona.html': 'Hospice providers in Arizona',
+    '/states/texas.html': 'Hospice providers in Texas',
+    '/states/california.html': 'Hospice providers in California',
+    '/states/georgia.html': 'Hospice providers in Georgia',
+    '/states/alabama.html': 'Hospice providers in Alabama',
+    '/states/colorado.html': 'Hospice providers in Colorado',
+    '/states/maryland.html': 'Hospice providers in Maryland',
+    '/states/new-jersey.html': 'Hospice providers in New Jersey',
+    '/states/pennsylvania.html': 'Hospice providers in Pennsylvania',
+    '/states/south-carolina.html': 'Hospice providers in South Carolina',
+    '/states/tennessee.html': 'Hospice providers in Tennessee',
+    '/states/utah.html': 'Hospice providers in Utah',
+    '/states/virginia.html': 'Hospice providers in Virginia',
+    '/states/west-virginia.html': 'Hospice providers in West Virginia',
+  };
+
   const conversationHistory = [];
 
   async function chat(message, mode, token) {
@@ -136,14 +163,17 @@
         const resp = await chat(msg, mode, token);
         if (resp.reply) body.appendChild(bubble(resp.reply, 'agent'));
         if (resp.navigateTo) {
-          const nav = document.createElement('div');
-          nav.style.cssText = 'margin-top:6px;';
-          const linkBtn = document.createElement('button');
-          linkBtn.style.cssText = `${btnStyles} padding:8px 10px; box-shadow:none; font-size:13px;`;
-          linkBtn.textContent = resp.navigateLabel || resp.navigateTo;
-          linkBtn.addEventListener('click', () => { window.location.href = resp.navigateTo; });
-          nav.appendChild(linkBtn);
-          body.appendChild(nav);
+          const label = resp.navigateLabel || NAV_LABELS[resp.navigateTo] || null;
+          if (label) {
+            const nav = document.createElement('div');
+            nav.style.cssText = 'margin-top:6px;';
+            const linkBtn = document.createElement('button');
+            linkBtn.style.cssText = `${btnStyles} padding:8px 10px; box-shadow:none; font-size:13px;`;
+            linkBtn.textContent = label;
+            linkBtn.addEventListener('click', () => { window.location.href = resp.navigateTo; });
+            nav.appendChild(linkBtn);
+            body.appendChild(nav);
+          }
         }
       } catch (err) {
         body.appendChild(bubble(err.message, 'agent'));

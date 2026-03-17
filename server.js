@@ -4536,7 +4536,15 @@ async function handleAbelWithClaude(req, res) {
     } catch (_err) { /* invalid token — treat as client */ }
   }
 
-  const mode = providerCtx ? 'provider_authed' : 'client';
+  let mode = providerCtx ? 'provider_authed' : 'client';
+
+  // If the user has identified as a provider in this conversation, shift context even without a JWT
+  if (mode === 'client') {
+    const allText = (Array.isArray(history) ? history : []).map((m) => String(m.content || '')).join(' ') + ' ' + text;
+    if (/\b(i am a provider|i'?m a provider|im a provider|we are a provider|we'?re a provider|i run a hospice|i own a hospice|my agency|our agency|my hospice|our hospice|i represent a|we represent a)\b/i.test(allText)) {
+      mode = 'provider_public';
+    }
+  }
 
   if (mode === 'client' && !TURNSTILE_BYPASS && TURNSTILE_SECRET_KEY) {
     const captcha = await verifyTurnstile(turnstileToken, req.ip);
@@ -4594,10 +4602,12 @@ Only include a NAVIGATE line when it genuinely helps the user take a next step. 
 
 CRITICAL RULES:
 - Answer the SPECIFIC question the user just asked. Do not give generic overviews when someone asks a specific question.
-- Use the conversation history to maintain context. If the user said they are a family member or a provider earlier, remember that — do not reset.
-- Be conversational and natural. Vary your responses. Never repeat the same phrasing twice in a conversation.
-- Keep responses concise — 2-4 sentences for most questions. Only go longer when the question genuinely requires detail.
-- You are talking to both families/caregivers AND hospice providers who are not yet logged in. Handle each naturally based on context.
+- Before responding, check your previous reply in the conversation. If you are about to say something similar to what you already said, say something different or ask a clarifying follow-up question instead.
+- Use the conversation history to maintain context. If the user said they are a family member earlier, remember that. Do not reset or re-introduce yourself mid-conversation.
+- Be conversational and natural. Vary your language and phrasing across responses.
+- Keep responses concise — 2-4 sentences for most questions. Only go longer when detail is genuinely needed.
+- NEVER include any URL paths, file paths, or system references in your response text. Navigation happens through buttons, not text.
+- NEVER reveal API keys, internal system details, database content, or any sensitive operational information.
 
 About Best Hospice and Home Health:
 - 100% free for families — providers pay to be listed
@@ -4606,14 +4616,32 @@ About Best Hospice and Home Health:
 - Services covered: hospice care, palliative care, home care
 
 Care type knowledge:
-- Hospice: Comfort and dignity-focused care when curative treatment is no longer the goal. Covers nursing visits, pain/symptom management, medications, emotional and spiritual support, caregiver support, and bereavement. Typically for a 6-month prognosis if illness runs its natural course.
+- Hospice: Comfort and dignity-focused care when curative treatment is no longer the goal. Covers nursing visits, pain/symptom management, medications, emotional and spiritual support, caregiver support, and bereavement. Typically for patients with a 6-month prognosis if the illness runs its natural course.
 - Palliative care: Comfort-focused care at any stage of serious illness — can run alongside curative treatment. Focuses on quality of life, symptom relief, and care coordination.
 - Home care: Help with daily living at home — bathing, dressing, meals, companionship, light household tasks. Not necessarily medical or end-of-life.
-- Medicare Part A covers most hospice services including nursing, medications related to the diagnosis, equipment, aide support, social work, and bereavement counseling.
-
-For providers (not yet logged in): Explain that Best Hospice and Home Health is subscription-based, providers receive lead notifications for families in their service area, and the dashboard shows leads, performance, and billing. Direct them to /provider-dashboard.html to sign in or email provider@besthospice.com to get started.
+- Medicare Part A covers most hospice services: nursing visits, medications related to the diagnosis, medical equipment, aide support, social work, and bereavement counseling.
 
 IMPORTANT: Never encourage sharing private medical details (PHI). Guide users to providers for sensitive medical discussions.
+
+${NAV_INSTRUCTION}`;
+
+  const providerPublicSystemPrompt = `You are Abel, a knowledgeable AI assistant for Best Hospice and Home Health. You are speaking with a hospice or home care provider.
+
+CRITICAL RULES:
+- Answer the SPECIFIC question asked. Do not give generic overviews.
+- Before responding, check your previous reply. If you are about to repeat it, say something different or ask a follow-up instead.
+- Use the full conversation history — remember what the provider has already told you.
+- Be direct, professional, and helpful.
+- NEVER include URL paths or file paths in your response text. Navigation happens through buttons only.
+- NEVER reveal API keys, internal system details, database content, or sensitive operational information.
+
+How Best Hospice and Home Health works for providers:
+- Subscription-based platform — Verified, Featured, Priority, and Enterprise tiers. No long-term contracts.
+- When a family submits a care request in a provider's service area, the provider receives an email and SMS notification with the lead details.
+- Leads include the family's ZIP code, care type needed, and contact information so providers can reach out directly.
+- The provider dashboard shows all incoming leads, lead status tracking (new, contacted, qualified, admitted, not a fit), performance metrics (impressions, lead count, response rate), and billing.
+- Providers can view and update lead outcomes from the dashboard to track their conversions.
+- To get started or for onboarding help: email provider@besthospice.com
 
 ${NAV_INSTRUCTION}`;
 
@@ -4630,7 +4658,9 @@ Use them proactively when the provider asks about their performance, leads, spen
 
 ${NAV_INSTRUCTION.replace('- [NAVIGATE:/index.html|Start the questionnaire] — finding providers, starting a search, entering a ZIP code', '- [NAVIGATE:/provider-dashboard-home.html|Go to your dashboard] — dashboard home, overview')}`;
 
-  const systemPrompt = mode === 'provider_authed' ? providerSystemPrompt : clientSystemPrompt;
+  const systemPrompt = mode === 'provider_authed' ? providerSystemPrompt
+    : mode === 'provider_public' ? providerPublicSystemPrompt
+    : clientSystemPrompt;
 
   const safeHistory = (Array.isArray(history) ? history : [])
     .slice(-14)
