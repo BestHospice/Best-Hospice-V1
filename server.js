@@ -1736,6 +1736,15 @@ function renderPageHTML({ title, description, canonical, breadcrumbItems, body, 
     <title>${title}</title>
     <meta name="description" content="${description}" />
     <link rel="canonical" href="${canonical}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="${canonical}" />
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="https://www.besthospice.com/BestHospiceandHomeHealthNew.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${title}" />
+    <meta name="twitter:description" content="${description}" />
+    <meta name="twitter:image" content="https://www.besthospice.com/BestHospiceandHomeHealthNew.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
@@ -1743,23 +1752,6 @@ function renderPageHTML({ title, description, canonical, breadcrumbItems, body, 
     <!-- Keep main.css last so it overrides base page styles -->
     <link rel="stylesheet" href="/styles/main.css" />
     <script src="/abel-chat.js" defer></script>
-    <!-- Meta Pixel Code -->
-<script>
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '1447731666875537');
-fbq('track', 'PageView');
-</script>
-<noscript><img height="1" width="1" style="display:none"
-src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
-/></noscript>
-<!-- End Meta Pixel Code -->
     <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   </head>
   <body class="seo-page">
@@ -1814,6 +1806,23 @@ src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
 
       })();
     </script>
+    <!-- Meta Pixel Code -->
+    <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1447731666875537');
+    fbq('track', 'PageView');
+    </script>
+    <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=1447731666875537&ev=PageView&noscript=1"
+    /></noscript>
+    <!-- End Meta Pixel Code -->
   </body>
   </html>`;
 }
@@ -5397,9 +5406,10 @@ app.get(['/phoenix', '/phoenix/', '/phoenix.html', '/ads-landing.html'], (_req, 
 
 app.get('/sitemap.xml', async (_req, res) => {
   const urls = await buildSitemapUrls();
+  const today = new Date().toISOString().split('T')[0];
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
+${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.8</priority></url>`).join('\n')}
 </urlset>`;
   res.type('text/xml').send(body);
 });
@@ -5430,9 +5440,10 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
       })
     : [];
   const urls = [...pages, ...serviceHubs, ...guides, ...statePages, ...cityPages, ...blogPages, ...newsletterPages].map((p) => `${CANONICAL_DOMAIN}${p}`);
+  const today = new Date().toISOString().split('T')[0];
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
+${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.7</priority></url>`).join('\n')}
 </urlset>`;
   res.type('text/xml').send(body);
 });
@@ -5458,9 +5469,10 @@ app.get('/sitemap-locations.xml', async (_req, res) => {
       urls.push(`${CANONICAL_DOMAIN}/${s}/${slugify(p.city)}-${state}`);
     });
   }
+  const today = new Date().toISOString().split('T')[0];
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
+${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.6</priority></url>`).join('\n')}
 </urlset>`;
   res.type('text/xml').send(body);
 });
@@ -5468,9 +5480,10 @@ ${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
 app.get('/sitemap-providers.xml', async (_req, res) => {
   const providers = await fetchAllProviders();
   const urls = providers.map((p) => `${CANONICAL_DOMAIN}/provider/${providerSlug(p)}`);
+  const today = new Date().toISOString().split('T')[0];
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `<url><loc>${u}</loc></url>`).join('\n')}
+${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.5</priority></url>`).join('\n')}
 </urlset>`;
   res.type('text/xml').send(body);
 });
@@ -5479,6 +5492,9 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send(`User-agent: *
 Allow: /
 Sitemap: ${CANONICAL_DOMAIN}/sitemap.xml
+Sitemap: ${CANONICAL_DOMAIN}/sitemap-pages.xml
+Sitemap: ${CANONICAL_DOMAIN}/sitemap-locations.xml
+Sitemap: ${CANONICAL_DOMAIN}/sitemap-providers.xml
 `);
 });
 
