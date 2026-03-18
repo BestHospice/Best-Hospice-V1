@@ -71,7 +71,7 @@
       <div class="hero-body">
         <div class="hero-text">
           <div class="card" style="padding:8px 14px; margin:0 0 10px; display:inline-flex; flex-wrap:wrap; gap:8px; align-items:center;">
-            <span><span id="provider-count">37</span> Verified Providers</span>
+            <span><span id="provider-count">51</span> Verified Providers</span>
             <span>| 100% Free for Families</span>
             <span>| Instant Results</span>
           </div>
@@ -126,7 +126,7 @@
         <p class="tagline" style="margin:6px 0 12px;">Transparent access to verified providers, nationwide coverage, and no-cost support for families.</p>
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;">
           <div class="lead-item" style="padding:12px;">
-            <div id="provider-count-trust" style="font-size:24px; font-weight:800; line-height:1;">37</div>
+            <div id="provider-count-trust" style="font-size:24px; font-weight:800; line-height:1;">51</div>
             <div class="note">Verified Providers</div>
           </div>
           <div class="lead-item" style="padding:12px;">
@@ -303,10 +303,11 @@
     const trustCountEl = document.getElementById('provider-count-trust');
     if (!countEl && !trustCountEl) return;
     try {
-      const res = await fetch('/api/providers');
+      const res = await fetch('/api/public/providers');
       if (!res.ok) return;
       const data = await res.json();
-      const count = Array.isArray(data) ? data.length : 0;
+      const list = data.providers || data;
+      const count = Array.isArray(list) ? list.length : 0;
       const formatted = count.toLocaleString();
       if (countEl) countEl.textContent = formatted;
       if (trustCountEl) trustCountEl.textContent = formatted;
