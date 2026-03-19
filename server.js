@@ -2872,6 +2872,17 @@ app.post('/api/analytics/event', async (req, res) => {
   }
 });
 
+app.get('/api/newsletter/issues', (req, res) => {
+  try {
+    const schedulePath = path.join(__dirname, 'newsletter', 'schedule.json');
+    if (!fs.existsSync(schedulePath)) return res.json({ issues: [] });
+    const schedule = JSON.parse(fs.readFileSync(schedulePath, 'utf8'));
+    res.json({ issues: schedule.issues || [] });
+  } catch (err) {
+    res.json({ issues: [] });
+  }
+});
+
 app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
   try {
     const name = String(req.body?.name || '').trim();
