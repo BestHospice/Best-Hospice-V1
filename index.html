@@ -21,13 +21,19 @@
   <link rel="stylesheet" href="/styles/main.css" />
   <script src="abel-chat.js" defer></script>
   <script type="application/ld+json">
+  [
     {
       "@context": "https://schema.org",
-      "@type": "MedicalBusiness",
+      "@type": "MedicalOrganization",
       "name": "Best Hospice and Home Health",
-      "description": "Verified referral marketplace connecting families with hospice, palliative, and home care providers nationwide",
+      "alternateName": "BestHospice.com",
+      "description": "Free verified referral marketplace connecting families with hospice, palliative, and home care providers nationwide. No sales pressure. Instant results.",
       "url": "https://www.besthospice.com",
-      "logo": "https://www.besthospice.com/BestHospiceandHomeHealthNew.png",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.besthospice.com/BestHospiceandHomeHealthNew.png"
+      },
+      "image": "https://www.besthospice.com/BestHospiceandHomeHealthNew.png",
       "founder": {
         "@type": "Person",
         "name": "Crawford Outland"
@@ -39,9 +45,69 @@
       "contactPoint": {
         "@type": "ContactPoint",
         "email": "contact@besthospice.com",
-        "contactType": "Customer Service"
+        "contactType": "Customer Service",
+        "areaServed": "US",
+        "availableLanguage": "English"
+      },
+      "sameAs": [
+        "https://www.besthospice.com"
+      ],
+      "medicalSpecialty": "Hospice and Palliative Medicine"
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Best Hospice and Home Health",
+      "url": "https://www.besthospice.com",
+      "description": "Find verified hospice, palliative, and home care providers near you. Free for families.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://www.besthospice.com/search-results.html?zip={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
       }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do I find hospice care near me?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Enter your ZIP code on BestHospice.com to instantly view verified hospice care providers in your area. Results are free, instant, and require no account." }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the best hospice care?",
+          "acceptedAnswer": { "@type": "Answer", "text": "The best hospice care combines compassionate nursing, effective pain and symptom management, emotional and spiritual support, and clear communication with the family. BestHospice.com only lists verified providers who meet quality standards." }
+        },
+        {
+          "@type": "Question",
+          "name": "Does Medicare cover hospice care costs?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Medicare Part A covers most hospice services at little to no out-of-pocket cost for eligible patients, including nursing, medications for symptom control, medical equipment, and counseling." }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I find verified hospice providers?",
+          "acceptedAnswer": { "@type": "Answer", "text": "BestHospice.com lists Medicare-certified and verified hospice providers across the United States. Search by ZIP code to compare options in your area at no cost." }
+        }
+      ]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://www.besthospice.com/"
+        }
+      ]
     }
+  ]
   </script><script src="/cookie-consent.js" defer></script>
   <script src="/analytics-tracker.js" defer></script>
   <script src="/marketing-consent-loader.js" defer></script>
@@ -80,14 +146,12 @@
             <img src="whitecaregiver.png" alt="Caregiver with senior in bed smiling">
           </div>
           <div class="hero-callout">
+            <h1 style="margin:0 0 10px; font-size:clamp(1.4rem,3vw,2rem); line-height:1.25;">Find the Best Hospice Care Near You — Free, Verified, Instant</h1>
             <p class="tagline">
-              We are dedicated to connecting families with hospice, palliative, and home care that is second to none.
-            </p>
-            <p class="tagline">
-              Life can change fast. We’re here to make those changes feel smoother for your family.
+              We connect families with the best hospice, palliative, and home care providers nationwide — no sales pressure, no cost, no confusion.
             </p>
             <p class="tagline accent">
-              Enter the ZIP code where you need the best hospice, palliative, or home care to begin your search.
+              Enter the ZIP code where you need care to see verified providers near you instantly.
             </p>
           </div>
         </div>
@@ -271,6 +335,27 @@
         </div>
       </section>
     </main>
+      <section class="card" style="padding:18px; margin:0 0 18px;">
+        <h2 style="margin:0 0 14px;">Common Questions About Hospice Care</h2>
+        <div style="display:grid; gap:12px;">
+          <div>
+            <p style="margin:0 0 4px; font-weight:600;">How do I find hospice care near me?</p>
+            <p style="margin:0; line-height:1.6;">Enter your ZIP code on BestHospice.com to instantly view verified hospice care providers in your area. Results are free, instant, and require no account or personal information upfront.</p>
+          </div>
+          <div>
+            <p style="margin:0 0 4px; font-weight:600;">What is the best hospice care?</p>
+            <p style="margin:0; line-height:1.6;">The best hospice care combines compassionate nursing, effective pain and symptom management, emotional and spiritual support, and clear communication with the family. BestHospice.com only lists verified providers who meet our quality standards.</p>
+          </div>
+          <div>
+            <p style="margin:0 0 4px; font-weight:600;">Does Medicare cover hospice care costs?</p>
+            <p style="margin:0; line-height:1.6;">Yes. Medicare Part A covers most hospice services at little to no out-of-pocket cost for eligible patients. <a href="/guides/medicare-hospice-coverage">Learn exactly what Medicare covers →</a></p>
+          </div>
+          <div>
+            <p style="margin:0 0 4px; font-weight:600;">How do I find verified hospice providers?</p>
+            <p style="margin:0; line-height:1.6;">BestHospice.com lists Medicare-certified and independently verified hospice providers across the United States. Search by ZIP code to compare options in your area at no cost.</p>
+          </div>
+        </div>
+      </section>
     <footer class="site-footer">
       <div class="footer-inner">
         <div class="footer-brand">Best Hospice and Home Health</div>

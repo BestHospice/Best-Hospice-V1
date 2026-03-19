@@ -1,6 +1,13 @@
 # Environment
 .env
 
+# Google service account credentials (never commit)
+best-hospice-seo-*.json
+
+# SEO reports and local tools (local only)
+seo-report.json
+venv/
+
 # Node
 node_modules
 npm-debug.log*
