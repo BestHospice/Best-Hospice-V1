@@ -288,19 +288,22 @@ const slugify = (str) =>
 
 const serviceConfig = {
   'hospice-care': {
-    localNotes: 'Families in {stateName} often search for hospice care that can start quickly, with in-home options and clear communication on eligibility and coverage.',
+    localNotes: 'Families in {stateName} often need hospice care that can start quickly, with in-home options, reliable after-hours nursing support, and clear guidance on Medicare eligibility and coverage. When comparing providers in {stateName}, ask how fast intake can begin, whether care is available on weekends and overnight, and how the team communicates with family members who live out of state.',
     name: 'Hospice Care',
     direct:
-      'Hospice care in {cityState} focuses on comfort, dignity, and quality of life when curative treatment is no longer the focus. Families want fast access to compassionate teams, clear communication, and dependable support at home or in a facility.',
-    cost: 'Most hospice care in {stateName} is covered by Medicare and many private insurers. Out-of-pocket costs are often limited to supplies or room-and-board in certain facilities. Providers typically handle eligibility and coverage checks for you.',
+      'Hospice care in {cityState} focuses on comfort, dignity, and quality of life when curative treatment is no longer the goal. Families in {cityState} need fast access to compassionate nursing teams, clear communication about what Medicare covers, and dependable support whether care is provided at home, in assisted living, or in an inpatient facility.',
+    cost: 'Most hospice care in {stateName} is covered by Medicare Part A and many private insurers. Medicare typically covers nursing visits, comfort medications, medical equipment, aide services, social work, and counseling at little to no out-of-pocket cost. Out-of-pocket costs are generally limited to room-and-board in certain facility settings. Providers verify insurance eligibility and explain costs before services begin.',
     eligibility:
-      'Hospice is chosen when comfort is the priority. Families look for relief from pain, breathlessness, anxiety, and a clear plan for the final stages. A licensed provider confirms eligibility and coordinates services.',
+      'Hospice care is appropriate when a physician certifies a terminal illness with a prognosis of 6 months or less and the patient chooses comfort-focused over curative care. Common qualifying conditions include advanced cancer, end-stage heart or lung disease, late-stage dementia, kidney failure, and ALS. Families can also ask a provider to conduct a free eligibility review.',
     faq: [
-      ['What does hospice mean?', 'Hospice centers on comfort, dignity, and family support near the end of life.'],
-      ['Is hospice only at home?', 'Hospice can be provided at home, in assisted living, or in inpatient facilities.'],
-      ['How fast can care start?', 'Many providers can begin services within 24–48 hours after eligibility is confirmed.'],
-      ['Does Medicare cover hospice?', 'Yes, Medicare typically covers hospice services; many private plans do as well.'],
-      ['Who is on the hospice team?', 'Nurses, aides, social workers, chaplains, and physicians collaborate to support the family.']
+      ['What does hospice care mean?', 'Hospice care centers on comfort, dignity, and quality of life for patients nearing the end of life. Instead of curative treatment, hospice focuses on pain and symptom relief, emotional support, and family guidance.'],
+      ['Is hospice care only provided at home?', 'No. Hospice care can be provided at home, in an assisted living facility, in a nursing home, or in a dedicated inpatient hospice facility. Most families prefer home-based hospice when possible.'],
+      ['How quickly can hospice care start?', 'Many providers can begin services within 24–48 hours after a physician certifies eligibility. In urgent situations, some agencies offer same-day intake.'],
+      ['Does Medicare cover hospice care costs?', 'Yes. Medicare Part A covers most hospice services at little to no out-of-pocket cost, including nursing visits, medications for symptom control, medical equipment, and counseling. Eligibility requires a terminal diagnosis with a 6-month prognosis.'],
+      ['Who is on the hospice care team?', 'A hospice team typically includes registered nurses, physicians, home health aides, social workers, chaplains, and bereavement counselors — all working together to support both the patient and the family.'],
+      ['How do I find hospice care providers near me?', 'Enter your ZIP code on BestHospice.com to instantly view verified hospice care providers in your area at no cost to your family.'],
+      ['What is the difference between hospice and palliative care?', 'Hospice care is for patients who have stopped curative treatment and have a prognosis of 6 months or less. Palliative care can begin at any stage of illness alongside curative treatment, focusing on symptom relief and quality of life.'],
+      ['Can a patient leave hospice care?', 'Yes. Patients can revoke hospice benefits at any time and return to curative treatment. They can re-enroll in hospice later if eligibility criteria are met again.']
     ]
   },
   'palliative-care': {
@@ -1836,8 +1839,8 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
     ? `We currently list ${providerCount} ${providerCount === 1 ? 'provider' : 'providers'} in ${cityState}.`
     : `We are actively expanding coverage in ${cityState}.`;
   const localResources = `Local resources in ${cityState} often include hospital care coordinators, Medicare counseling, and caregiver support groups. Providers can guide you to the right local options.`;
-  const title = `${service.name} in ${cityState} | Providers, Cost & Eligibility`;
-  const description = `${service.name} options in ${cityState}. Providers, costs, and what to expect.`;
+  const title = `${service.name} in ${cityState} | Verified Providers & Medicare Coverage`;
+  const description = `Find verified ${service.name.toLowerCase()} providers in ${cityState}. Compare local options, Medicare coverage, and costs. Free for families — no referral fees.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${slugify(city)}-${(state || '').toLowerCase()}`;
   const breadcrumbItems = [
     { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
@@ -1955,8 +1958,8 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   const stateIntro = stateCode === 'az'
     ? `Arizona is home to over 1.8 million residents aged 65 and older, representing one of the fastest-growing senior populations in the United States. The Phoenix metro area alone accounts for more than 65% of the state's hospice utilization, with Tucson, Scottsdale, and Mesa also seeing significant demand. Arizona's warm climate attracts retirees year-round, making access to quality hospice, palliative, and home care a critical need for families across the state. Medicare covers the majority of hospice services in Arizona, and the state's ALTCS program provides additional support for qualifying low-income seniors.`
     : service.direct.replace('{cityState}', stateName);
-  const title = `${service.name} in ${stateName} | Providers, Cost & Eligibility`;
-  const description = `${service.name} options across ${stateName}. Providers, costs, and what to expect.`;
+  const title = `${service.name} in ${stateName} | Verified Providers & Medicare Coverage`;
+  const description = `Find verified ${service.name.toLowerCase()} providers across ${stateName}. Compare local options, Medicare coverage, and costs. Free for families — no referral fees.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${stateCode}`;
   const breadcrumbItems = [
     { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
