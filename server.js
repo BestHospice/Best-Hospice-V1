@@ -11,6 +11,8 @@ const Stripe = require('stripe');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Anthropic = require('@anthropic-ai/sdk');
+const cron = require('node-cron');
+const { runNewsletterPipeline, verifyUnsubscribeToken } = require('./newsletter-pipeline');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -149,6 +151,7 @@ function checkChatRateLimit(ipHash) {
 }
 const EMAIL_ENABLED = emailEnabled();
 const NEWSLETTER_FROM_EMAIL = process.env.NEWSLETTER_FROM_EMAIL || 'no-reply@besthospice.com';
+const NEWSLETTER_UNSUBSCRIBE_SECRET = process.env.NEWSLETTER_UNSUBSCRIBE_SECRET || '';
 const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
 const ADMIN_SESSION_SECRET = getRequiredSecret('ADMIN_SESSION_SECRET');
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
@@ -930,6 +933,26 @@ app.get('/cities/:city-:state', async (req, res) => {
   } catch (err) {
     console.error('Dynamic city page failed', err);
     res.status(500).send('Server error');
+  }
+});
+
+// Newsletter unsubscribe (must be before /:issueSlug)
+app.get('/newsletter/unsubscribe', async (req, res) => {
+  const email = String(req.query.email || '').trim().toLowerCase();
+  const token = String(req.query.token || '').trim();
+  if (!email || !token) {
+    return res.status(400).send('<html><body style="font-family:sans-serif;max-width:480px;margin:60px auto;padding:16px;"><h2>Invalid unsubscribe link</h2><p>This link is missing required parameters. <a href="/">Return home</a></p></body></html>');
+  }
+  if (!verifyUnsubscribeToken(email, token)) {
+    return res.status(400).send('<html><body style="font-family:sans-serif;max-width:480px;margin:60px auto;padding:16px;"><h2>Invalid unsubscribe link</h2><p>This link is not valid or has already been used. <a href="/">Return home</a></p></body></html>');
+  }
+  try {
+    await ensureNewsletterSubscribersTable();
+    await prisma.$executeRawUnsafe(`DELETE FROM newsletter_subscribers WHERE email = $1`, email);
+    return res.send('<html><body style="font-family:sans-serif;max-width:480px;margin:60px auto;padding:16px;"><h2 style="color:#0f766e;">You\'ve been unsubscribed</h2><p>Your email address has been removed from The Best Hospice Brief. You will not receive any further emails.</p><p><a href="/">Return to BestHospice.com</a></p></body></html>');
+  } catch (err) {
+    console.error('Unsubscribe failed', err);
+    return res.status(500).send('<html><body style="font-family:sans-serif;max-width:480px;margin:60px auto;padding:16px;"><h2>Something went wrong</h2><p>We could not process your unsubscribe request. Please try again or email contact@besthospice.com.</p></body></html>');
   }
 });
 
@@ -2917,6 +2940,26 @@ app.delete('/api/admin/newsletter/subscribers/:id', async (req, res) => {
   } catch (err) {
     console.error('Failed to delete newsletter subscriber', err);
     res.status(500).json({ error: 'Could not delete subscriber' });
+  }
+});
+
+app.post('/api/admin/newsletter/send-now', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    await logAdminAction(
+      getAdminSession(req)?.email || 'admin_token',
+      'NEWSLETTER_MANUAL_SEND',
+      'pipeline',
+      { triggeredAt: new Date().toISOString() },
+      hashIp(req.ip || '')
+    );
+    const result = await runNewsletterPipeline(prisma, { force: true });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('Newsletter pipeline failed', err);
+    res.status(500).json({ error: err.message || 'Pipeline failed' });
   }
 });
 
@@ -5552,4 +5595,13 @@ app.listen(PORT, () => {
   if (!EMAIL_ENABLED) {
     console.log('Email not configured: set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (optional: SENDGRID_REPLY_TO)');
   }
+  if (!NEWSLETTER_UNSUBSCRIBE_SECRET) {
+    console.warn('NEWSLETTER_UNSUBSCRIBE_SECRET is not set. Newsletter unsubscribe tokens will use an insecure default. Set this env var in production.');
+  }
+  // Newsletter cron: every other Tuesday at 13:00 ET (18:00 UTC)
+  cron.schedule('0 18 * * 2', () => {
+    runNewsletterPipeline(prisma).catch((err) => {
+      console.error('Newsletter cron pipeline error:', err.message);
+    });
+  }, { timezone: 'UTC' });
 });
