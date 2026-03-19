@@ -356,6 +356,67 @@
           </div>
         </div>
       </section>
+    <section class="card" style="padding:24px; margin:0 0 18px;">
+      <h2 style="margin:0 0 8px;">Hospice Resources, Straight to Your Inbox</h2>
+      <p style="margin:0 0 16px; color:#4b5563;">Get helpful guides for families navigating hospice, palliative, and home care — free, no spam.</p>
+      <div id="newsletter-success" style="display:none; color:#15803d; font-weight:600; padding:12px 0;">You're subscribed! We'll send helpful hospice guides to your inbox.</div>
+      <form id="newsletter-form" novalidate>
+        <div style="display:grid; gap:10px; max-width:480px;">
+          <input id="nl-name" type="text" placeholder="Your name" autocomplete="name"
+            style="padding:10px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:15px;" />
+          <input id="nl-email" type="email" placeholder="Your email address" autocomplete="email"
+            style="padding:10px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:15px;" />
+          <p id="nl-error" style="display:none; margin:0; color:#dc2626; font-size:14px;"></p>
+          <button id="nl-submit" type="submit" class="button" style="width:fit-content;">Subscribe</button>
+          <p style="margin:0; font-size:12px; color:#6b7280;">By subscribing, you agree to receive educational emails from Best Hospice. You can unsubscribe at any time.</p>
+        </div>
+      </form>
+      <script>
+        (function () {
+          var form = document.getElementById('newsletter-form');
+          var nameEl = document.getElementById('nl-name');
+          var emailEl = document.getElementById('nl-email');
+          var errorEl = document.getElementById('nl-error');
+          var submitBtn = document.getElementById('nl-submit');
+          var successEl = document.getElementById('newsletter-success');
+          function showError(msg) {
+            errorEl.textContent = msg;
+            errorEl.style.display = 'block';
+          }
+          function clearError() { errorEl.style.display = 'none'; }
+          form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            clearError();
+            var name = nameEl.value.trim();
+            var email = emailEl.value.trim();
+            if (!name) { showError('Please enter your name.'); return; }
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('Please enter a valid email address.'); return; }
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Subscribing…';
+            try {
+              var res = await fetch('/api/newsletter/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, email: email })
+              });
+              var data = await res.json();
+              if (data.ok) {
+                form.style.display = 'none';
+                successEl.style.display = 'block';
+              } else {
+                showError(data.error || 'Something went wrong. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Subscribe';
+              }
+            } catch (err) {
+              showError('Could not subscribe right now. Please try again.');
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Subscribe';
+            }
+          });
+        })();
+      </script>
+    </section>
     <footer class="site-footer">
       <div class="footer-inner">
         <div class="footer-brand">Best Hospice and Home Health</div>

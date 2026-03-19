@@ -44,7 +44,8 @@ const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-dashboard.html',
   '/admin-provider-detail.html',
   '/admin-main.html',
-  '/admin-audit.html'
+  '/admin-audit.html',
+  '/admin-newsletter.html'
 ]);
 
 function isAdminMainToken(token) {
@@ -147,6 +148,7 @@ function checkChatRateLimit(ipHash) {
   return true;
 }
 const EMAIL_ENABLED = emailEnabled();
+const NEWSLETTER_FROM_EMAIL = process.env.NEWSLETTER_FROM_EMAIL || 'no-reply@besthospice.com';
 const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
 const ADMIN_SESSION_SECRET = getRequiredSecret('ADMIN_SESSION_SECRET');
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
@@ -2872,6 +2874,49 @@ app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
   } catch (err) {
     console.error('Newsletter subscribe failed', err);
     res.status(500).json({ error: 'Could not subscribe right now' });
+  }
+});
+
+app.get('/api/admin/newsletter/subscribers', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    await ensureNewsletterSubscribersTable();
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT id, name, email, created_at FROM newsletter_subscribers ORDER BY created_at DESC`
+    );
+    res.json({ subscribers: rows });
+  } catch (err) {
+    console.error('Failed to fetch newsletter subscribers', err);
+    res.status(500).json({ error: 'Could not fetch subscribers' });
+  }
+});
+
+app.delete('/api/admin/newsletter/subscribers/:id', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+  try {
+    await ensureNewsletterSubscribersTable();
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT id, email FROM newsletter_subscribers WHERE id = $1`, id
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Subscriber not found' });
+    await prisma.$executeRawUnsafe(`DELETE FROM newsletter_subscribers WHERE id = $1`, id);
+    await logAdminAction(
+      getAdminSession(req)?.email || 'admin_token',
+      'NEWSLETTER_SUBSCRIBER_DELETE',
+      id,
+      { email: rows[0].email },
+      hashIp(req.ip || '')
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to delete newsletter subscriber', err);
+    res.status(500).json({ error: 'Could not delete subscriber' });
   }
 });
 
