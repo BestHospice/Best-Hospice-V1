@@ -193,13 +193,13 @@ async function generateContent(articles, issueNumber) {
   const anthropic = new Anthropic();
   const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  const systemPrompt = `You are a newsletter writer for Best Hospice and Home Health, a free service that connects families with verified hospice and home care providers across the United States. You write a biweekly newsletter called "The Best Hospice Brief" that goes out to families navigating elder care decisions.
+  const systemPrompt = `You are a newsletter writer for Best Hospice and Home Health, a free service that connects families with verified hospice and home care providers across the United States. You write a biweekly newsletter called "The Best Hospice and Home Health Brief" that goes out to families navigating elder care decisions.
 
 Your writing style is warm, clear, and direct. You write like a knowledgeable friend who happens to understand healthcare, not like a corporate publication. Use plain language. Write in full sentences and paragraphs. Do not use bullet point lists or numbered lists. Do not use dashes of any kind, including em dashes and en dashes. Instead of dashes, use commas, semicolons, or restructure the sentence entirely. Avoid words and phrases that signal AI writing: do not use "delve", "navigate", "landscape", "it's worth noting", "importantly", "in conclusion", "in summary", "furthermore", or "moreover". Vary your sentence length naturally. Occasionally use a short, punchy sentence for emphasis.
 
 Every issue has four sections. Write all four.`;
 
-  const userPrompt = `Today is ${date}. Here are recent news items and developments in elder care and hospice. Please write Issue #${issueNumber} of The Best Hospice Brief newsletter.
+  const userPrompt = `Today is ${date}. Here are recent news items and developments in elder care and hospice. Please write Issue #${issueNumber} of The Best Hospice and Home Health Brief newsletter.
 
 NEWS ITEMS:
 ${formatNewsItems(articles)}
@@ -294,7 +294,7 @@ function buildEmailHtml(content, issueNumber, sendDate, subscriberEmail) {
           text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
           Issue #${issueNumber} &middot; ${formattedDate}</p>
         <h1 style="margin:0 0 8px;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;
-          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">The Best Hospice Brief</h1>
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">The Best Hospice and Home Health Brief</h1>
         <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.82);
           font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${content.preview}</p>
       </td></tr>
@@ -374,7 +374,7 @@ function buildWebHtml(content, issueNumber, slug, sendDate) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${content.subject} | The Best Hospice Brief Issue #${issueNumber}</title>
+  <title>${content.subject} | The Best Hospice and Home Health Brief Issue #${issueNumber}</title>
   <meta name="description" content="${content.preview}">
   <link rel="canonical" href="${CANONICAL_DOMAIN}/newsletter/${slug}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -449,8 +449,8 @@ function regenerateIndex(schedule) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Best Hospice Brief | Newsletter Archive</title>
-  <meta name="description" content="Past issues of The Best Hospice Brief, a biweekly newsletter from Best Hospice and Home Health covering elder care, hospice policy, Medicare, and family guidance.">
+  <title>The Best Hospice and Home Health Brief | Newsletter Archive</title>
+  <meta name="description" content="Past issues of The Best Hospice and Home Health Brief, a biweekly newsletter from Best Hospice and Home Health covering elder care, hospice policy, Medicare, and family guidance.">
   <link rel="canonical" href="${CANONICAL_DOMAIN}/newsletter">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -463,7 +463,7 @@ function regenerateIndex(schedule) {
     <p style="margin:0 0 20px;">
       <a href="/" style="color:#0f766e;text-decoration:none;font-size:14px;">&larr; Back to BestHospice.com</a>
     </p>
-    <h1 style="margin:0 0 6px;">The Best Hospice Brief</h1>
+    <h1 style="margin:0 0 6px;">The Best Hospice and Home Health Brief</h1>
     <p style="margin:0 0 28px;color:#5b6474;">A biweekly newsletter for families navigating elder care. Practical, clear, and free.</p>
     ${issues.length ? cards : '<p style="color:#5b6474;">No issues yet. Check back soon.</p>'}
     <footer class="site-footer" style="margin-top:32px;">
@@ -556,7 +556,7 @@ async function runNewsletterPipeline(prisma, { force = false } = {}) {
         const html = buildEmailHtml(content, issueNumber, sendDate, sub.email);
         await sgMail.send({
           to: sub.email,
-          from: { email: fromEmail, name: 'Best Hospice Brief' },
+          from: { email: fromEmail, name: 'Best Hospice and Home Health Brief' },
           replyTo: 'contact@besthospice.com',
           subject: content.subject,
           html,
