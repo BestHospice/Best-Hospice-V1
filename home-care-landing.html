@@ -10,260 +10,129 @@
   <meta property="og:title" content="Find Home Care Near You — Free, Verified, Instant | Best Hospice" />
   <meta property="og:description" content="Find verified home care providers near you. Free for families. No sales pressure." />
   <meta property="og:image" content="https://www.besthospice.com/BestHospiceandHomeHealthNew.png" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Find Home Care Near You — Free, Verified, Instant | Best Hospice" />
-  <meta name="twitter:description" content="Find verified home care providers near you. Free for families. No sales pressure." />
-  <meta name="twitter:image" content="https://www.besthospice.com/BestHospiceandHomeHealthNew.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles-modern.css?v=1" />
   <link rel="stylesheet" href="/styles/main.css" />
-  <script src="abel-chat.js" defer></script>
-  <script type="application/ld+json">
-  [
-    {
-      "@context": "https://schema.org",
-      "@type": "MedicalOrganization",
-      "name": "Best Hospice and Home Health",
-      "alternateName": "BestHospice.com",
-      "description": "Free verified referral marketplace connecting families with home care providers nationwide. No sales pressure. Instant results.",
-      "url": "https://www.besthospice.com",
-      "logo": {
-        "@type": "ImageObject",
-        "url": "https://www.besthospice.com/BestHospiceandHomeHealthNew.png"
-      }
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "What is home care?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Home care helps people stay safely in their own home by providing support with daily living activities such as bathing, dressing, meals, light housekeeping, and companionship. It is not the same as hospice care — home care is for anyone who needs assistance at home, regardless of their health status." }
-        },
-        {
-          "@type": "Question",
-          "name": "How do I find home care near me?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Enter your ZIP code on BestHospice.com to instantly view verified home care providers in your area. Results are free, instant, and require no account." }
-        },
-        {
-          "@type": "Question",
-          "name": "Does Medicare cover home care?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Medicare covers some home health services when ordered by a doctor, including skilled nursing, physical therapy, and occupational therapy. Non-medical home care (daily living assistance) is typically not covered by Medicare but may be covered by Medicaid or long-term care insurance." }
-        },
-        {
-          "@type": "Question",
-          "name": "What is the difference between home care and hospice care?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Home care focuses on daily living support — helping someone stay at home safely. Hospice care is specialized medical care focused on comfort and quality of life near the end of life. Some families start with home care and later transition to hospice when a loved one's needs change. BestHospice.com can help with both." }
-        }
-      ]
-    }
-  ]
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17909571702"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'AW-17909571702');
   </script>
   <script src="/cookie-consent.js" defer></script>
   <script src="/analytics-tracker.js" defer></script>
   <script src="/marketing-consent-loader.js" defer></script>
 </head>
-<body class="home-page">
-  <div class="page-shell">
-    <header class="hero">
-      <div class="hero-top">
-        <div class="brand">
-          <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo">
+<body>
+  <div class="page-shell" style="max-width:860px; margin:0 auto; padding:24px 16px;">
+
+    <!-- Logo + Nav -->
+    <div style="text-align:center; margin-bottom:20px;">
+      <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo" style="max-width:320px; width:100%;">
+    </div>
+
+    <!-- Intro: what we are -->
+    <section class="card" style="padding:20px 24px; margin-bottom:16px;">
+      <h1 style="margin:0 0 10px; font-size:clamp(1.5rem,3vw,2rem); line-height:1.2;">Find Home Care Near You — Free, Verified, No Pressure</h1>
+      <p class="tagline" style="margin:0 0 10px;">
+        Best Hospice and Home Health is a free service that connects families with verified home care providers in their area. We are not a call center or sales team — we simply help you find trusted local providers quickly.
+      </p>
+      <p class="tagline" style="margin:0;">
+        Home care helps your loved one stay safely at home with support for daily living — bathing, meals, companionship, medication reminders, and more. If you are unsure whether home care or hospice care is right, we can help with both.
+      </p>
+    </section>
+
+    <!-- Inline form -->
+    <section class="card" style="padding:20px 24px; margin-bottom:16px;">
+      <p class="eyebrow" style="margin:0 0 6px;">Find providers near you</p>
+      <p style="margin:0 0 14px; color:#475569;">Enter your details below and we'll show you verified home care providers in your area. Free, fast, and no obligation.</p>
+
+      <form id="home-care-lead-form" class="search" action="search-results.html" method="get">
+        <label for="contactName" class="label">Your name</label>
+        <div class="input-row">
+          <input id="contactName" name="contactName" type="text" placeholder="First and last name" />
         </div>
-        <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
-          <span></span><span></span><span></span>
-        </button>
-        <div class="top-links" id="topLinks">
-          <a class="pill" href="provider.html">Are you a home care provider? <u>Click here</u> to join BestHospice.com</a>
-          <a class="pill ghost-pill" href="why.html">Who We Are</a>
-          <a class="pill ghost-pill" href="provider-dashboard.html">Provider Dashboard</a>
-          <a class="pill ghost-pill" href="locations.html">Locations We Currently Serve</a>
-          <a class="pill ghost-pill" href="faq-blog.html">FAQ & Blog Posts</a>
-          <a class="pill ghost-pill" href="education.html">Education Hub</a>
-          <a class="pill ghost-pill" href="contact.html">Contact Us</a>
+
+        <label for="zip" class="label" style="margin-top:10px;">ZIP code where care is needed</label>
+        <div class="input-row">
+          <input id="zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="e.g. 85001" required />
         </div>
+
+        <label for="timeline" class="label" style="margin-top:10px;">When do you need care?</label>
+        <div class="input-row">
+          <select id="timeline" name="timeline" required>
+            <option value="">Select timeline</option>
+            <option>Urgently (within days)</option>
+            <option>Within 1-2 weeks</option>
+            <option>Within a month</option>
+            <option>Just researching</option>
+          </select>
+        </div>
+
+        <label for="contactEmail" class="label" style="margin-top:10px;">Email address</label>
+        <div class="input-row">
+          <input id="contactEmail" name="contactEmail" type="email" placeholder="you@example.com" required />
+        </div>
+
+        <label for="contactPhone" class="label" style="margin-top:10px;">Phone number (optional)</label>
+        <div class="input-row">
+          <input id="contactPhone" name="contactPhone" type="tel" placeholder="(555) 123-4567" />
+        </div>
+
+        <input id="sessionId" name="sessionId" type="hidden" />
+
+        <div class="consent-row">
+          <label for="consent" class="consent-label">
+            <input id="consent" name="consent" type="checkbox" required class="consent-checkbox" />
+            <span>I agree and consent to the <a href="privacy.html">Privacy Policy</a>, <a href="cookie-policy.html">Cookie Policy</a> and <a href="terms.html">Terms of Service</a>.</span>
+          </label>
+        </div>
+
+        <div class="input-row" style="margin-top:14px;">
+          <button type="submit" class="button" style="font-size:20px; padding:14px 24px; width:100%;">Find Home Care Providers Near Me</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Trust: founder -->
+    <section class="card" style="padding:16px 20px; margin-bottom:16px; display:grid; grid-template-columns:minmax(0,110px) 1fr; gap:16px; align-items:center;">
+      <img src="founderpic.png" alt="Crawford Outland, founder" style="width:100px; height:100px; object-fit:cover; border-radius:12px; margin:0 auto;">
+      <div>
+        <p style="margin:0 0 4px; font-weight:700; color:#0f172a;">Built by Crawford Outland</p>
+        <p style="margin:0; line-height:1.6; color:#475569;">A West Point graduate and Ranger-qualified Army officer who served in The Old Guard at Arlington National Cemetery. After his own family struggled to navigate care options, he built Best Hospice and Home Health so no family faces that confusion alone.</p>
       </div>
-      <div class="hero-body">
-        <div class="hero-text">
-          <div class="card" style="padding:8px 14px; margin:0 0 10px; display:inline-flex; flex-wrap:wrap; gap:8px; align-items:center;">
-            <span><span id="provider-count">51</span> Verified Providers</span>
-            <span>| 100% Free for Families</span>
-            <span>| Instant Results</span>
-          </div>
-          <div class="hero-photos">
-            <img src="Oldpeoplecare.png" alt="Caregiver helping senior at home">
-            <img src="whitecaregiver.png" alt="Home care provider with senior">
-          </div>
-          <div class="hero-callout">
-            <h1 style="margin:0 0 10px; font-size:clamp(1.4rem,3vw,2rem); line-height:1.25;">Find Home Care Near You — Free, Verified, Instant</h1>
-            <p class="tagline">
-              We connect families with verified home care providers nationwide — daily living support, companionship, and skilled nursing, with no sales pressure and no cost to families.
-            </p>
-            <p class="tagline accent">
-              Enter the ZIP code where you need home care to see verified providers near you instantly.
-            </p>
-          </div>
-        </div>
-        <div class="hero-right">
-          <div class="search" style="padding:18px;">
-            <p class="start-title" style="font-size:22px;">Start here</p>
-            <p class="start-subtitle" style="font-size:16px;">Find Home Care Near You - Free, Fast, Verified</p>
-            <form id="hero-zip-form" class="search" style="margin:10px 0 6px;">
-              <div class="input-row" style="gap:10px;">
-                <button id="hero-search-btn" type="submit" class="button" style="font-size:18px; padding:14px 18px;">Search</button>
-              </div>
-            </form>
-            <div class="trust-cards"></div>
-          </div>
-          <div class="steps-vertical card steps-below">
-            <div class="step-item">
-              <div class="step-label">Step One: Search</div>
-              <p>Enter your ZIP code to find home care providers near you.</p>
-            </div>
-            <div class="step-item">
-              <div class="step-label">Step Two: Browse</div>
-              <p>Compare verified home care providers in your area.</p>
-            </div>
-            <div class="step-item">
-              <div class="step-label">Step Three: Optional</div>
-              <p>Send providers details about your specific needs for a better match.</p>
-            </div>
-          </div>
-        </div>
+    </section>
+
+    <!-- Trust stats -->
+    <section style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-bottom:16px;">
+      <div class="lead-item card" style="padding:14px; text-align:center;">
+        <div style="font-size:22px; font-weight:800;"><span id="provider-count">51</span></div>
+        <div class="note">Verified Providers</div>
       </div>
-    </header>
+      <div class="lead-item card" style="padding:14px; text-align:center;">
+        <div style="font-size:22px; font-weight:800;">100%</div>
+        <div class="note">Free for Families</div>
+      </div>
+      <div class="lead-item card" style="padding:14px; text-align:center;">
+        <div style="font-size:22px; font-weight:800;">No</div>
+        <div class="note">Sales Pressure</div>
+      </div>
+    </section>
 
-    <main>
-      <section class="card" style="padding:16px; margin:12px 0 18px;">
-        <h2 style="margin:0;">Why families trust Best Hospice and Home Health for home care</h2>
-        <p class="tagline" style="margin:6px 0 12px;">Transparent access to verified home care providers, nationwide coverage, and no-cost support for families.</p>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;">
-          <div class="lead-item" style="padding:12px;">
-            <div id="provider-count-trust" style="font-size:24px; font-weight:800; line-height:1;">51</div>
-            <div class="note">Verified Providers</div>
-          </div>
-          <div class="lead-item" style="padding:12px;">
-            <div style="font-size:24px; font-weight:800; line-height:1;">14</div>
-            <div class="note">States Served</div>
-          </div>
-          <div class="lead-item" style="padding:12px;">
-            <div style="font-size:24px; font-weight:800; line-height:1;">100%</div>
-            <div class="note">Free for Families</div>
-          </div>
-        </div>
-        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
-          <a class="pill ghost-pill" href="/education.html">Learn about home care options</a>
-          <a class="pill ghost-pill" href="/locations.html">Browse providers by state</a>
-        </div>
-      </section>
-
-      <section class="card" style="padding:16px; margin:0 0 18px;">
-        <h2 style="margin:0 0 8px;">What home care includes</h2>
-        <p class="tagline" style="margin:0 0 10px;">Home care helps people stay safely and comfortably in their own home.</p>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-top:12px;">
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Help with bathing, dressing, and grooming</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Meal preparation and nutrition support</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Companionship and social engagement</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Light housekeeping and errands</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Medication reminders</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Transportation to appointments</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Skilled nursing visits when needed</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Respite care for family caregivers</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="card" style="padding:16px; margin:0 0 18px;">
-        <h2 style="margin:0 0 8px;">Not sure if you need home care or hospice care?</h2>
-        <p class="tagline" style="margin:0 0 12px;">Many families start searching for "home care" and discover their loved one may benefit from hospice care. We can help with both — at no cost to you.</p>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px;">
-          <div class="lead-item" style="padding:14px;">
-            <h3 style="margin:0 0 6px; font-size:1rem;">Home Care</h3>
-            <p style="margin:0; line-height:1.6;">Daily living support for anyone who needs help at home — bathing, meals, companionship. No medical diagnosis required.</p>
-          </div>
-          <div class="lead-item" style="padding:14px;">
-            <h3 style="margin:0 0 6px; font-size:1rem;">Hospice Care</h3>
-            <p style="margin:0; line-height:1.6;">Specialized comfort care for those with a terminal diagnosis. Covered by Medicare. Focuses on quality of life and family support.</p>
-          </div>
-        </div>
-        <a class="pill ghost-pill" href="/" style="display:inline-block; margin-top:14px;">See all care options →</a>
-      </section>
-
-      <section class="card" style="padding:18px; margin:0 0 18px;">
-        <div style="display:grid; grid-template-columns: minmax(0, 160px) 1fr; gap:16px; align-items:center;">
-          <div style="display:flex; justify-content:center;">
-            <img src="founderpic.png" alt="Crawford Outland" style="width:140px; height:140px; object-fit:cover; border-radius:16px;">
-          </div>
-          <div>
-            <h2 style="margin:0 0 8px;">Meet the President</h2>
-            <p class="tagline" style="margin:0 0 10px;">A West Point graduate and Ranger-qualified Army officer who served in the 101st Airborne Division and in The Old Guard as a Platoon Leader in Arlington National Cemetery. While leading ceremonial missions honoring our nation's heroes and supporting grieving families, Crawford witnessed his own family struggle to navigate hospice care. He built Best Hospice and Home Health to ensure no family faces that confusion alone, connecting them with verified providers quickly, simply, and compassionately.</p>
-            <a class="pill ghost-pill" href="why.html" style="display:inline-block; margin-top:12px;">Who We Are</a>
-          </div>
-        </div>
-      </section>
-
-      <section class="card" style="padding:16px; margin:0 0 18px;">
-        <h2 style="margin:0 0 8px;">Who we help with home care</h2>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-top:12px;">
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Seniors who want to stay at home safely</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Overwhelmed family caregivers needing a break</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Hospital discharge patients recovering at home</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Families with loved ones with dementia or Alzheimer's</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Long-distance caregivers who need local support</span>
-          </div>
-          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <span style="font-size:18px;">•</span><span>Anyone needing daily living assistance at home</span>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <section class="card" style="padding:18px; margin:0 0 18px;">
-      <h2 style="margin:0 0 14px;">Common Questions About Home Care</h2>
-      <div style="display:grid; gap:12px;">
-        <div>
-          <p style="margin:0 0 4px; font-weight:600;">What is home care?</p>
-          <p style="margin:0; line-height:1.6;">Home care helps people stay safely in their own home by providing support with daily activities like bathing, dressing, meals, and companionship. It is available to anyone who needs assistance at home, regardless of age or diagnosis.</p>
-        </div>
-        <div>
-          <p style="margin:0 0 4px; font-weight:600;">How do I find home care near me?</p>
-          <p style="margin:0; line-height:1.6;">Enter your ZIP code on BestHospice.com to instantly view verified home care providers in your area. Results are free, instant, and require no account or personal information upfront.</p>
-        </div>
-        <div>
-          <p style="margin:0 0 4px; font-weight:600;">Does Medicare cover home care?</p>
-          <p style="margin:0; line-height:1.6;">Medicare covers some home health services when ordered by a doctor — including skilled nursing and therapy. Non-medical daily living assistance is typically not covered by Medicare but may be covered by Medicaid or long-term care insurance.</p>
-        </div>
-        <div>
-          <p style="margin:0 0 4px; font-weight:600;">What is the difference between home care and hospice care?</p>
-          <p style="margin:0; line-height:1.6;">Home care focuses on daily living support. Hospice care is specialized comfort care for those near the end of life. Some families transition from home care to hospice as needs change. BestHospice.com can help you find the right type of care for your situation.</p>
-        </div>
+    <!-- What home care includes -->
+    <section class="card" style="padding:16px 20px; margin-bottom:16px;">
+      <h2 style="margin:0 0 10px; font-size:1.1rem;">What home care typically includes</h2>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px;">
+        <div style="display:flex; gap:8px; align-items:flex-start;"><span>•</span><span>Help with bathing, dressing, and grooming</span></div>
+        <div style="display:flex; gap:8px; align-items:flex-start;"><span>•</span><span>Meal preparation and nutrition support</span></div>
+        <div style="display:flex; gap:8px; align-items:flex-start;"><span>•</span><span>Companionship and social engagement</span></div>
+        <div style="display:flex; gap:8px; align-items:flex-start;"><span>•</span><span>Medication reminders</span></div>
+        <div style="display:flex; gap:8px; align-items:flex-start;"><span>•</span><span>Light housekeeping and errands</span></div>
+        <div style="display:flex; gap:8px; align-items:flex-start;"><span>•</span><span>Transportation to appointments</span></div>
       </div>
     </section>
 
@@ -275,50 +144,58 @@
           <a href="privacy.html">Privacy Policy</a>
           <a href="cookie-policy.html">Cookie Policy</a>
           <a href="terms.html">Terms of Service</a>
-          <a href="refund-policy.html">Refund & Cancellation Policy</a>
-          <a href="provider-billing.html">Provider Billing</a>
         </div>
       </div>
     </footer>
+
   </div>
 
+  <script>
+    (() => {
+      const form = document.getElementById('home-care-lead-form');
+      const sessionInput = document.getElementById('sessionId');
+      if (sessionInput && typeof window.getBhhhSessionId === 'function') {
+        sessionInput.value = window.getBhhhSessionId();
+      }
+      if (!form) return;
+      form.addEventListener('submit', (event) => {
+        if (!form.checkValidity()) return;
+        if (typeof window.trackBhhhEvent === 'function') {
+          const timeline = document.getElementById('timeline')?.value || '';
+          window.trackBhhhEvent('form_submit_initial', {
+            eventValue: 'home_care_landing_form_submit',
+            metadata: { timeline }
+          });
+        }
+        event.preventDefault();
+        const continueSubmit = () => HTMLFormElement.prototype.submit.call(form);
+        if (typeof window.gtag === 'function') {
+          let finished = false;
+          const done = () => { if (finished) return; finished = true; continueSubmit(); };
+          window.gtag('event', 'conversion', {
+            send_to: 'AW-17909571702/z_cPCNzk2YwcEPbA-dtC',
+            event_callback: done
+          });
+          setTimeout(done, 900);
+        } else {
+          continueSubmit();
+        }
+      });
+    })();
+
+    (async () => {
+      try {
+        const res = await fetch('/api/public/providers');
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = data.providers || data;
+        const count = Array.isArray(list) ? list.length : 0;
+        if (count > 0) {
+          const el = document.getElementById('provider-count');
+          if (el) el.textContent = count.toLocaleString();
+        }
+      } catch (_) {}
+    })();
+  </script>
 </body>
-<script>
-  (() => {
-    const toggle = document.querySelector('.menu-toggle');
-    const links = document.getElementById('topLinks');
-    if (!toggle || !links) return;
-    toggle.addEventListener('click', () => {
-      const open = links.classList.toggle('open');
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-  })();
-
-  (async () => {
-    const countEl = document.getElementById('provider-count');
-    const trustCountEl = document.getElementById('provider-count-trust');
-    if (!countEl && !trustCountEl) return;
-    try {
-      const res = await fetch('/api/public/providers');
-      if (!res.ok) return;
-      const data = await res.json();
-      const list = data.providers || data;
-      const count = Array.isArray(list) ? list.length : 0;
-      const formatted = count.toLocaleString();
-      if (countEl) countEl.textContent = formatted;
-      if (trustCountEl) trustCountEl.textContent = formatted;
-    } catch (err) {
-      // keep default if request fails
-    }
-  })();
-
-  (() => {
-    const form = document.getElementById('hero-zip-form');
-    if (!form) return;
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      window.location.href = 'search.html';
-    });
-  })();
-</script>
 </html>

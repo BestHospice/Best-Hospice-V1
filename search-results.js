@@ -535,10 +535,6 @@ async function startResultsFlow() {
 
     renderResults(unique, geo.label);
 
-    await getCaptchaToken();
-    const initialResult = await notifyInitialLead();
-    currentLeadId = initialResult.leadId || null;
-
     const contactTarget = currentContactPhone
       ? `${currentContactPhone} or ${currentContactEmail}`
       : currentContactEmail;
@@ -547,6 +543,14 @@ async function startResultsFlow() {
     notifyMini.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName}.`;
     setStatus(`We've notified ${currentNearbyProviders.length} providers near ${geo.label}.`);
     showResultsWithOptionalPrompt();
+
+    try {
+      await getCaptchaToken();
+    } catch (_captchaErr) {
+      // captcha optional — proceed without it
+    }
+    const initialResult = await notifyInitialLead();
+    currentLeadId = initialResult.leadId || null;
   } catch (err) {
     console.error(err);
     setStatus('Unable to complete search right now. Please try again.', true);
