@@ -164,12 +164,18 @@ function getNearbyProviders(lat, lon, providers, radiusKm, searchZip) {
 
 async function geocodeZip(zip) {
   const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(zip)}&countrycodes=us&limit=1&addressdetails=1`;
-  const response = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-  if (!response.ok) throw new Error('ZIP lookup failed');
-  const data = await response.json();
-  if (!data.length) return null;
-  const place = data[0];
-  return { lat: parseFloat(place.lat), lon: parseFloat(place.lon), label: place.display_name };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, { headers: { 'Accept-Language': 'en' }, signal: controller.signal });
+    if (!response.ok) throw new Error('ZIP lookup failed');
+    const data = await response.json();
+    if (!data.length) return null;
+    const place = data[0];
+    return { lat: parseFloat(place.lat), lon: parseFloat(place.lon), label: place.display_name };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function loadRemoteProviders() {
@@ -545,7 +551,10 @@ async function startResultsFlow() {
     showResultsWithOptionalPrompt();
 
     try {
-      await getCaptchaToken();
+      await Promise.race([
+        getCaptchaToken(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('captcha timeout')), 4000))
+      ]);
     } catch (_captchaErr) {
       // captcha optional — proceed without it
     }
@@ -553,7 +562,13 @@ async function startResultsFlow() {
     currentLeadId = initialResult.leadId || null;
   } catch (err) {
     console.error(err);
-    setStatus('Unable to complete search right now. Please try again.', true);
+    if (reassuranceCard && !reassuranceCard.classList.contains('hidden')) {
+      reassuranceMessage.textContent = 'Something went wrong loading your results. Please go back and try again.';
+      if (flowContinueBtn) { flowContinueBtn.textContent = 'Back to Search'; flowContinueBtn.onclick = () => { window.location.href = 'search.html'; }; }
+      if (flowSkipBtn) flowSkipBtn.classList.add('hidden');
+    } else {
+      setStatus('Unable to complete search right now. Please try again.', true);
+    }
   }
 }
 
