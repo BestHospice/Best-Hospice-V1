@@ -4090,6 +4090,24 @@ app.get('/api/public/providers', async (_req, res) => {
   res.json({ providers });
 });
 
+// Public provider data for search results page
+app.get('/api/search/providers', async (_req, res) => {
+  try {
+    const providers = await prisma.provider.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        id: true, name: true, email: true, phone: true, website: true,
+        address: true, city: true, state: true, zip: true,
+        lat: true, lon: true, serviceRadiusKm: true,
+        serviceZipCodes: true, planTier: true, careType: true
+      }
+    });
+    res.json({ providers });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load providers' });
+  }
+});
+
 // List provider locations for logged-in user
 app.get('/api/provider/locations', requireProviderAuth, async (req, res) => {
   const user = await prisma.providerUser.findUnique({

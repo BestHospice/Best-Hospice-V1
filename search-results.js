@@ -177,7 +177,7 @@ async function geocodeZip(zip) {
 
 async function loadRemoteProviders() {
   if (remoteProvidersLoaded) return;
-  const res = await fetch('/api/public/providers');
+  const res = await fetch('/api/search/providers');
   if (!res.ok) throw new Error('Failed to load providers');
   const data = await res.json();
   providerDirectory = Array.isArray(data) ? data : (Array.isArray(data.providers) ? data.providers : []);
@@ -533,6 +533,18 @@ async function startResultsFlow() {
     if (!currentNearbyProviders.length) {
       showNoProvidersState(cityName);
       setStatus('', false);
+      // Auto-notify admin so they can follow up manually
+      fetch('/api/waitlist/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          zip: currentZip,
+          city: cityName,
+          timeline: currentTimeline,
+          contactEmail: currentContactEmail,
+          contactPhone: currentContactPhone
+        })
+      }).catch(() => {});
       return;
     }
 
