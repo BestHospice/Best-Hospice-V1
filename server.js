@@ -2275,6 +2275,22 @@ app.get('/api/config/turnstile', (_req, res) => {
   res.json({ siteKey: TURNSTILE_SITE_KEY });
 });
 
+app.get('/api/geocode', async (req, res) => {
+  const zip = String(req.query.zip || '').trim();
+  if (!/^\d{5}$/.test(zip)) return res.status(400).json({ error: 'Invalid ZIP code' });
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(zip)}&countrycodes=us&limit=1&addressdetails=1`;
+    const response = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'BestHospice/1.0 (contact@besthospice.com)' } });
+    if (!response.ok) return res.status(502).json({ error: 'Geocoding service unavailable' });
+    const data = await response.json();
+    if (!data.length) return res.status(404).json({ error: 'ZIP code not found' });
+    const place = data[0];
+    res.json({ lat: parseFloat(place.lat), lon: parseFloat(place.lon), label: place.display_name });
+  } catch (err) {
+    res.status(502).json({ error: 'Geocoding failed' });
+  }
+});
+
 // Provider identity
 app.get('/api/provider/me', requireProviderAuth, async (req, res) => {
   try {

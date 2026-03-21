@@ -163,16 +163,13 @@ function getNearbyProviders(lat, lon, providers, radiusKm, searchZip) {
 }
 
 async function geocodeZip(zip) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(zip)}&countrycodes=us&limit=1&addressdetails=1`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(url, { headers: { 'Accept-Language': 'en' }, signal: controller.signal });
+    const response = await fetch(`/api/geocode?zip=${encodeURIComponent(zip)}`, { signal: controller.signal });
+    if (response.status === 404) return null;
     if (!response.ok) throw new Error('ZIP lookup failed');
-    const data = await response.json();
-    if (!data.length) return null;
-    const place = data[0];
-    return { lat: parseFloat(place.lat), lon: parseFloat(place.lon), label: place.display_name };
+    return await response.json();
   } finally {
     clearTimeout(timeout);
   }
