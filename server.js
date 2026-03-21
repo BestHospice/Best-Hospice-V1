@@ -2566,9 +2566,9 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     if (!zip || !answers || !Array.isArray(providers) || !providers.length) {
       return res.status(400).json({ error: 'Missing zip, answers, or providers list' });
     }
-    if (notifyMode === 'initial') {
+    if (notifyMode === 'initial' && captchaToken) {
       const captchaResult = await verifyTurnstile(captchaToken, req.ip);
-      if (!captchaResult.success) {
+      if (!captchaResult.success && !captchaResult.bypass) {
         return res.status(403).json({ error: 'Captcha verification failed.', details: captchaResult['error-codes'] || captchaResult.error });
       }
     }
