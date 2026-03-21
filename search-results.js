@@ -177,10 +177,10 @@ async function geocodeZip(zip) {
 
 async function loadRemoteProviders() {
   if (remoteProvidersLoaded) return;
-  const res = await fetch('/api/providers');
+  const res = await fetch('/api/public/providers');
   if (!res.ok) throw new Error('Failed to load providers');
-  const remote = await res.json();
-  providerDirectory = Array.isArray(remote) ? remote : [];
+  const data = await res.json();
+  providerDirectory = Array.isArray(data) ? data : (Array.isArray(data.providers) ? data.providers : []);
   remoteProvidersLoaded = true;
 }
 
