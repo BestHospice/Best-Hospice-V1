@@ -1,5 +1,8 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { GoogleAdsApi } = require('google-ads-api');
+const sgMail = require('@sendgrid/mail');
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const client = new GoogleAdsApi({
   client_id: process.env.GOOGLE_ADS_CLIENT_ID,
@@ -13,12 +16,11 @@ const customer = client.Customer({
 });
 
 async function getCampaignPerformance() {
-  const campaigns = await customer.query(`
+  return customer.query(`
     SELECT
       campaign.id,
       campaign.name,
       campaign.status,
-      campaign.bidding_strategy_type,
       metrics.impressions,
       metrics.clicks,
       metrics.cost_micros,
@@ -31,32 +33,10 @@ async function getCampaignPerformance() {
       AND campaign.status = 'ENABLED'
     ORDER BY metrics.cost_micros DESC
   `);
-
-  console.log('\n=== CAMPAIGN PERFORMANCE (Last 30 Days) ===\n');
-  for (const row of campaigns) {
-    const cost = (row.metrics.cost_micros / 1_000_000).toFixed(2);
-    const cpc = (row.metrics.average_cpc / 1_000_000).toFixed(2);
-    const cpa = row.metrics.conversions > 0
-      ? (row.metrics.cost_micros / 1_000_000 / row.metrics.conversions).toFixed(2)
-      : 'N/A';
-
-    console.log(`Campaign: ${row.campaign.name}`);
-    console.log(`  Status: ${row.campaign.status}`);
-    console.log(`  Impressions: ${row.metrics.impressions.toLocaleString()}`);
-    console.log(`  Clicks: ${row.metrics.clicks.toLocaleString()}`);
-    console.log(`  CTR: ${(row.metrics.ctr * 100).toFixed(2)}%`);
-    console.log(`  Avg CPC: $${cpc}`);
-    console.log(`  Total Spend: $${cost}`);
-    console.log(`  Conversions: ${row.metrics.conversions}`);
-    console.log(`  Cost/Conversion: $${cpa}`);
-    console.log('');
-  }
-
-  return campaigns;
 }
 
 async function getKeywordPerformance() {
-  const keywords = await customer.query(`
+  return customer.query(`
     SELECT
       ad_group_criterion.keyword.text,
       ad_group_criterion.keyword.match_type,
@@ -75,96 +55,110 @@ async function getKeywordPerformance() {
     ORDER BY metrics.cost_micros DESC
     LIMIT 50
   `);
-
-  console.log('\n=== TOP KEYWORDS BY SPEND (Last 30 Days) ===\n');
-  for (const row of keywords) {
-    const cost = (row.metrics.cost_micros / 1_000_000).toFixed(2);
-    const cpc = (row.metrics.average_cpc / 1_000_000).toFixed(2);
-    const qs = row.ad_group_criterion.quality_info?.quality_score || 'N/A';
-
-    console.log(`Keyword: "${row.ad_group_criterion.keyword.text}" [${row.ad_group_criterion.keyword.match_type}]`);
-    console.log(`  Campaign: ${row.campaign.name}`);
-    console.log(`  Quality Score: ${qs}/10`);
-    console.log(`  Impressions: ${row.metrics.impressions.toLocaleString()}`);
-    console.log(`  Clicks: ${row.metrics.clicks.toLocaleString()}`);
-    console.log(`  CTR: ${(row.metrics.ctr * 100).toFixed(2)}%`);
-    console.log(`  Avg CPC: $${cpc}`);
-    console.log(`  Spend: $${cost}`);
-    console.log(`  Conversions: ${row.metrics.conversions}`);
-    console.log('');
-  }
-
-  return keywords;
 }
 
-async function getOptimizationRecommendations(campaigns, keywords) {
-  console.log('\n=== OPTIMIZATION RECOMMENDATIONS ===\n');
+function buildReport(campaigns, keywords) {
+  const issues = [];
+  let html = `<h2>Google Ads Weekly Report — Best Hospice</h2>`;
 
-  // Low CTR campaigns
+  // Campaign summary
+  html += `<h3>Campaign Performance (Last 30 Days)</h3><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-family:sans-serif; font-size:14px;">`;
+  html += `<tr style="background:#f0f0f0;"><th>Campaign</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Avg CPC</th><th>Spend</th><th>Conversions</th><th>Cost/Conv</th></tr>`;
+
+  for (const row of campaigns) {
+    const cost = (row.metrics.cost_micros / 1_000_000).toFixed(2);
+    const cpc = (row.metrics.average_cpc / 1_000_000).toFixed(2);
+    const cpa = row.metrics.conversions > 0
+      ? '$' + (row.metrics.cost_micros / 1_000_000 / row.metrics.conversions).toFixed(2)
+      : 'N/A';
+    html += `<tr>
+      <td>${row.campaign.name}</td>
+      <td>${row.metrics.impressions.toLocaleString()}</td>
+      <td>${row.metrics.clicks.toLocaleString()}</td>
+      <td>${(row.metrics.ctr * 100).toFixed(2)}%</td>
+      <td>$${cpc}</td>
+      <td>$${cost}</td>
+      <td>${row.metrics.conversions}</td>
+      <td>${cpa}</td>
+    </tr>`;
+  }
+  html += `</table>`;
+
+  // Issues
   const lowCTR = campaigns.filter(r => r.metrics.impressions > 100 && r.metrics.ctr < 0.02);
-  if (lowCTR.length > 0) {
-    console.log('⚠️  LOW CTR CAMPAIGNS (under 2%) — improve ad copy:');
-    lowCTR.forEach(r => console.log(`   - ${r.campaign.name}: ${(r.metrics.ctr * 100).toFixed(2)}% CTR`));
-    console.log('');
-  }
-
-  // High spend, zero conversions
   const wasteful = campaigns.filter(r => r.metrics.cost_micros > 5_000_000 && r.metrics.conversions === 0);
-  if (wasteful.length > 0) {
-    console.log('🚨 HIGH SPEND, ZERO CONVERSIONS — review or pause:');
-    wasteful.forEach(r => {
-      const cost = (r.metrics.cost_micros / 1_000_000).toFixed(2);
-      console.log(`   - ${r.campaign.name}: $${cost} spent, 0 conversions`);
-    });
-    console.log('');
-  }
-
-  // Low quality score keywords
   const lowQS = keywords.filter(r => {
     const qs = r.ad_group_criterion.quality_info?.quality_score;
     return qs && qs <= 4 && r.metrics.cost_micros > 1_000_000;
   });
-  if (lowQS.length > 0) {
-    console.log('⚠️  LOW QUALITY SCORE KEYWORDS (≤4/10) — fix landing page relevance or ad copy:');
-    lowQS.forEach(r => {
-      const qs = r.ad_group_criterion.quality_info?.quality_score;
-      const cost = (r.metrics.cost_micros / 1_000_000).toFixed(2);
-      console.log(`   - "${r.ad_group_criterion.keyword.text}": QS ${qs}/10, $${cost} spent`);
-    });
-    console.log('');
-  }
-
-  // Broad match keywords with low conversions
   const broadWaste = keywords.filter(r =>
     r.ad_group_criterion.keyword.match_type === 'BROAD' &&
     r.metrics.cost_micros > 3_000_000 &&
     r.metrics.conversions === 0
   );
-  if (broadWaste.length > 0) {
-    console.log('💡 BROAD MATCH KEYWORDS WITH NO CONVERSIONS — switch to phrase or exact match:');
+
+  if (lowCTR.length || wasteful.length || lowQS.length || broadWaste.length) {
+    html += `<h3 style="color:#cc0000;">⚠️ Issues Requiring Attention</h3><ul>`;
+    lowCTR.forEach(r => {
+      const msg = `Low CTR campaign: "${r.campaign.name}" at ${(r.metrics.ctr * 100).toFixed(2)}% — improve ad copy`;
+      issues.push(msg);
+      html += `<li>${msg}</li>`;
+    });
+    wasteful.forEach(r => {
+      const cost = (r.metrics.cost_micros / 1_000_000).toFixed(2);
+      const msg = `High spend, zero conversions: "${r.campaign.name}" spent $${cost} — review or pause`;
+      issues.push(msg);
+      html += `<li>${msg}</li>`;
+    });
+    lowQS.forEach(r => {
+      const qs = r.ad_group_criterion.quality_info?.quality_score;
+      const cost = (r.metrics.cost_micros / 1_000_000).toFixed(2);
+      const msg = `Low Quality Score: "${r.ad_group_criterion.keyword.text}" QS ${qs}/10, $${cost} spent`;
+      issues.push(msg);
+      html += `<li>${msg}</li>`;
+    });
     broadWaste.forEach(r => {
       const cost = (r.metrics.cost_micros / 1_000_000).toFixed(2);
-      console.log(`   - "${r.ad_group_criterion.keyword.text}": $${cost} spent, 0 conversions`);
+      const msg = `Broad match waste: "${r.ad_group_criterion.keyword.text}" $${cost} spent, 0 conversions`;
+      issues.push(msg);
+      html += `<li>${msg}</li>`;
     });
-    console.log('');
+    html += `</ul>`;
+  } else {
+    html += `<p style="color:green;">✅ No major issues detected. Campaigns look healthy.</p>`;
   }
 
-  if (lowCTR.length === 0 && wasteful.length === 0 && lowQS.length === 0 && broadWaste.length === 0) {
-    console.log('✅ No major issues detected. Campaigns look healthy.');
-  }
+  html += `<p style="color:#888; font-size:12px;">Generated by Best Hospice Google Ads Monitor</p>`;
+  return { html, issues };
+}
+
+async function sendEmail(html, issues) {
+  const hasIssues = issues.length > 0;
+  const subject = hasIssues
+    ? `⚠️ Google Ads Alert — ${issues.length} issue${issues.length > 1 ? 's' : ''} found`
+    : `✅ Google Ads Weekly Report — All Clear`;
+
+  await sgMail.send({
+    to: process.env.ADS_REPORT_TO_EMAIL,
+    from: process.env.SENDGRID_FROM_EMAIL,
+    subject,
+    html,
+  });
+
+  console.log(`Email sent: "${subject}"`);
 }
 
 async function main() {
   try {
-    console.log('Connecting to Google Ads API...');
+    console.log('Fetching Google Ads data...');
     const campaigns = await getCampaignPerformance();
     const keywords = await getKeywordPerformance();
-    await getOptimizationRecommendations(campaigns, keywords);
+    const { html, issues } = buildReport(campaigns, keywords);
+    await sendEmail(html, issues);
+    console.log('Done.');
   } catch (err) {
     console.error('Error:', err.message || err);
-    if (err.errors) {
-      err.errors.forEach(e => console.error(' -', e.message));
-    }
+    if (err.errors) err.errors.forEach(e => console.error(' -', e.message));
   }
 }
 
