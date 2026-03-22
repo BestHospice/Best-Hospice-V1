@@ -3033,7 +3033,9 @@ app.get('/api/admin/main/analytics', async (req, res) => {
             select: {
               id: true,
               name: true,
-              phone: true
+              phone: true,
+              email: true,
+              providerLoginEmail: true
             }
           }
         }
@@ -3159,9 +3161,13 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         providerId: row.providerId,
         providerName,
         providerPhone: row.provider?.phone || '',
+        providerEmail: row.provider?.email || '',
+        providerLoginEmail: row.provider?.providerLoginEmail || '',
         leadIds: new Set()
       };
       if (!current.providerPhone && row.provider?.phone) current.providerPhone = row.provider.phone;
+      if (!current.providerEmail && row.provider?.email) current.providerEmail = row.provider.email;
+      if (!current.providerLoginEmail && row.provider?.providerLoginEmail) current.providerLoginEmail = row.provider.providerLoginEmail;
       if (row.leadId) current.leadIds.add(row.leadId);
       providerClientMap.set(row.providerId, current);
     });
@@ -3170,6 +3176,8 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         providerId: entry.providerId,
         providerName: entry.providerName,
         providerPhone: entry.providerPhone || '',
+        providerEmail: entry.providerEmail || '',
+        providerLoginEmail: entry.providerLoginEmail || '',
         clientsGenerated: entry.leadIds.size
       }))
       .sort((a, b) => {
