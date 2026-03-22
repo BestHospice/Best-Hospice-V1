@@ -52,25 +52,9 @@
       <p style="margin:0 0 14px; color:#475569;">Enter your details below and we'll show you verified home care providers in your area. Free, fast, and no obligation.</p>
 
       <form id="home-care-lead-form" class="search" action="search-results.html" method="get">
-        <label for="contactName" class="label">Your name</label>
-        <div class="input-row">
-          <input id="contactName" name="contactName" type="text" placeholder="First and last name" />
-        </div>
-
-        <label for="zip" class="label" style="margin-top:10px;">ZIP code where care is needed</label>
+        <label for="zip" class="label">ZIP code where care is needed</label>
         <div class="input-row">
           <input id="zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="e.g. 85001" required />
-        </div>
-
-        <label for="timeline" class="label" style="margin-top:10px;">When do you need care?</label>
-        <div class="input-row">
-          <select id="timeline" name="timeline" required>
-            <option value="">Select timeline</option>
-            <option>Urgently (within days)</option>
-            <option>Within 1-2 weeks</option>
-            <option>Within a month</option>
-            <option>Just researching</option>
-          </select>
         </div>
 
         <label for="contactEmail" class="label" style="margin-top:10px;">Email address</label>
