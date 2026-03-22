@@ -694,6 +694,7 @@ a {
 
 @media (min-width: 901px) {
   .top-links {
+    display: none;
     flex-direction: row;
     width: auto;
     margin-top: 0;
