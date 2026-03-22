@@ -586,7 +586,7 @@ button[type="submit"]:hover, .form-submit:hover { background: var(--green-dark);
   display: block;
 }
 .top-links {
-  display: flex;
+  display: none;
   gap: 12px;
   flex-wrap: wrap;
   align-items: center;
@@ -732,7 +732,7 @@ main .card { background: #fff; border: 1px solid var(--sand-dark); }
   }
 
   .top-links.open {
-    display: none !important;
+    display: flex !important;
   }
 }
 
