@@ -157,21 +157,24 @@ function getNearbyProviders(lat, lon, providers, radiusKm, searchZip) {
 }
 
 async function geocodeZip(zip) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(zip)}&countrycodes=us&limit=1&addressdetails=1`;
-  const response = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-  if (!response.ok) throw new Error('ZIP lookup failed');
-  const data = await response.json();
-  if (!data.length) return null;
-  const place = data[0];
-  return { lat: parseFloat(place.lat), lon: parseFloat(place.lon), label: place.display_name };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`/api/geocode?zip=${encodeURIComponent(zip)}`, { signal: controller.signal });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error('ZIP lookup failed');
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function loadRemoteProviders() {
   if (remoteProvidersLoaded) return;
-  const res = await fetch('/api/providers');
+  const res = await fetch('/api/search/providers');
   if (!res.ok) throw new Error('Failed to load providers');
-  const remote = await res.json();
-  providerDirectory = Array.isArray(remote) ? remote : [];
+  const data = await res.json();
+  providerDirectory = Array.isArray(data) ? data : (Array.isArray(data.providers) ? data.providers : []);
   remoteProvidersLoaded = true;
 }
 
@@ -394,7 +397,14 @@ async function handleInitialSearch(event) {
   mapSection.classList.add('hidden');
 
   try {
-    await getCaptchaToken();
+    try {
+      await Promise.race([
+        getCaptchaToken(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('captcha timeout')), 4000))
+      ]);
+    } catch (_captchaErr) {
+      // captcha optional — proceed without it
+    }
     setStatus('Searching local providers...');
     const geo = await geocodeZip(zip);
     if (!geo) {
