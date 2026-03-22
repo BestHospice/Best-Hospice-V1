@@ -76,6 +76,9 @@
             <option value="me">Myself</option>
             <option value="loved-one">Parent</option>
             <option value="spouse">Spouse</option>
+            <option value="grandparent">Grandparent</option>
+            <option value="sibling">Sibling</option>
+            <option value="in-law">In-Law</option>
             <option value="other">Other</option>
           </select>
           <label for="detail-caretype" class="label">What type of care?</label>
@@ -90,7 +93,7 @@
           <textarea id="detail-notes" rows="4" class="input-text" placeholder="Anything providers should know"></textarea>
           <div class="optional-choice">
             <button type="submit" class="button">Send Additional Details to Providers</button>
-            <button id="details-skip" class="button" type="button">Skip for now</button>
+            <button id="details-skip" class="button ghost" type="button" style="font-size:13px; padding:8px 14px; opacity:0.7;">Skip for now</button>
           </div>
         </form>
         <p id="details-status" class="note optional-status"></p>
@@ -129,7 +132,7 @@
           <p id="lead-confirmation" class="note hidden" style="margin:8px 0 4px; font-size:16px; font-weight:600;"></p>
           <p id="notify-mini" class="note hidden" style="margin:0 0 10px; font-size:12px;"></p>
           <ul id="results" class="results"></ul>
-          <p class="note" style="margin:10px 0 0; font-size:12px;">⭐ Verified, ⭐⭐ Featured, ⭐⭐⭐ Priority. More stars indicate higher commitment to patient care and promoting their business.</p>
+          <p class="note" style="margin:10px 0 0; font-size:12px;">⭐ Verified, ⭐⭐ Featured, ⭐⭐⭐ Priority. More stars indicate a higher listing tier.</p>
         </div>
       </section>
     </main>
