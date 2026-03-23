@@ -328,7 +328,7 @@ function showResultsWithOptionalPrompt() {
     });
   }
   refreshMapLayout();
-  optionalCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  mapSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function showNoProvidersState(cityName) {
