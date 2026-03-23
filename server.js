@@ -47,7 +47,8 @@ const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-provider-detail.html',
   '/admin-main.html',
   '/admin-audit.html',
-  '/admin-newsletter.html'
+  '/admin-newsletter.html',
+  '/admin-territory.html'
 ]);
 
 function isAdminMainToken(token) {
@@ -273,6 +274,23 @@ async function ensureWebsiteEventsTable() {
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_website_events_viewer_id ON website_events(viewer_id)`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_website_events_session_id ON website_events(session_id)`);
   websiteEventsTableReady = true;
+}
+
+let waitlistTableReady = false;
+async function ensureWaitlistTable() {
+  if (waitlistTableReady) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "WaitlistRequest" (
+      "id" TEXT NOT NULL,
+      "zip" TEXT NOT NULL,
+      "contactEmail" TEXT,
+      "contactPhone" TEXT,
+      "timeline" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "WaitlistRequest_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  waitlistTableReady = true;
 }
 
 let leadSessionColumnReady = false;
@@ -2864,6 +2882,12 @@ app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
       </div>
     `;
     await sendGenericEmail(targetEmail, subject, html);
+    // Save to DB for New Territory Outreach reporting (fire-and-forget)
+    ensureWaitlistTable()
+      .then(() => prisma.waitlistRequest.create({
+        data: { id: uuid(), zip: safeZip, contactEmail: safeContactEmail || null, contactPhone: safeContactPhone || null, timeline: safeTimeline || null }
+      }))
+      .catch((err) => console.error('WaitlistRequest save failed', err));
     res.json({ ok: true });
   } catch (err) {
     console.error('Waitlist notify failed', err);
@@ -3690,6 +3714,40 @@ app.get('/api/admin/no-provider-leads', async (req, res) => {
     res.json({ leads, heatPoints });
   } catch (err) {
     console.error('No-provider leads failed', err);
+    res.status(500).json({ error: 'Failed to load data' });
+  }
+});
+
+app.get('/api/admin/territory/leads', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    await ensureWaitlistTable();
+    const requests = await prisma.waitlistRequest.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 500
+    });
+
+    const uniqueZips = [...new Set(requests.map((r) => r.zip).filter(Boolean))];
+    const zipCoords = {};
+    for (const zip of uniqueZips) {
+      try {
+        const geo = await geocodeAddress(`${zip}, USA`);
+        if (geo) zipCoords[zip] = { lat: geo.lat, lon: geo.lon };
+      } catch (_) { /* skip */ }
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+
+    const zipCountMap = {};
+    requests.forEach((r) => { if (r.zip) zipCountMap[r.zip] = (zipCountMap[r.zip] || 0) + 1; });
+    const heatPoints = Object.entries(zipCountMap)
+      .filter(([zip]) => zipCoords[zip])
+      .map(([zip, count]) => ({ zip, count, lat: zipCoords[zip].lat, lon: zipCoords[zip].lon }));
+
+    res.json({ requests, heatPoints });
+  } catch (err) {
+    console.error('Territory leads failed', err);
     res.status(500).json({ error: 'Failed to load data' });
   }
 });
@@ -5734,6 +5792,7 @@ Sitemap: ${CANONICAL_DOMAIN}/sitemap-providers.xml
 app.listen(PORT, () => {
   console.log(`Best Hospice and Home Health server running on http://localhost:${PORT}`);
   fixTusconProviderData();
+  ensureWaitlistTable().catch((err) => console.error('ensureWaitlistTable failed', err));
   if (!EMAIL_ENABLED) {
     console.log('Email not configured: set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (optional: SENDGRID_REPLY_TO)');
   }

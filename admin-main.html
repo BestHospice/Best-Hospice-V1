@@ -307,29 +307,6 @@
         </div>
       </div>
 
-      <div class="card" id="no-provider-section">
-        <h2>New Territory Outreach</h2>
-        <p class="note">Questionnaire submissions from ZIPs where no providers were notified — unserved or underserved areas. Use for provider recruitment outreach.</p>
-        <div id="npl-map" style="height:340px;border-radius:10px;overflow:hidden;margin-bottom:16px;"></div>
-        <div id="npl-loading" class="note">Loading…</div>
-        <div class="table-wrap" id="npl-table-wrap" style="display:none;">
-          <table>
-            <thead>
-              <tr>
-                <th>Date &amp; Time</th>
-                <th>ZIP</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Care Needed</th>
-                <th>Submitted By</th>
-              </tr>
-            </thead>
-            <tbody id="npl-body"></tbody>
-          </table>
-        </div>
-        <p id="npl-empty" class="note" style="display:none;">No uncovered territory leads yet.</p>
-      </div>
     </section>
   </div>
 
@@ -1033,94 +1010,6 @@
       }
     });
 
-    // ── New Territory Outreach ──────────────────────────────────────────────
-    let nplMap = null;
-    let nplLayers = [];
-
-    function ensureNplMap() {
-      if (nplMap) return;
-      nplMap = L.map('npl-map', { zoomAnimation: false }).setView([39.5, -98.35], 4);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(nplMap);
-    }
-
-    function renderNplHeat(points) {
-      ensureNplMap();
-      nplLayers.forEach((l) => nplMap.removeLayer(l));
-      nplLayers = [];
-      if (!points.length) return;
-      const bounds = [];
-      points.forEach((p) => {
-        const radius = Math.max(10, Math.min(45, 8 + (p.count * 3)));
-        const circle = L.circleMarker([p.lat, p.lon], {
-          radius,
-          stroke: true,
-          color: '#b45309',
-          weight: 2,
-          fillColor: '#f59e0b',
-          fillOpacity: 0.7
-        }).bindPopup(`ZIP ${p.zip}<br>Requests: ${p.count}`);
-        circle.addTo(nplMap);
-        nplLayers.push(circle);
-        bounds.push([p.lat, p.lon]);
-      });
-      if (bounds.length) nplMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
-      setTimeout(() => nplMap.invalidateSize(), 100);
-    }
-
-    function fmtDateTime(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleString(undefined, {
-        month: 'short', day: 'numeric', year: 'numeric',
-        hour: 'numeric', minute: '2-digit'
-      });
-    }
-
-    async function loadNplLeads() {
-      const loadingEl = document.getElementById('npl-loading');
-      const tableWrap = document.getElementById('npl-table-wrap');
-      const emptyEl = document.getElementById('npl-empty');
-      const tbody = document.getElementById('npl-body');
-      loadingEl.style.display = 'block';
-      tableWrap.style.display = 'none';
-      emptyEl.style.display = 'none';
-      try {
-        const res = await fetch('/api/admin/no-provider-leads', { credentials: 'same-origin' });
-        if (!res.ok) throw new Error('Failed');
-        const data = await res.json();
-        const leads = data.leads || [];
-        renderNplHeat(data.heatPoints || []);
-        loadingEl.style.display = 'none';
-        if (!leads.length) {
-          emptyEl.style.display = 'block';
-          return;
-        }
-        tbody.innerHTML = leads.map((l) => {
-          const name = [l.firstName, l.lastName].filter(Boolean).join(' ') || '—';
-          const email = l.clientEmail && l.clientEmail !== 'Not provided'
-            ? `<a href="mailto:${l.clientEmail}">${l.clientEmail}</a>` : '—';
-          const phone = l.clientPhone && l.clientPhone !== 'Not provided' ? l.clientPhone : '—';
-          const care = l.services ? l.services.replace(/;/g, ' · ').slice(0, 80) : '—';
-          const who = l.submittedBy ? l.submittedBy.replace(/_/g, ' ') : '—';
-          return `<tr>
-            <td style="white-space:nowrap;">${fmtDateTime(l.createdAt)}</td>
-            <td>${l.zip || '—'}</td>
-            <td>${name}</td>
-            <td style="font-size:13px;">${email}</td>
-            <td style="white-space:nowrap;">${phone}</td>
-            <td style="font-size:13px;max-width:200px;">${care}</td>
-            <td>${who}</td>
-          </tr>`;
-        }).join('');
-        tableWrap.style.display = 'block';
-      } catch (err) {
-        loadingEl.textContent = 'Could not load territory outreach data.';
-      }
-    }
-    // ────────────────────────────────────────────────────────────────────────
-
     async function initAdminMain() {
       setDefaultDates();
       window.addEventListener('resize', refreshLeadMapLayout);
@@ -1136,8 +1025,6 @@
         console.error('Admin Main analytics load failed', err);
         rangeLabel.textContent = 'Logged in, but analytics could not be loaded right now.';
       }
-
-      loadNplLeads();
     }
 
     initAdminMain();

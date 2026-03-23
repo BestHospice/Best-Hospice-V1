@@ -204,3 +204,12 @@ model ProviderUserProvider {
 
   @@unique([providerUserId, providerId])
 }
+
+model WaitlistRequest {
+  id           String   @id @default(uuid())
+  zip          String
+  contactEmail String?
+  contactPhone String?
+  timeline     String?
+  createdAt    DateTime @default(now())
+}
