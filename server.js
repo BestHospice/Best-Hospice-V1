@@ -2155,25 +2155,74 @@ function renderHubPage({ serviceKey, states = [] }) {
 function renderProviderPage(provider) {
   const slug = providerSlug(provider);
   const cityState = cityStateString(provider.city, provider.state);
-  const title = `${provider.name} | Hospice, Palliative, Home Care in ${cityState}`;
-  const description = `${provider.name} serves ${cityState}. Contact info, address, and services.`;
+  const careType = (provider.careType || 'hospice-care').toLowerCase();
+
+  // Care-type-specific content blocks
+  const careLabel = careType === 'home-care' ? 'home care' : careType === 'palliative-care' ? 'palliative care' : 'hospice care';
+  const careServiceList = careType === 'home-care'
+    ? 'personal care assistance, bathing and grooming support, meal preparation, medication reminders, housekeeping, companionship, transportation, and respite care for family caregivers'
+    : careType === 'palliative-care'
+    ? 'symptom and pain management, care coordination, emotional and psychological support, social work services, chaplain services, and family counseling'
+    : 'nursing visits, pain and symptom management, medication delivery, medical equipment, social work services, chaplain services, aide support, and bereavement counseling for the family';
+  const careGoal = careType === 'home-care'
+    ? 'helping individuals live safely and comfortably at home'
+    : careType === 'palliative-care'
+    ? 'improving quality of life for patients with serious illness at any stage'
+    : 'providing comfort-focused end-of-life support to patients and their families';
+  const cityServiceUrl = `${CANONICAL_DOMAIN}/${careType}/${slugify(provider.city)}-${(provider.state || '').toLowerCase()}`;
+
+  const title = `${provider.name} | ${careLabel.replace(/\b\w/g, c => c.toUpperCase())} in ${cityState}`;
+  const description = `${provider.name} can offer ${careLabel} services in ${cityState}. View contact information, address, and services offered.`;
   const canonical = `${CANONICAL_DOMAIN}/provider/${slug}`;
   const breadcrumbItems = [
     { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
-    { name: cityState, url: `${CANONICAL_DOMAIN}/hospice-care/${slugify(provider.city)}-${(provider.state || '').toLowerCase()}` },
+    { name: cityState, url: cityServiceUrl },
     { name: provider.name, url: canonical }
   ];
   const faqSchema = renderFAQSchema([
     ['How do I contact this provider?', `Phone: ${provider.phone || 'Not provided'}. Website: ${provider.website || 'Not provided'}.`],
-    ['Where are they located?', provider.address || `${cityState}`]
+    ['Where is this provider located?', provider.address ? `${provider.address}, ${cityState}` : cityState],
+    [`What services can ${provider.name} offer?`, `${provider.name} can offer ${careLabel} services in ${cityState}, including ${careServiceList}.`],
+    [`Does ${provider.name} accept Medicare?`, `Most ${careLabel} providers listed on BestHospice.com are Medicare-certified. Contact ${provider.name} directly to confirm coverage for your specific situation.`],
+    [`How do I get started with ${provider.name}?`, `You can reach ${provider.name} by phone${provider.phone ? ' at ' + provider.phone : ''} or through the contact form on BestHospice.com. Intake typically begins within 24–48 hours of your first call.`]
   ]);
+
   const body = `
-    <section>
-      <h1>${provider.name}</h1>
-      <p>${provider.address || cityState}</p>
-      ${provider.phone ? `<p>Phone: ${provider.phone}</p>` : ''}
-      ${provider.website ? `<p><a href="${provider.website}" rel="nofollow">Website</a></p>` : ''}
-      <p>Serving hospice, palliative, and home care needs in ${cityState}.</p>
+    <section class="card" style="padding:18px;">
+      <h1 style="margin:0 0 6px;">${escapeHtml(provider.name)}</h1>
+      <p style="margin:0 0 4px; color:var(--text-muted);">${careLabel.replace(/\b\w/g, c => c.toUpperCase())} · ${cityState}</p>
+      ${provider.address ? `<p style="margin:0 0 10px;">${escapeHtml(provider.address)}, ${cityState}</p>` : `<p style="margin:0 0 10px;">${cityState}</p>`}
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+        ${provider.phone ? `<a class="pill" href="tel:${provider.phone.replace(/\D/g,'')}">${escapeHtml(provider.phone)}</a>` : ''}
+        ${provider.website ? `<a class="pill ghost-pill" href="${escapeHtml(provider.website)}" rel="nofollow noopener" target="_blank">Visit Website</a>` : ''}
+        <a class="pill ghost-pill" href="/search.html">Find More Providers</a>
+      </div>
+    </section>
+
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">About ${escapeHtml(provider.name)}</h2>
+      <p style="margin:0 0 10px;">${escapeHtml(provider.name)} can offer ${careLabel} services to patients and families in ${cityState}. Their focus is on ${careGoal}.</p>
+      <p style="margin:0;">Services can include ${careServiceList}.</p>
+    </section>
+
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Coverage area</h2>
+      <p style="margin:0 0 10px;">${escapeHtml(provider.name)} is based in ${cityState} and serves patients in the surrounding area. Contact them directly to confirm whether they serve your specific location.</p>
+      <a class="pill ghost-pill" href="${cityServiceUrl}">View all ${careLabel} providers in ${cityState}</a>
+    </section>
+
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 10px;">Frequently Asked Questions</h2>
+      <details class="faq-item"><summary>How do I contact ${escapeHtml(provider.name)}?</summary><p>${provider.phone ? 'Call them at ' + escapeHtml(provider.phone) + '.' : ''} ${provider.website ? 'You can also visit their website for more information.' : ''} You can also search for providers near you on BestHospice.com.</p></details>
+      <details class="faq-item"><summary>What services can ${escapeHtml(provider.name)} offer?</summary><p>${escapeHtml(provider.name)} can offer ${careLabel} services in ${cityState}, including ${careServiceList}.</p></details>
+      <details class="faq-item"><summary>Does ${escapeHtml(provider.name)} accept Medicare?</summary><p>Most ${careLabel} providers listed on BestHospice.com are Medicare-certified. Contact ${escapeHtml(provider.name)} directly to confirm coverage for your specific situation.</p></details>
+      <details class="faq-item"><summary>How do I get started?</summary><p>Reach out to ${escapeHtml(provider.name)} directly${provider.phone ? ' at ' + escapeHtml(provider.phone) : ''}. Intake for ${careLabel} typically begins within 24–48 hours of your first contact.</p></details>
+    </section>
+
+    <section class="card" style="padding:18px; margin-top:14px; text-align:center;">
+      <h2 style="margin:0 0 8px;">Compare more providers near you</h2>
+      <p style="margin:0 0 14px;">BestHospice.com lists verified ${careLabel} providers across the country. Enter your ZIP code to find and compare options near you — free for families, no referral fees.</p>
+      <a href="/search.html" class="button" style="font-size:1rem; padding:12px 28px;">Find Providers Near Me</a>
     </section>
     ${renderTrustBlock(formatDateISO())}
   `;
