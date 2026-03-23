@@ -63,42 +63,6 @@
         </div>
       </section>
 
-      <section id="optional-details-card" class="card optional-details-card hidden">
-        <h3 class="optional-title">Help providers assist you better (optional)</h3>
-        <p class="note optional-subtitle" style="margin:2px 0 8px;">OR Scroll down now to see providers near you</p>
-        <p class="note optional-subtitle">Answer a few more questions so providers can prepare for your specific needs.</p>
-        <form id="optional-details-form" class="optional-details-form">
-          <label for="detail-name" class="label">Your name (optional)</label>
-          <input id="detail-name" type="text" class="input-text" placeholder="First and last name" />
-          <label for="detail-relationship" class="label">Who needs care?</label>
-          <select id="detail-relationship" required>
-            <option value="">Select one</option>
-            <option value="me">Myself</option>
-            <option value="loved-one">Parent</option>
-            <option value="spouse">Spouse</option>
-            <option value="grandparent">Grandparent</option>
-            <option value="sibling">Sibling</option>
-            <option value="in-law">In-Law</option>
-            <option value="other">Other</option>
-          </select>
-          <label for="detail-caretype" class="label">What type of care?</label>
-          <select id="detail-caretype" required>
-            <option value="">Select one</option>
-            <option>Hospice Care</option>
-            <option>Palliative Care</option>
-            <option>Home Health</option>
-            <option>Not sure</option>
-          </select>
-          <label for="detail-notes" class="label">Any specific needs or questions? (optional)</label>
-          <textarea id="detail-notes" rows="4" class="input-text" placeholder="Anything providers should know"></textarea>
-          <div class="optional-choice">
-            <button type="submit" class="button">Send Additional Details to Providers</button>
-            <button id="details-skip" class="button ghost" type="button" style="font-size:13px; padding:8px 14px; opacity:0.7;">Skip for now</button>
-          </div>
-        </form>
-        <p id="details-status" class="note optional-status"></p>
-      </section>
-
       <section id="no-providers-card" class="card optional-details-card hidden">
         <h3 class="optional-title">We're expanding to your area soon.</h3>
         <p class="note optional-subtitle">We don't have verified providers near <span id="no-provider-city">your city</span> yet, but we're actively growing our network every week.</p>
@@ -134,6 +98,41 @@
           <ul id="results" class="results"></ul>
           <p class="note" style="margin:10px 0 0; font-size:12px;">⭐ Verified, ⭐⭐ Featured, ⭐⭐⭐ Priority. More stars indicate a higher listing tier.</p>
         </div>
+      </section>
+
+      <section id="optional-details-card" class="card optional-details-card hidden">
+        <h3 class="optional-title">Help providers assist you better (optional)</h3>
+        <p class="note optional-subtitle">Answer a few more questions so providers can prepare for your specific needs.</p>
+        <form id="optional-details-form" class="optional-details-form">
+          <label for="detail-name" class="label">Your name (optional)</label>
+          <input id="detail-name" type="text" class="input-text" placeholder="First and last name" />
+          <label for="detail-relationship" class="label">Who needs care?</label>
+          <select id="detail-relationship" required>
+            <option value="">Select one</option>
+            <option value="me">Myself</option>
+            <option value="loved-one">Parent</option>
+            <option value="spouse">Spouse</option>
+            <option value="grandparent">Grandparent</option>
+            <option value="sibling">Sibling</option>
+            <option value="in-law">In-Law</option>
+            <option value="other">Other</option>
+          </select>
+          <label for="detail-caretype" class="label">What type of care?</label>
+          <select id="detail-caretype" required>
+            <option value="">Select one</option>
+            <option>Hospice Care</option>
+            <option>Palliative Care</option>
+            <option>Home Health</option>
+            <option>Not sure</option>
+          </select>
+          <label for="detail-notes" class="label">Any specific needs or questions? (optional)</label>
+          <textarea id="detail-notes" rows="4" class="input-text" placeholder="Anything providers should know"></textarea>
+          <div class="optional-choice">
+            <button type="submit" class="button">Send Additional Details to Providers</button>
+            <button id="details-skip" class="button ghost" type="button" style="font-size:13px; padding:8px 14px; opacity:0.7;">Skip for now</button>
+          </div>
+        </form>
+        <p id="details-status" class="note optional-status"></p>
       </section>
     </main>
 
