@@ -3605,6 +3605,46 @@ app.get('/api/admin/main/verify', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/admin/no-provider-leads', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const leads = await prisma.lead.findMany({
+      where: { notifications: { none: { status: 'sent' } } },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+      select: {
+        id: true, zip: true, submittedBy: true, careDays: true,
+        services: true, clientEmail: true, clientPhone: true,
+        firstName: true, lastName: true, createdAt: true
+      }
+    });
+
+    // Geocode unique ZIPs (Nominatim rate-limit: 1 req/s)
+    const uniqueZips = [...new Set(leads.map((l) => l.zip).filter(Boolean))];
+    const zipCoords = {};
+    for (const zip of uniqueZips) {
+      try {
+        const geo = await geocodeAddress(`${zip}, USA`);
+        if (geo) zipCoords[zip] = { lat: geo.lat, lon: geo.lon };
+      } catch (_) { /* skip */ }
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+
+    const zipCountMap = {};
+    leads.forEach((l) => { if (l.zip) zipCountMap[l.zip] = (zipCountMap[l.zip] || 0) + 1; });
+    const heatPoints = Object.entries(zipCountMap)
+      .filter(([zip]) => zipCoords[zip])
+      .map(([zip, count]) => ({ zip, count, lat: zipCoords[zip].lat, lon: zipCoords[zip].lon }));
+
+    res.json({ leads, heatPoints });
+  } catch (err) {
+    console.error('No-provider leads failed', err);
+    res.status(500).json({ error: 'Failed to load data' });
+  }
+});
+
 app.delete('/api/admin/main/website-events', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
