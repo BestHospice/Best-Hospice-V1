@@ -5906,6 +5906,9 @@ app.get('/guides/hospice-care-for-cancer', (_req, res) => {
 app.get('/guides/hospice-care-for-copd-heart-failure', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'hospice-care-for-copd-heart-failure.html'));
 });
+app.get('/guides/hospice-care-birmingham-alabama', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-birmingham-alabama.html'));
+});
 
 // Paid ads landing page (serve 200 on all aliases for strict ad crawlers)
 app.get(['/phoenix', '/phoenix/', '/phoenix.html', '/ads-landing.html'], (_req, res) => {
