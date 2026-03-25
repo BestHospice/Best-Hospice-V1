@@ -111,6 +111,28 @@
   </script><script src="/cookie-consent.js" defer></script>
   <script src="/analytics-tracker.js" defer></script>
   <script src="/marketing-consent-loader.js" defer></script>
+  <style>
+    .mode-toggle{display:flex;background:rgba(255,255,255,0.15);border-radius:20px;padding:3px;gap:2px;flex-shrink:0;}
+    .mode-btn{padding:5px 14px;border-radius:18px;border:none;background:transparent;color:rgba(255,255,255,0.82);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap;font-family:inherit;}
+    .mode-btn.active{background:#fff;color:#0f766e;}
+    .work-only{display:none !important;}
+    body.mode-work .care-only{display:none !important;}
+    body.mode-work .work-only{display:block !important;}
+    body.mode-work .work-only.wof{display:flex !important;}
+    body.mode-work .work-only.wog{display:grid !important;}
+    #work-q-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;padding:16px;}
+    #work-q-modal.open{display:flex;}
+    #work-q-inner{background:#fff;border-radius:16px;padding:28px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;position:relative;}
+    #work-q-inner h2{margin:0 0 6px;font-size:1.3rem;}
+    .wq-note{color:#5b6474;font-size:14px;margin:0 0 18px;}
+    .wq-field{display:grid;gap:5px;margin-bottom:13px;}
+    .wq-field label{font-size:14px;font-weight:600;color:#374151;}
+    .wq-field select,.wq-field input{padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;font-family:inherit;width:100%;box-sizing:border-box;}
+    .wq-field select:focus,.wq-field input:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,0.12);}
+    #wq-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;line-height:1;}
+    #wq-success{display:none;text-align:center;padding:20px 0;}
+    #wq-success h3{color:#0f766e;margin:0 0 10px;font-size:1.2rem;}
+  </style>
 </head>
 <body class="home-page">
   <div class="page-shell">
@@ -119,6 +141,10 @@
         <div class="brand">
           <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health and Best Home Health logo" class="brand-logo">
                   </div>
+        <div class="mode-toggle" id="modeToggle">
+          <button class="mode-btn active" data-mode="care" type="button">Find Care</button>
+          <button class="mode-btn" data-mode="work" type="button">Find Work</button>
+        </div>
         <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
           <span></span><span></span><span></span>
         </button>
@@ -147,19 +173,19 @@
             <img src="whitecaregiver.png" alt="Caregiver with senior in bed smiling">
           </div>
           <div class="hero-callout">
-            <h1 style="margin:0 0 10px; font-size:clamp(1.5rem,3.2vw,2.2rem); line-height:1.25; color:#ffffff !important; font-weight:800; text-shadow: 0 2px 12px rgba(0,0,0,0.22);">Find the Best Hospice, Palliative & Home Care Near You: Free, Verified, Instant</h1>
-            <p class="tagline">
+            <h1 id="hero-h1" style="margin:0 0 10px; font-size:clamp(1.5rem,3.2vw,2.2rem); line-height:1.25; color:#ffffff !important; font-weight:800; text-shadow: 0 2px 12px rgba(0,0,0,0.22);">Find the Best Hospice, Palliative & Home Care Near You: Free, Verified, Instant</h1>
+            <p class="tagline" id="hero-tagline1">
               We connect families with the best hospice, palliative, and home care providers nationwide. No sales pressure, no cost, no confusion.
             </p>
-            <p class="tagline accent">
+            <p class="tagline accent" id="hero-tagline2">
               Enter the ZIP code where you need care to see verified providers near you instantly.
             </p>
           </div>
         </div>
         <div class="hero-right">
           <div class="search" style="padding:18px;">
-            <p class="start-title" style="font-size:22px;">Start here</p>
-            <p class="start-subtitle" style="font-size:16px;">Find Hospice, Palliative & Home Care Near You: Free, Fast, Verified</p>
+            <p class="start-title" id="search-title" style="font-size:22px;">Start here</p>
+            <p class="start-subtitle" id="search-subtitle" style="font-size:16px;">Find Hospice, Palliative & Home Care Near You: Free, Fast, Verified</p>
             <form id="hero-zip-form" class="search" style="margin:10px 0 6px;">
               <div class="input-row" style="gap:10px;">
                 <button id="hero-search-btn" type="submit" class="button" style="font-size:18px; padding:14px 18px;">Search</button>
@@ -168,17 +194,17 @@
             <div class="trust-cards"></div>
           </div>
           <div class="steps-vertical card steps-below">
-            <div class="step-item">
-              <div class="step-label">Step One: Submit</div>
-              <p>Enter your ZIP code, answer a few quick questions, and submit your information to notify nearby providers.</p>
+            <div class="step-item" id="step1">
+              <div class="step-label" id="step1-label">Step One: Submit</div>
+              <p id="step1-text">Enter your ZIP code, answer a few quick questions, and submit your information to notify nearby providers.</p>
             </div>
-            <div class="step-item">
-              <div class="step-label">Step Two: Browse</div>
-              <p>View verified hospice, palliative, and home care providers near you on the map.</p>
+            <div class="step-item" id="step2">
+              <div class="step-label" id="step2-label">Step Two: Browse</div>
+              <p id="step2-text">View verified hospice, palliative, and home care providers near you on the map.</p>
             </div>
-            <div class="step-item">
-              <div class="step-label">Step Three: Add Details</div>
-              <p>Optionally send providers more specific information to better match your care needs.</p>
+            <div class="step-item" id="step3">
+              <div class="step-label" id="step3-label">Step Three: Add Details</div>
+              <p id="step3-text">Optionally send providers more specific information to better match your care needs.</p>
             </div>
           </div>
         </div>
@@ -187,28 +213,29 @@
 
     <main>
       <section class="card" style="padding:16px; margin:12px 0 18px;">
-        <h2 style="margin:0;">Why families trust Best Hospice and Home Health</h2>
-        <p class="tagline" style="margin:6px 0 12px;">Transparent access to verified providers, nationwide coverage, and no-cost support for families.</p>
+        <h2 id="trust-title" style="margin:0;">Why families trust Best Hospice and Home Health</h2>
+        <p class="tagline" id="trust-subtitle" style="margin:6px 0 12px;">Transparent access to verified providers, nationwide coverage, and no-cost support for families.</p>
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;">
           <div class="lead-item" style="padding:12px;">
             <div id="provider-count-trust" style="font-size:24px; font-weight:800; line-height:1;">51</div>
-            <div class="note">Verified Providers</div>
+            <div class="note" id="stat1-label">Verified Providers</div>
           </div>
           <div class="lead-item" style="padding:12px;">
             <div style="font-size:24px; font-weight:800; line-height:1;">14</div>
-            <div class="note">States Served</div>
+            <div class="note" id="stat2-label">States Served</div>
           </div>
           <div class="lead-item" style="padding:12px;">
             <div style="font-size:24px; font-weight:800; line-height:1;">100%</div>
-            <div class="note">Free for Families</div>
+            <div class="note" id="stat3-label">Free for Families</div>
           </div>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
-          <a class="pill ghost-pill" href="/education.html">Learn about elder care first</a>
-          <a class="pill ghost-pill" href="/locations.html">Browse providers by state</a>
+          <a class="pill ghost-pill care-only" href="/education.html">Learn about elder care first</a>
+          <a class="pill ghost-pill care-only" href="/locations.html">Browse providers by state</a>
+          <a class="pill ghost-pill work-only wof" href="/locations.html">Browse hiring providers by state</a>
         </div>
       </section>
-      <section class="card" style="padding:16px; margin:12px 0 18px;">
+      <section class="card care-only" style="padding:16px; margin:12px 0 18px;">
         <h2 style="margin:0 0 8px;">Explore care by service</h2>
         <p class="tagline" style="margin:0 0 10px;">Browse statewide and city‑level options, or view all states with active providers.</p>
         <div style="display:flex; flex-wrap:wrap; gap:8px;">
@@ -219,7 +246,17 @@
           <a class="pill ghost-pill" href="/cities.html">Browse Cities</a>
         </div>
       </section>
-      <section class="card" style="padding:16px; margin:0 0 18px;">
+      <section class="card work-only" style="padding:16px; margin:12px 0 18px;">
+        <h2 style="margin:0 0 8px;">Explore Jobs by Care Type</h2>
+        <p class="tagline" style="margin:0 0 10px;">Browse hiring providers by the type of care they specialize in.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          <a class="pill ghost-pill" href="/hospice-care">Hospice Care Jobs</a>
+          <a class="pill ghost-pill" href="/palliative-care">Palliative Care Jobs</a>
+          <a class="pill ghost-pill" href="/home-care">Home Care Jobs</a>
+          <a class="pill ghost-pill" href="/locations.html">Locations We Serve</a>
+        </div>
+      </section>
+      <section class="card care-only" style="padding:16px; margin:0 0 18px;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
           <div>
             <h2 style="margin:0 0 6px;">Who We Serve</h2>
@@ -253,6 +290,20 @@
           </div>
         </div>
       </section>
+      <section class="card work-only" style="padding:16px; margin:0 0 18px;">
+        <h2 style="margin:0 0 6px;">Who We're Looking For</h2>
+        <p class="tagline" style="margin:0 0 12px;">Caregivers ready to make a difference in hospice, palliative, and home care settings.</p>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px;">
+          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;"><span style="font-size:18px;">•</span><span>CNAs &amp; Home Aides</span></div>
+          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;"><span style="font-size:18px;">•</span><span>Registered Nurses (RN)</span></div>
+          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;"><span style="font-size:18px;">•</span><span>Licensed Practical Nurses (LPN)</span></div>
+          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;"><span style="font-size:18px;">•</span><span>Social Workers</span></div>
+          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;"><span style="font-size:18px;">•</span><span>Chaplains &amp; Counselors</span></div>
+          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;"><span style="font-size:18px;">•</span><span>Medical Directors</span></div>
+          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;"><span style="font-size:18px;">•</span><span>New to Hospice Care</span></div>
+          <div class="lead-item" style="padding:12px; display:flex; gap:10px; align-items:flex-start;"><span style="font-size:18px;">•</span><span>Returning Caregivers</span></div>
+        </div>
+      </section>
       <section class="card" style="padding:18px; margin:0 0 18px;">
         <div style="display:grid; grid-template-columns: minmax(0, 160px) 1fr; gap:16px; align-items:center;">
           <div style="display:flex; justify-content:center;">
@@ -265,12 +316,12 @@
           </div>
         </div>
       </section>
-      <div class="why-anchor">
+      <div class="why-anchor care-only">
         <span class="why-label">Why us?</span>
         <span class="why-arrow">↓</span>
       </div>
-      <h1 class="why-main-title">Why Best Hospice and Home Health? We help clarify the unknown.</h1>
-      <section class="card why-section">
+      <h1 class="why-main-title care-only">Why Best Hospice and Home Health? We help clarify the unknown.</h1>
+      <section class="card why-section care-only">
         <div class="why-grid">
           <div class="why-card">
             <h3>Compassionate Support When It Matters Most</h3>
@@ -335,8 +386,80 @@
           </div>
         </div>
       </section>
+      <div class="why-anchor work-only">
+        <span class="why-label">Why us?</span>
+        <span class="why-arrow">↓</span>
+      </div>
+      <h1 class="why-main-title work-only">Why Best Hospice and Home Health? We help you find meaningful work.</h1>
+      <section class="card why-section work-only">
+        <div class="why-grid">
+          <div class="why-card">
+            <h3>Your Next Chapter in Compassionate Care</h3>
+            <p>Working in hospice and home care is one of the most meaningful careers in healthcare. You are present for families at their most vulnerable moments, providing comfort, dignity, and skilled care when it matters most.</p>
+            <p>Best Hospice and Home Health connects qualified caregivers directly with verified hiring providers — no recruiters, no fees, no runaround.</p>
+          </div>
+          <div class="why-card">
+            <h3>Roles Available in Our Network</h3>
+            <p>Our provider network hires across all disciplines of hospice and home care, including:</p>
+            <ul class="summary-list bullets">
+              <li>CNAs &amp; Home Aides (most in-demand)</li>
+              <li>Registered Nurses (RN) — visits and case management</li>
+              <li>Licensed Practical Nurses (LPN)</li>
+              <li>Social Workers — emotional and logistical support</li>
+              <li>Chaplains &amp; Spiritual Counselors</li>
+              <li>Medical Directors &amp; Physicians</li>
+            </ul>
+          </div>
+        </div>
+        <div class="why-grid">
+          <div class="why-card">
+            <h3>What to Expect Working in Hospice Care</h3>
+            <ul class="summary-list bullets">
+              <li>Deeply meaningful, relationship-centered work</li>
+              <li>Flexible schedules — full-time, part-time, or PRN</li>
+              <li>Work in homes, assisted living, or care facilities</li>
+              <li>Strong and growing demand across all U.S. regions</li>
+              <li>Opportunity to make a lasting difference for families</li>
+            </ul>
+          </div>
+          <div class="why-card">
+            <h3>The Challenges Caregivers Face Finding Work</h3>
+            <ul class="summary-list bullets">
+              <li>Hard to know which providers are actively hiring</li>
+              <li>Recruitment agencies take a cut of your earnings</li>
+              <li>Job boards don't filter for hospice-specific roles</li>
+              <li>No easy way to connect with multiple employers at once</li>
+            </ul>
+          </div>
+        </div>
+        <h3 class="section-title" style="margin-top:10px;">That's where Best Hospice and Home Health comes in.</h3>
+        <div class="action-row">
+          <div class="action-card">
+            <h4>How Best Hospice Connects You to Work</h4>
+            <ol class="action-list">
+              <li>Enter your ZIP and answer a few quick questions about the role you're seeking</li>
+              <li>We identify hiring providers in your area</li>
+              <li>Providers are notified and can reach out to you directly</li>
+              <li>No commitment, no fees — ever</li>
+            </ol>
+          </div>
+          <div class="action-card image-card">
+            <img class="center-img" src="how-best-hospice-works-new.png" alt="How Best Hospice and Home Health connects caregivers to employers">
+          </div>
+          <div class="action-card">
+            <h4>Our Role: Connection, Not Commission</h4>
+            <p>We don't charge caregivers or take a cut of wages. We simply connect qualified job seekers with verified providers within 60 miles of your ZIP.</p>
+            <ul class="action-list">
+              <li>Free to apply</li>
+              <li>Multiple employers notified at once</li>
+              <li>You stay in control</li>
+              <li>No pressure, no obligation</li>
+            </ul>
+          </div>
+        </div>
+      </section>
     </main>
-      <section class="card" style="padding:18px; margin:0 0 18px;">
+      <section class="card care-only" style="padding:18px; margin:0 0 18px;">
         <h2 style="margin:0 0 14px;">Common Questions About Hospice Care</h2>
         <div style="display:grid; gap:12px;">
           <div>
@@ -357,7 +480,7 @@
           </div>
         </div>
       </section>
-      <section class="card" style="padding:18px; margin:0 0 18px;">
+      <section class="card care-only" style="padding:18px; margin:0 0 18px;">
         <h2 style="margin:0 0 10px;">What to Expect from Hospice Care</h2>
         <p style="margin:0 0 10px;">If your family is considering hospice for the first time, here is what the process typically looks like:</p>
         <div style="display:grid; gap:10px;">
@@ -380,7 +503,7 @@
         </div>
       </section>
 
-      <section class="card" style="padding:18px; margin:0 0 18px;">
+      <section class="card care-only" style="padding:18px; margin:0 0 18px;">
         <h2 style="margin:0 0 10px;">Conditions Hospice and Home Care Helps With</h2>
         <p style="margin:0 0 10px;">Hospice care is available for any terminal illness, not only cancer. Home care and palliative care can begin at any stage of a serious diagnosis. Common conditions our providers support include:</p>
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px;">
@@ -396,7 +519,7 @@
         <p style="margin:10px 0 0; font-size:0.9em; color:#4b5563;">Not sure if your loved one qualifies? Any provider on BestHospice.com can conduct a free eligibility review by phone — no obligation.</p>
       </section>
 
-      <section class="card" style="padding:18px; margin:0 0 18px;">
+      <section class="card care-only" style="padding:18px; margin:0 0 18px;">
         <h2 style="margin:0 0 10px;">How Much Does Hospice Care Cost?</h2>
         <p style="margin:0 0 10px;">For most families, hospice care costs very little or nothing out of pocket. Here is why:</p>
         <ul style="margin:0 0 10px; padding-left:18px; display:grid; gap:6px;">
@@ -408,7 +531,7 @@
         <p style="margin:0;"><a href="/guides/medicare-hospice-coverage">See the full breakdown of what Medicare covers for hospice care →</a></p>
       </section>
 
-      <section class="card" style="padding:18px; margin:0 0 18px;">
+      <section class="card care-only" style="padding:18px; margin:0 0 18px;">
         <h2 style="margin:0 0 14px;">More Questions About Hospice Care</h2>
         <div style="display:grid; gap:12px;">
           <div>
@@ -506,6 +629,99 @@
     </footer>
   </div>
 
+  <!-- Work Questionnaire Modal -->
+  <div id="work-q-modal" role="dialog" aria-modal="true" aria-labelledby="wq-title">
+    <div id="work-q-inner">
+      <button id="wq-close" aria-label="Close" type="button">&times;</button>
+      <h2 id="wq-title">Find Care Giving Jobs Near You</h2>
+      <p class="wq-note">Tell us about the role you're looking for and we'll connect you with hiring providers in your area. Free, no recruiters.</p>
+      <form id="wq-form" novalidate>
+        <div class="wq-field">
+          <label for="wq-name">Your full name</label>
+          <input id="wq-name" type="text" placeholder="First and last name" autocomplete="name" required />
+        </div>
+        <div class="wq-field">
+          <label for="wq-email">Email address</label>
+          <input id="wq-email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="wq-field">
+          <label for="wq-phone">Phone number</label>
+          <input id="wq-phone" type="tel" placeholder="(555) 555-5555" autocomplete="tel" />
+        </div>
+        <div class="wq-field">
+          <label for="wq-zip">ZIP code where you want to work</label>
+          <input id="wq-zip" type="text" placeholder="e.g. 90210" inputmode="numeric" maxlength="5" required />
+        </div>
+        <div class="wq-field">
+          <label for="wq-role">What role are you looking for?</label>
+          <select id="wq-role" required>
+            <option value="">Select a role…</option>
+            <option>CNA / Home Aide</option>
+            <option>Registered Nurse (RN)</option>
+            <option>Licensed Practical Nurse (LPN)</option>
+            <option>Social Worker</option>
+            <option>Chaplain / Counselor</option>
+            <option>Medical Director</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="wq-field">
+          <label for="wq-licensed">Are you currently licensed / certified in your state?</label>
+          <select id="wq-licensed" required>
+            <option value="">Select…</option>
+            <option>Yes</option>
+            <option>No</option>
+            <option>In progress</option>
+          </select>
+        </div>
+        <div class="wq-field">
+          <label for="wq-availability">What is your availability?</label>
+          <select id="wq-availability" required>
+            <option value="">Select…</option>
+            <option>Full-time</option>
+            <option>Part-time</option>
+            <option>PRN / Per diem</option>
+            <option>Open to any</option>
+          </select>
+        </div>
+        <div class="wq-field">
+          <label for="wq-timeline">How soon are you looking to start?</label>
+          <select id="wq-timeline" required>
+            <option value="">Select…</option>
+            <option>Immediately</option>
+            <option>Within 30 days</option>
+            <option>Within 60 days</option>
+            <option>Just exploring</option>
+          </select>
+        </div>
+        <div class="wq-field">
+          <label for="wq-experience">Do you have prior hospice or home care experience?</label>
+          <select id="wq-experience" required>
+            <option value="">Select…</option>
+            <option>Yes</option>
+            <option>No — but open to it</option>
+          </select>
+        </div>
+        <div class="wq-field">
+          <label for="wq-multiple">Are you open to working with multiple providers?</label>
+          <select id="wq-multiple" required>
+            <option value="">Select…</option>
+            <option>Yes</option>
+            <option>No</option>
+          </select>
+        </div>
+        <p id="wq-error" style="display:none; color:#dc2626; font-size:14px; margin:0 0 12px;"></p>
+        <button type="submit" class="button" style="width:100%;">Find Work Now</button>
+        <p style="margin:10px 0 0; font-size:12px; color:#6b7280; text-align:center;">By submitting, you agree to be contacted by hiring providers near your ZIP. Free, no fees, ever.</p>
+      </form>
+      <div id="wq-success">
+        <h3>You're connected!</h3>
+        <p style="color:#374151; margin:0 0 14px;">Your information has been sent to hiring providers near your ZIP. You should hear back within 24–48 hours. Thank you for choosing to make a difference.</p>
+        <p style="color:#6b7280; font-size:13px; margin:0;">Full job matching with live provider notifications is coming very soon.</p>
+      </div>
+    </div>
+  </div>
+
 </body>
 <script>
   (() => {
@@ -541,8 +757,89 @@
     if (!form) return;
     form.addEventListener('submit', (event) => {
       event.preventDefault();
+      if (document.body.classList.contains('mode-work')) {
+        document.getElementById('work-q-modal').classList.add('open');
+        return;
+      }
       window.location.href = 'search.html';
     });
   })();
+
+  // ── Find Care / Find Work mode toggle ──────────────────────────────────
+  (() => {
+    const CARE = {
+      h1: 'Find the Best Hospice, Palliative & Home Care Near You: Free, Verified, Instant',
+      tagline1: 'We connect families with the best hospice, palliative, and home care providers nationwide. No sales pressure, no cost, no confusion.',
+      tagline2: 'Enter the ZIP code where you need care to see verified providers near you instantly.',
+      searchTitle: 'Start here',
+      subtitle: 'Find Hospice, Palliative & Home Care Near You: Free, Fast, Verified',
+      btn: 'Search',
+      trustTitle: 'Why families trust Best Hospice and Home Health',
+      trustSubtitle: 'Transparent access to verified providers, nationwide coverage, and no-cost support for families.',
+      stat1: 'Verified Providers', stat2: 'States Served', stat3: 'Free for Families',
+      step1label: 'Step One: Submit', step1text: 'Enter your ZIP code, answer a few quick questions, and submit your information to notify nearby providers.',
+      step2label: 'Step Two: Browse', step2text: 'View verified hospice, palliative, and home care providers near you on the map.',
+      step3label: 'Step Three: Add Details', step3text: 'Optionally send providers more specific information to better match your care needs.'
+    };
+    const WORK = {
+      h1: 'Find Hospice, Home Care & Palliative Care Jobs Near You',
+      tagline1: 'We connect caregivers with verified hospice, palliative, and home care employers nationwide. Free to apply, no recruiters, no pressure.',
+      tagline2: 'Enter the ZIP code where you want to work to see hiring providers near you instantly.',
+      searchTitle: 'Start here',
+      subtitle: 'Find Care Giving Jobs Near You',
+      btn: 'Find Work Now',
+      trustTitle: 'Why caregivers choose Best Hospice and Home Health',
+      trustSubtitle: 'Direct access to verified hiring employers, nationwide reach, and always free to apply.',
+      stat1: 'Verified Employers', stat2: 'States Hiring', stat3: 'Free to Apply',
+      step1label: 'Step One: Submit', step1text: 'Enter your ZIP code, answer a few quick questions about the role you\'re seeking, and submit to notify nearby hiring providers.',
+      step2label: 'Step Two: Browse', step2text: 'View verified hospice, palliative, and home care employers near you who are actively hiring.',
+      step3label: 'Step Three: Connect', step3text: 'Receive outreach from providers interested in your background. No commitment, no fees.'
+    };
+
+    function applyMode(mode) {
+      document.body.classList.toggle('mode-work', mode === 'work');
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+      const d = mode === 'work' ? WORK : CARE;
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      document.querySelector('#hero-h1').textContent = d.h1;
+      document.querySelector('#hero-tagline1').textContent = d.tagline1;
+      document.querySelector('#hero-tagline2').textContent = d.tagline2;
+      set('search-title', d.searchTitle);
+      set('search-subtitle', d.subtitle);
+      const btn = document.getElementById('hero-search-btn'); if (btn) btn.textContent = d.btn;
+      set('trust-title', d.trustTitle); set('trust-subtitle', d.trustSubtitle);
+      set('stat1-label', d.stat1); set('stat2-label', d.stat2); set('stat3-label', d.stat3);
+      set('step1-label', d.step1label); set('step1-text', d.step1text);
+      set('step2-label', d.step2label); set('step2-text', d.step2text);
+      set('step3-label', d.step3label); set('step3-text', d.step3text);
+    }
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => applyMode(btn.dataset.mode));
+    });
+
+    // Modal close
+    const modal = document.getElementById('work-q-modal');
+    document.getElementById('wq-close').addEventListener('click', () => modal.classList.remove('open'));
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
+
+    // Work questionnaire submit (Stage 1: show thank you, no backend)
+    document.getElementById('wq-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('wq-error');
+      errEl.style.display = 'none';
+      const name = document.getElementById('wq-name').value.trim();
+      const email = document.getElementById('wq-email').value.trim();
+      const zip = document.getElementById('wq-zip').value.trim();
+      const role = document.getElementById('wq-role').value;
+      if (!name) { errEl.textContent = 'Please enter your name.'; errEl.style.display = 'block'; return; }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Please enter a valid email address.'; errEl.style.display = 'block'; return; }
+      if (!zip || !/^\d{5}$/.test(zip)) { errEl.textContent = 'Please enter a valid 5-digit ZIP code.'; errEl.style.display = 'block'; return; }
+      if (!role) { errEl.textContent = 'Please select the role you are looking for.'; errEl.style.display = 'block'; return; }
+      document.getElementById('wq-form').style.display = 'none';
+      document.getElementById('wq-success').style.display = 'block';
+    });
+  })();
+  // ───────────────────────────────────────────────────────────────────────
 </script>
 </html>
