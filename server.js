@@ -6004,21 +6004,24 @@ Sitemap: ${CANONICAL_DOMAIN}/sitemap-providers.xml
 `);
 });
 
-app.listen(PORT, () => {
-  console.log(`Best Hospice and Home Health server running on http://localhost:${PORT}`);
-  fixTusconProviderData();
-  ensureWaitlistTable().catch((err) => console.error('ensureWaitlistTable failed', err));
-  ensureJobLeadTable().catch((err) => console.error('ensureJobLeadTable failed', err));
-  if (!EMAIL_ENABLED) {
-    console.log('Email not configured: set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (optional: SENDGRID_REPLY_TO)');
-  }
-  if (!NEWSLETTER_UNSUBSCRIBE_SECRET) {
-    console.warn('NEWSLETTER_UNSUBSCRIBE_SECRET is not set. Newsletter unsubscribe tokens will use an insecure default. Set this env var in production.');
-  }
-  // Newsletter cron: every other Tuesday at 13:00 ET (18:00 UTC)
-  cron.schedule('0 18 * * 2', () => {
-    runNewsletterPipeline(prisma).catch((err) => {
-      console.error('Newsletter cron pipeline error:', err.message);
-    });
-  }, { timezone: 'UTC' });
+Promise.all([
+  ensureWaitlistTable(),
+  ensureJobLeadTable()
+]).catch((err) => console.error('Table setup failed:', err)).finally(() => {
+  app.listen(PORT, () => {
+    console.log(`Best Hospice and Home Health server running on http://localhost:${PORT}`);
+    fixTusconProviderData();
+    if (!EMAIL_ENABLED) {
+      console.log('Email not configured: set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (optional: SENDGRID_REPLY_TO)');
+    }
+    if (!NEWSLETTER_UNSUBSCRIBE_SECRET) {
+      console.warn('NEWSLETTER_UNSUBSCRIBE_SECRET is not set. Newsletter unsubscribe tokens will use an insecure default. Set this env var in production.');
+    }
+    // Newsletter cron: every other Tuesday at 13:00 ET (18:00 UTC)
+    cron.schedule('0 18 * * 2', () => {
+      runNewsletterPipeline(prisma).catch((err) => {
+        console.error('Newsletter cron pipeline error:', err.message);
+      });
+    }, { timezone: 'UTC' });
+  });
 });
