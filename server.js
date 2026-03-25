@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { v4: uuid } = require('uuid');
 const { PrismaClient } = require('@prisma/client');
-const { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, emailEnabled } = require('./email');
+const { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, sendJobSeekerNotification, emailEnabled } = require('./email');
 const { sendProviderSms, smsEnabled } = require('./sms');
 const Stripe = require('stripe');
 const bcrypt = require('bcryptjs');
@@ -48,7 +48,8 @@ const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-main.html',
   '/admin-audit.html',
   '/admin-newsletter.html',
-  '/admin-territory.html'
+  '/admin-territory.html',
+  '/admin-hiring.html'
 ]);
 
 function isAdminMainToken(token) {
@@ -291,6 +292,42 @@ async function ensureWaitlistTable() {
     )
   `);
   waitlistTableReady = true;
+}
+
+let jobLeadTableReady = false;
+async function ensureJobLeadTable() {
+  if (jobLeadTableReady) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "JobLead" (
+      "id" TEXT NOT NULL,
+      "zip" TEXT NOT NULL,
+      "name" TEXT,
+      "email" TEXT,
+      "phone" TEXT,
+      "role" TEXT,
+      "licensed" TEXT,
+      "availability" TEXT,
+      "timeline" TEXT,
+      "experience" TEXT,
+      "openToMultiple" TEXT,
+      "notifiedProviderIds" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "JobLead_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "activelyHiring" BOOLEAN NOT NULL DEFAULT TRUE
+  `);
+  jobLeadTableReady = true;
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = (v) => (v * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 let leadSessionColumnReady = false;
@@ -2460,6 +2497,7 @@ app.post('/api/providers', async (req, res) => {
     featured = false,
     planTier,
     careType,
+    activelyHiring,
   } = req.body || {};
   if (!name || !address || !city || !state || !zip || !email) {
     return res.status(400).json({ error: 'Missing required fields (name, address, city, state, zip, email).' });
@@ -2501,6 +2539,7 @@ app.post('/api/providers', async (req, res) => {
         serviceRadiusKm: radiusKmFromMiles !== undefined ? radiusKmFromMiles : Number(serviceRadiusKm) || 96.6,
         serviceZipCodes: zipCodesToStorage(serviceZipCodes),
         featured: Boolean(featured),
+        activelyHiring: activelyHiring !== false,
         planTier: normalizePlanTier(planTier),
         careType: normalizeCareType(careType)
       }
@@ -3749,6 +3788,123 @@ app.get('/api/admin/territory/leads', async (req, res) => {
   } catch (err) {
     console.error('Territory leads failed', err);
     res.status(500).json({ error: 'Failed to load data' });
+  }
+});
+
+app.post('/api/job-notify', rateLimit, async (req, res) => {
+  if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
+  try {
+    const { zip, name, email, phone, role, licensed, availability, timeline, experience, openToMultiple } = req.body || {};
+    if (!zip || !email || !role) return res.status(400).json({ error: 'Missing zip, email, or role' });
+    const zipMatch = String(zip || '').match(/\d{5}/);
+    if (!zipMatch) return res.status(400).json({ error: 'Invalid ZIP code' });
+    const safeZip = zipMatch[0];
+
+    await ensureJobLeadTable();
+
+    const geo = await geocodeAddress(`${safeZip}, USA`);
+    if (!geo) return res.status(400).json({ error: 'Could not locate that ZIP code. Please check and try again.' });
+
+    const allProviders = await prisma.provider.findMany({
+      select: { id: true, email: true, secondaryContactEmail: true, lat: true, lon: true, serviceRadiusKm: true, serviceZipCodes: true, activelyHiring: true }
+    });
+
+    const matchedProviders = allProviders.filter((p) => {
+      if (p.activelyHiring === false) return false;
+      const serviceZips = String(p.serviceZipCodes || '').split(',').map((z) => z.trim()).filter(Boolean);
+      if (serviceZips.includes(safeZip)) return true;
+      const radiusKm = Number(p.serviceRadiusKm) || 0;
+      if (radiusKm <= 0) return false;
+      return haversineKm(geo.lat, geo.lon, p.lat, p.lon) <= radiusKm;
+    });
+
+    const notifiedIds = matchedProviders.map((p) => p.id).join(',');
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "JobLead" ("id","zip","name","email","phone","role","licensed","availability","timeline","experience","openToMultiple","notifiedProviderIds","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())`,
+      uuid(), safeZip,
+      String(name || '').trim() || null,
+      String(email || '').trim() || null,
+      String(phone || '').trim() || null,
+      String(role || '').trim() || null,
+      String(licensed || '').trim() || null,
+      String(availability || '').trim() || null,
+      String(timeline || '').trim() || null,
+      String(experience || '').trim() || null,
+      String(openToMultiple || '').trim() || null,
+      notifiedIds || null
+    );
+
+    for (const p of matchedProviders) {
+      const recipientEmails = [String(p.email || '').trim(), String(p.secondaryContactEmail || '').trim()]
+        .filter(Boolean)
+        .filter((e, i, arr) => arr.indexOf(e) === i);
+      if (!recipientEmails.length) continue;
+      sendJobSeekerNotification({
+        providerEmails: recipientEmails,
+        candidateName: String(name || '').trim(),
+        candidatePhone: String(phone || '').trim(),
+        candidateEmail: String(email || '').trim(),
+        zip: safeZip,
+        role: String(role || '').trim(),
+        licensed: String(licensed || '').trim(),
+        availability: String(availability || '').trim(),
+        timeline: String(timeline || '').trim(),
+        experience: String(experience || '').trim(),
+        openToMultiple: String(openToMultiple || '').trim()
+      }).catch((err) => console.error('Job seeker notification failed for provider', p.id, err));
+    }
+
+    res.json({ ok: true, notifiedCount: matchedProviders.length });
+  } catch (err) {
+    console.error('Job notify failed', err);
+    res.status(500).json({ error: 'Failed to process job seeker submission' });
+  }
+});
+
+app.get('/api/admin/hiring/leads', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await ensureJobLeadTable();
+    const leads = await prisma.$queryRawUnsafe('SELECT * FROM "JobLead" ORDER BY "createdAt" DESC LIMIT 500');
+    res.json({ leads: leads || [] });
+  } catch (err) {
+    console.error('Admin hiring leads failed', err);
+    res.status(500).json({ error: 'Failed to load data' });
+  }
+});
+
+app.get('/api/provider/job-seekers', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    await ensureJobLeadTable();
+    const leads = await prisma.$queryRawUnsafe(
+      `SELECT * FROM "JobLead" WHERE "notifiedProviderIds" LIKE $1 ORDER BY "createdAt" DESC LIMIT 100`,
+      `%${ctx.providerId}%`
+    );
+    const hiringRows = await prisma.$queryRawUnsafe(
+      `SELECT "activelyHiring" FROM "Provider" WHERE "id" = $1 LIMIT 1`,
+      ctx.providerId
+    );
+    const activelyHiring = hiringRows[0]?.activelyHiring !== false;
+    res.json({ leads: leads || [], activelyHiring });
+  } catch (err) {
+    console.error('Provider job seekers failed', err);
+    res.status(500).json({ error: 'Failed to load job seeker data' });
+  }
+});
+
+app.patch('/api/provider/actively-hiring', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    await ensureJobLeadTable();
+    const enabled = req.body?.enabled !== false;
+    await prisma.$executeRawUnsafe(`UPDATE "Provider" SET "activelyHiring" = $1 WHERE "id" = $2`, enabled, ctx.providerId);
+    res.json({ ok: true, activelyHiring: enabled });
+  } catch (err) {
+    console.error('Actively hiring toggle failed', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -5805,6 +5961,7 @@ app.listen(PORT, () => {
   console.log(`Best Hospice and Home Health server running on http://localhost:${PORT}`);
   fixTusconProviderData();
   ensureWaitlistTable().catch((err) => console.error('ensureWaitlistTable failed', err));
+  ensureJobLeadTable().catch((err) => console.error('ensureJobLeadTable failed', err));
   if (!EMAIL_ENABLED) {
     console.log('Email not configured: set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (optional: SENDGRID_REPLY_TO)');
   }

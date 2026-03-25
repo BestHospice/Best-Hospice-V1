@@ -25,6 +25,7 @@ model Provider {
   lon                   Float
   serviceRadiusKm       Float
   featured              Boolean  @default(false)
+  activelyHiring        Boolean  @default(true)
   planTier              String   @default("verified")
   careType              String   @default("hospice")
   leadCount             Int      @default(0)
@@ -212,4 +213,20 @@ model WaitlistRequest {
   contactPhone String?
   timeline     String?
   createdAt    DateTime @default(now())
+}
+
+model JobLead {
+  id                  String   @id @default(uuid())
+  zip                 String
+  name                String?
+  email               String?
+  phone               String?
+  role                String?
+  licensed            String?
+  availability        String?
+  timeline            String?
+  experience          String?
+  openToMultiple      String?
+  notifiedProviderIds String?
+  createdAt           DateTime @default(now())
 }

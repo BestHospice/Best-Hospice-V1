@@ -163,6 +163,36 @@
         </div>
       </div>
 
+      <div style="border-top:1px solid #e5e7eb; padding-top:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+          <h3 style="margin:0;">Job Seekers</h3>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:14px; cursor:pointer;">
+            <span>Actively Hiring</span>
+            <input type="checkbox" id="actively-hiring-toggle" style="width:18px; height:18px; cursor:pointer;" />
+          </label>
+        </div>
+        <p style="color:#4b5563; font-size:14px; margin:0 0 10px;">Caregivers who submitted job inquiries in your service area. You are notified by email when a new candidate submits near your ZIP.</p>
+        <div id="job-seekers-loading" style="color:#4b5563; font-size:14px;">Loading…</div>
+        <div id="job-seekers-wrap" style="display:none; overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <thead>
+              <tr style="text-align:left; border-bottom:1px solid #e5e7eb;">
+                <th style="padding:8px;">Date</th>
+                <th style="padding:8px;">Name</th>
+                <th style="padding:8px;">Email</th>
+                <th style="padding:8px;">Phone</th>
+                <th style="padding:8px;">ZIP</th>
+                <th style="padding:8px;">Role</th>
+                <th style="padding:8px;">Availability</th>
+                <th style="padding:8px;">Timeline</th>
+              </tr>
+            </thead>
+            <tbody id="job-seekers-body"></tbody>
+          </table>
+        </div>
+        <p id="job-seekers-empty" style="display:none; color:#4b5563; font-size:14px;">No job seekers in your area yet. When caregivers submit in your service area, they will appear here.</p>
+      </div>
+
       <p id="status" style="color:#dc2626;"></p>
     </div>
   </div>
@@ -419,6 +449,7 @@
         }
         await loadMetrics();
         await loadLeadKPIs();
+        loadJobSeekers().catch(() => {});
       }catch(err){
         setStatus(err.message);
       }
@@ -434,6 +465,47 @@
         await loadLeadKPIs();
       }catch(err){
         setStatus(err.message);
+      }
+    });
+
+    async function loadJobSeekers() {
+      const loadingEl = document.getElementById('job-seekers-loading');
+      const wrapEl = document.getElementById('job-seekers-wrap');
+      const emptyEl = document.getElementById('job-seekers-empty');
+      const tbody = document.getElementById('job-seekers-body');
+      const toggle = document.getElementById('actively-hiring-toggle');
+      try {
+        const data = await callApi('/api/provider/job-seekers');
+        toggle.checked = data.activelyHiring !== false;
+        loadingEl.style.display = 'none';
+        const leads = data.leads || [];
+        if (!leads.length) { emptyEl.style.display = 'block'; return; }
+        tbody.innerHTML = leads.map((l) => {
+          const dt = l.createdAt ? new Date(l.createdAt).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+          const emailHtml = l.email ? `<a href="mailto:${escapeHtml(l.email)}">${escapeHtml(l.email)}</a>` : '—';
+          return `<tr>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${dt}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${escapeHtml(l.name || '—')}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb; font-size:13px;">${emailHtml}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${escapeHtml(l.phone || '—')}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${escapeHtml(l.zip || '—')}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${escapeHtml(l.role || '—')}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${escapeHtml(l.availability || '—')}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${escapeHtml(l.timeline || '—')}</td>
+          </tr>`;
+        }).join('');
+        wrapEl.style.display = 'block';
+      } catch (err) {
+        loadingEl.textContent = 'Could not load job seekers.';
+      }
+    }
+
+    document.getElementById('actively-hiring-toggle').addEventListener('change', async (e) => {
+      try {
+        await callApi('/api/provider/actively-hiring', 'PATCH', { enabled: e.target.checked });
+      } catch (err) {
+        setStatus('Could not update Actively Hiring setting.');
+        e.target.checked = !e.target.checked;
       }
     });
 

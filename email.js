@@ -260,6 +260,53 @@ async function sendLeadStatusNudgeEmail({ providers, lead, statusLinks }) {
   return results;
 }
 
+function buildJobSeekerEmailHtml({ candidateName, candidatePhone, candidateEmail, zip, role, licensed, availability, timeline, experience, openToMultiple }) {
+  return `
+<div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #222;">
+  <p>A caregiver in your service area is actively looking for work and has been matched with your organization.</p>
+  <hr />
+  <p><strong>CANDIDATE INFORMATION:</strong><br />
+  Name: ${toDisplay(candidateName)}<br />
+  Phone: ${toDisplay(candidatePhone)}<br />
+  Email: ${toDisplay(candidateEmail)}<br />
+  ZIP Code: ${toDisplay(zip)}<br />
+  Role Sought: ${toDisplay(role)}<br />
+  Availability: ${toDisplay(availability)}<br />
+  Licensed / Certified: ${toDisplay(licensed)}<br />
+  Prior Hospice / Home Care Experience: ${toDisplay(experience)}<br />
+  Start Timeline: ${toDisplay(timeline)}<br />
+  Open to Multiple Providers: ${toDisplay(openToMultiple)}</p>
+  <p><strong>NEXT STEPS:</strong></p>
+  <p>We recommend reaching out within 24 hours. Candidates are also matched with other providers, so prompt follow-up is important.</p>
+  <p>You are receiving this because you have "Actively Hiring" enabled on your Best Hospice and Home Health provider profile. To disable these notifications, contact <a href="mailto:admin@besthospice.com">admin@besthospice.com</a> or toggle it off in your provider dashboard.</p>
+  ${sharedSignatureBlock()}
+  <hr />
+  <p style="font-size:12px; color:#666;">This message contains confidential candidate information.</p>
+</div>
+`;
+}
+
+async function sendJobSeekerNotification({ providerEmails, candidateName, candidatePhone, candidateEmail, zip, role, licensed, availability, timeline, experience, openToMultiple }) {
+  if (!initSendGrid()) throw new Error('SendGrid not configured');
+  const from = process.env.SENDGRID_FROM_EMAIL;
+  const replyTo = process.env.SENDGRID_REPLY_TO || from;
+  const leadMonitorEmail = String(process.env.LEAD_EMAIL_MONITOR || 'contact@besthospice.com').trim();
+  const subject = `New Job Seeker Lead — ${toDisplay(role, 'Caregiver')} near ${toDisplay(zip)}`;
+  const html = buildJobSeekerEmailHtml({ candidateName, candidatePhone, candidateEmail, zip, role, licensed, availability, timeline, experience, openToMultiple });
+
+  for (const recipient of (providerEmails || [])) {
+    const msg = { to: recipient, from, replyTo, subject, html };
+    if (leadMonitorEmail && leadMonitorEmail.toLowerCase() !== String(recipient).toLowerCase()) {
+      msg.bcc = leadMonitorEmail;
+    }
+    try {
+      await sgMail.send(msg);
+    } catch (error) {
+      console.error('SendGrid job seeker send failed for', recipient, error?.response?.body || error);
+    }
+  }
+}
+
 async function sendGenericEmail(to, subject, html) {
   if (!initSendGrid()) throw new Error('SendGrid not configured');
   const msg = {
@@ -276,4 +323,4 @@ async function sendTestEmail(to) {
   return sendGenericEmail(to, 'Best Hospice and Home Health test email', '<p>This is a test email from Best Hospice and Home Health backend.</p>');
 }
 
-module.exports = { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, emailEnabled };
+module.exports = { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, sendJobSeekerNotification, emailEnabled };

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hiring Prospects | Best Hospice Admin</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles-modern.css" />
+  <link rel="stylesheet" href="/styles/main.css" />
+  <style>
+    .admin-shell { max-width: 1040px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); margin-bottom: 20px; }
+    .note { color: #4b5563; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 8px 10px; border-bottom: 2px solid #e5e7eb; color: #374151; font-weight: 600; }
+    td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    .table-wrap { overflow-x: auto; }
+    .stat-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+    .stat-box { background: #fff; border-radius: 10px; padding: 16px 20px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(15,23,42,0.06); min-width: 140px; }
+    .stat-box .val { font-size: 2rem; font-weight: 700; color: #0f766e; line-height: 1; }
+    .stat-box .lbl { font-size: 13px; color: #6b7280; margin-top: 4px; }
+  </style>
+  <script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
+</head>
+<body>
+  <div class="admin-shell">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+      <div>
+        <h1 style="margin:0;">Hiring Prospects</h1>
+        <p class="note">Caregiver job seekers who submitted via the Find Work flow on the homepage. Providers with Actively Hiring enabled are notified automatically.</p>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="button ghost" href="admin-menu.html">Back to Admin</a>
+        <button class="button ghost" id="admin-logout-btn" type="button">Log Out</button>
+      </div>
+    </div>
+
+    <div class="stat-row" id="stat-row" style="display:none;">
+      <div class="stat-box">
+        <div class="val" id="stat-total">—</div>
+        <div class="lbl">Total Applicants</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="stat-zips">—</div>
+        <div class="lbl">Unique ZIPs</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 4px;">All Job Seeker Submissions</h2>
+      <p class="note" style="margin:0 0 14px;">Each row is a caregiver who submitted the Find Work questionnaire on the homepage.</p>
+      <div id="tl-loading" class="note">Loading…</div>
+      <div class="table-wrap" id="tl-table-wrap" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th>Date &amp; Time</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>ZIP</th>
+              <th>Role</th>
+              <th>Availability</th>
+              <th>Timeline</th>
+              <th>Experience</th>
+              <th>Licensed</th>
+              <th>Open to Multiple</th>
+            </tr>
+          </thead>
+          <tbody id="tl-body"></tbody>
+        </table>
+      </div>
+      <p id="tl-empty" class="note" style="display:none;">No job seeker submissions yet. They will appear here when caregivers submit via the Find Work flow.</p>
+    </div>
+  </div>
+
+  <script>
+    function fmtDateTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit'
+      });
+    }
+
+    async function loadData() {
+      const loadingEl = document.getElementById('tl-loading');
+      const tableWrap = document.getElementById('tl-table-wrap');
+      const emptyEl = document.getElementById('tl-empty');
+      const tbody = document.getElementById('tl-body');
+      const statRow = document.getElementById('stat-row');
+
+      try {
+        const res = await fetch('/api/admin/hiring/leads', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Failed to load data');
+        const data = await res.json();
+        const leads = data.leads || [];
+        loadingEl.style.display = 'none';
+
+        if (!leads.length) {
+          emptyEl.style.display = 'block';
+          return;
+        }
+
+        const uniqueZips = new Set(leads.map((r) => r.zip).filter(Boolean));
+        document.getElementById('stat-total').textContent = leads.length.toLocaleString();
+        document.getElementById('stat-zips').textContent = uniqueZips.size.toLocaleString();
+        statRow.style.display = 'flex';
+
+        tbody.innerHTML = leads.map((r) => {
+          const email = r.email ? `<a href="mailto:${r.email}">${r.email}</a>` : '—';
+          return `<tr>
+            <td style="white-space:nowrap;">${fmtDateTime(r.createdAt)}</td>
+            <td>${r.name || '—'}</td>
+            <td style="font-size:13px;">${email}</td>
+            <td style="white-space:nowrap;">${r.phone || '—'}</td>
+            <td><strong>${r.zip || '—'}</strong></td>
+            <td>${r.role || '—'}</td>
+            <td>${r.availability || '—'}</td>
+            <td>${r.timeline || '—'}</td>
+            <td>${r.experience || '—'}</td>
+            <td>${r.licensed || '—'}</td>
+            <td>${r.openToMultiple || '—'}</td>
+          </tr>`;
+        }).join('');
+        tableWrap.style.display = 'block';
+      } catch (err) {
+        loadingEl.textContent = 'Could not load data. ' + (err.message || '');
+      }
+    }
+
+    document.getElementById('admin-logout-btn').addEventListener('click', async () => {
+      await window.adminAuth.logout();
+      window.location.href = 'admin.html';
+    });
+
+    loadData();
+  </script>
+</body>
+</html>

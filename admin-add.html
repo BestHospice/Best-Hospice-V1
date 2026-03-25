@@ -159,6 +159,12 @@
             <option value="home">Home Care</option>
           </select>
         </div>
+        <div>
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input id="activelyHiring" type="checkbox" checked style="width:16px; height:16px;" />
+            Actively Hiring (enable job seeker lead notifications)
+          </label>
+        </div>
         <input id="featured" type="hidden" value="true" />
       </div>
       <div class="admin-actions">
@@ -189,7 +195,8 @@
         serviceZipCodes: document.getElementById('service-zip-codes').value.trim(),
         featured: true,
         planTier: document.getElementById('planTier').value,
-        careType: document.getElementById('careType').value
+        careType: document.getElementById('careType').value,
+        activelyHiring: document.getElementById('activelyHiring').checked
       };
       statusEl.textContent = 'Submitting...';
       try {

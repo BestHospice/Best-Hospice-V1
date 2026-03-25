@@ -716,8 +716,7 @@
       </form>
       <div id="wq-success">
         <h3>You're connected!</h3>
-        <p style="color:#374151; margin:0 0 14px;">Your information has been sent to hiring providers near your ZIP. You should hear back within 24–48 hours. Thank you for choosing to make a difference.</p>
-        <p style="color:#6b7280; font-size:13px; margin:0;">Full job matching with live provider notifications is coming very soon.</p>
+        <p style="color:#374151; margin:0;">Your information has been sent to hiring providers near your ZIP. You should hear back within 24–48 hours. Thank you for choosing to make a difference.</p>
       </div>
     </div>
   </div>
@@ -823,8 +822,7 @@
     document.getElementById('wq-close').addEventListener('click', () => modal.classList.remove('open'));
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
 
-    // Work questionnaire submit (Stage 1: show thank you, no backend)
-    document.getElementById('wq-form').addEventListener('submit', (e) => {
+    document.getElementById('wq-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const errEl = document.getElementById('wq-error');
       errEl.style.display = 'none';
@@ -836,8 +834,39 @@
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Please enter a valid email address.'; errEl.style.display = 'block'; return; }
       if (!zip || !/^\d{5}$/.test(zip)) { errEl.textContent = 'Please enter a valid 5-digit ZIP code.'; errEl.style.display = 'block'; return; }
       if (!role) { errEl.textContent = 'Please select the role you are looking for.'; errEl.style.display = 'block'; return; }
-      document.getElementById('wq-form').style.display = 'none';
-      document.getElementById('wq-success').style.display = 'block';
+      const submitBtn = document.querySelector('#wq-form button[type="submit"]');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
+      try {
+        const res = await fetch('/api/job-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            zip,
+            name,
+            email,
+            phone: document.getElementById('wq-phone').value.trim(),
+            role,
+            licensed: document.getElementById('wq-licensed').value,
+            availability: document.getElementById('wq-availability').value,
+            timeline: document.getElementById('wq-timeline').value,
+            experience: document.getElementById('wq-experience').value,
+            openToMultiple: document.getElementById('wq-multiple').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Something went wrong. Please try again.';
+          errEl.style.display = 'block';
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Find Work Now'; }
+          return;
+        }
+        document.getElementById('wq-form').style.display = 'none';
+        document.getElementById('wq-success').style.display = 'block';
+      } catch (err) {
+        errEl.textContent = 'Could not connect. Please try again.';
+        errEl.style.display = 'block';
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Find Work Now'; }
+      }
     });
   })();
   // ───────────────────────────────────────────────────────────────────────
