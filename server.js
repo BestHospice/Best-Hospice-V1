@@ -2576,7 +2576,8 @@ app.put('/api/providers/:id', async (req, res) => {
     website,
     featured,
     planTier,
-    careType
+    careType,
+    activelyHiring
   } = req.body || {};
   const data = {};
   if (name !== undefined) data.name = String(name).trim();
@@ -2625,6 +2626,7 @@ app.put('/api/providers/:id', async (req, res) => {
     data.serviceZipCodes = zipCodesToStorage(serviceZipCodes);
   }
   if (featured !== undefined) data.featured = Boolean(featured);
+  if (activelyHiring !== undefined) data.activelyHiring = activelyHiring !== false;
   if (planTier !== undefined && planTier !== '') data.planTier = normalizePlanTier(planTier);
   if (careType !== undefined && careType !== '') data.careType = normalizeCareType(careType);
 

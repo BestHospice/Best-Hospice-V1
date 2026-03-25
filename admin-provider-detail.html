@@ -46,6 +46,7 @@
         <span><strong>Service ZIP Codes:</strong> <span id="prov-service-zips"></span></span>
         <span><strong>Plan Tier:</strong> <span id="prov-plan-tier"></span></span>
         <span><strong>Care Type:</strong> <span id="prov-care-type"></span></span>
+        <span><strong>Actively Hiring:</strong> <span id="prov-actively-hiring"></span></span>
         <span><strong>Leads Best Hospice and Home Health has provided:</strong> <span id="prov-leads"></span></span>
         <span><strong>Added:</strong> <span id="prov-added"></span></span>
       </div>
@@ -81,6 +82,12 @@
               <option value="palliative">Palliative Care</option>
               <option value="home">Home Care</option>
             </select>
+          </div>
+          <div style="display:flex; align-items:center;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700; font-size:14px;">
+              <input id="f-actively-hiring" type="checkbox" style="width:16px; height:16px;" />
+              Actively Hiring (receive job seeker notifications)
+            </label>
           </div>
         </div>
         <button class="button" id="save-btn" style="margin-top:10px;">Save changes</button>
@@ -135,6 +142,7 @@
       document.getElementById('prov-service-zips').textContent = p.serviceZipCodes || '—';
       document.getElementById('prov-plan-tier').textContent = p.planTier || 'verified';
       document.getElementById('prov-care-type').textContent = prettyCareType(p.careType);
+      document.getElementById('prov-actively-hiring').textContent = p.activelyHiring !== false ? 'Yes' : 'No';
       document.getElementById('prov-leads').textContent = p.leadCount ?? 0;
       document.getElementById('prov-added').textContent = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
 
@@ -161,6 +169,7 @@
       document.getElementById('f-service-zips').value = p.serviceZipCodes || '';
       document.getElementById('f-plan-tier').value = p.planTier || 'verified';
       document.getElementById('f-care-type').value = p.careType || 'hospice';
+      document.getElementById('f-actively-hiring').checked = p.activelyHiring !== false;
     }
 
     async function saveChanges() {
@@ -185,7 +194,8 @@
         serviceRadiusMiles: document.getElementById('f-radius').value.trim(),
         serviceZipCodes: document.getElementById('f-service-zips').value.trim(),
         planTier: document.getElementById('f-plan-tier').value,
-        careType: document.getElementById('f-care-type').value
+        careType: document.getElementById('f-care-type').value,
+        activelyHiring: document.getElementById('f-actively-hiring').checked
       };
       try {
         const res = await fetch(`/api/providers/${encodeURIComponent(currentProvider.id)}`, {
