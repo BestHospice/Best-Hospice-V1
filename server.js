@@ -1465,7 +1465,9 @@ setInterval(() => {
 
 async function rateLimit(req, res, next) {
   try {
-    const ipHash = hashIp(req.ip || '');
+    const requestIp = req.ip || '';
+    if (requestIp && AUTH_RATE_LIMIT_BYPASS_IPS.has(requestIp)) return next();
+    const ipHash = hashIp(requestIp);
     const cutoff = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
     const count = await prisma.rateLimitEvent.count({
       where: {
