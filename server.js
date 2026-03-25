@@ -3866,10 +3866,55 @@ app.get('/api/admin/hiring/leads', async (req, res) => {
   try {
     await ensureJobLeadTable();
     const leads = await prisma.$queryRawUnsafe('SELECT * FROM "JobLead" ORDER BY "createdAt" DESC LIMIT 500');
-    res.json({ leads: leads || [] });
+
+    // Geocode unique ZIPs for heat map
+    const uniqueZips = [...new Set((leads || []).map((l) => l.zip).filter(Boolean))];
+    const zipCoords = {};
+    for (const zip of uniqueZips) {
+      try {
+        const geo = await geocodeAddress(`${zip}, USA`);
+        if (geo) zipCoords[zip] = { lat: geo.lat, lon: geo.lon };
+      } catch (_) { /* skip */ }
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+    const zipCountMap = {};
+    (leads || []).forEach((l) => { if (l.zip) zipCountMap[l.zip] = (zipCountMap[l.zip] || 0) + 1; });
+    const heatPoints = Object.entries(zipCountMap)
+      .filter(([zip]) => zipCoords[zip])
+      .map(([zip, count]) => ({ zip, count, lat: zipCoords[zip].lat, lon: zipCoords[zip].lon }));
+
+    // Build providers map for "View notified providers" feature
+    const allProviderIds = new Set();
+    (leads || []).forEach((l) => {
+      String(l.notifiedProviderIds || '').split(',').map((s) => s.trim()).filter(Boolean).forEach((id) => allProviderIds.add(id));
+    });
+    let providersMap = {};
+    if (allProviderIds.size) {
+      const providerRows = await prisma.provider.findMany({
+        where: { id: { in: [...allProviderIds] } },
+        select: { id: true, name: true, email: true }
+      });
+      providerRows.forEach((p) => { providersMap[p.id] = { name: p.name, email: p.email }; });
+    }
+
+    res.json({ leads: leads || [], heatPoints, providers: providersMap });
   } catch (err) {
     console.error('Admin hiring leads failed', err);
     res.status(500).json({ error: 'Failed to load data' });
+  }
+});
+
+app.delete('/api/admin/hiring/leads/:id', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+  try {
+    await ensureJobLeadTable();
+    await prisma.$executeRawUnsafe('DELETE FROM "JobLead" WHERE "id" = $1', id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Admin hiring lead delete failed', err);
+    res.status(500).json({ error: 'Failed to delete lead' });
   }
 });
 
