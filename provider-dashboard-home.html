@@ -359,6 +359,7 @@
               updateLeadStatus(l.leadId, newStatus, tr);
             });
           });
+        });
         document.getElementById('page-info').textContent = `Page ${leads.page || 1} of ${Math.max(1, Math.ceil((leads.total || 0)/(leads.pageSize || 10)))}`;
         document.getElementById('prev-page').disabled = (leads.page || 1) <= 1;
         document.getElementById('next-page').disabled = (leads.page || 1) >= Math.max(1, Math.ceil((leads.total || 0)/(leads.pageSize || 10)));
