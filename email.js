@@ -55,7 +55,6 @@ function buildInitialLeadEmailHtml({ clientZip, timeline, clientEmail, clientPho
   ZIP Code: ${toDisplay(clientZip)}<br />
   Timeline: ${toDisplay(timeline, 'Not specified')}</p>
   <p><strong>NEXT STEPS:</strong></p>
-  <p>We recommend calling within 24 hours for best response rates. They are also contacting other providers, so prompt follow-up is important.</p>
   <p>View your lead dashboard: <a href="https://www.besthospice.com/provider-dashboard.html">Provider Dashboard</a></p>
   ${sharedSignatureBlock()}
   <hr />
