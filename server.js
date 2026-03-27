@@ -222,12 +222,12 @@ const LEAD_STATUS_NUDGE_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
 const LEAD_STATUS_NUDGE_ENABLED = process.env.LEAD_STATUS_NUDGE_ENABLED === 'true';
 const LEAD_OUTCOME_VALUES = ['new', 'contacted', 'qualified', 'admitted', 'not_a_fit', 'no_response'];
 const LEAD_OUTCOME_LABELS = {
-  new: 'New',
+  new: 'Received',
   contacted: 'Contacted',
-  qualified: 'Qualified',
+  qualified: 'Contacted',
   admitted: 'Admitted',
-  not_a_fit: 'Not a Fit',
-  no_response: 'No Response'
+  not_a_fit: 'Not a True Lead',
+  no_response: 'Not a True Lead'
 };
 
 let newsletterTableReady = false;

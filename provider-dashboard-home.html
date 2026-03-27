@@ -70,9 +70,8 @@
                 <th style="padding:8px;">Contact Email</th>
                 <th style="padding:8px;">Contact Phone</th>
                 <th style="padding:8px;">Name</th>
-                <th style="padding:8px;">Lead Status</th>
+                <th style="padding:8px;">Client Status</th>
                 <th style="padding:8px;">Updated</th>
-                <th style="padding:8px;">Action</th>
               </tr>
             </thead>
             <tbody id="leads-body"></tbody>
@@ -201,12 +200,10 @@
     const tokenKey = 'provider_jwt';
     const statusEl = document.getElementById('status');
     const leadStatusOptions = [
-      { value: 'new', label: 'New' },
+      { value: 'new', label: 'Received' },
       { value: 'contacted', label: 'Contacted' },
-      { value: 'qualified', label: 'Qualified' },
       { value: 'admitted', label: 'Admitted' },
-      { value: 'not_a_fit', label: 'Not a Fit' },
-      { value: 'no_response', label: 'No Response' }
+      { value: 'not_a_fit', label: 'Not a True Lead' }
     ];
     let totalNotificationsCache = 0;
     let providersList = [];
@@ -224,19 +221,23 @@
         .replace(/'/g, '&#39;');
     }
 
-    async function updateLeadStatus(leadId, status, buttonEl) {
+    async function updateLeadStatus(leadId, status, rowEl) {
       try {
-        buttonEl.disabled = true;
-        buttonEl.textContent = 'Saving...';
+        rowEl.querySelectorAll('[data-status-btn]').forEach((b) => { b.disabled = true; });
         await callApi(`/api/provider/leads/${encodeURIComponent(leadId)}/status`, 'PATCH', { status });
-        buttonEl.textContent = 'Saved';
-        setTimeout(() => { buttonEl.textContent = 'Save'; }, 900);
+        rowEl.querySelectorAll('[data-status-btn]').forEach((b) => {
+          b.disabled = false;
+          const isActive = b.getAttribute('data-status-btn') === status;
+          b.style.background = isActive ? '#0f766e' : '#f1f5f9';
+          b.style.color = isActive ? '#fff' : '#374151';
+          b.style.fontWeight = isActive ? '700' : '400';
+        });
+        const updatedCell = rowEl.querySelector('[data-updated-cell]');
+        if (updatedCell) updatedCell.textContent = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
         await loadLeadKPIs();
       } catch (err) {
-        setStatus(err.message || 'Could not update lead status');
-        buttonEl.textContent = 'Save';
-      } finally {
-        buttonEl.disabled = false;
+        setStatus(err.message || 'Could not update client status');
+        rowEl.querySelectorAll('[data-status-btn]').forEach((b) => { b.disabled = false; });
       }
     }
 
@@ -332,9 +333,10 @@
           const statusUpdated = l.outcomeUpdatedAt
             ? new Date(l.outcomeUpdatedAt).toLocaleString('en-US', { timeZone: 'America/New_York' })
             : '-';
-          const statusOptionsHtml = leadStatusOptions.map((opt) => (
-            `<option value="${opt.value}" ${opt.value === status ? 'selected' : ''}>${opt.label}</option>`
-          )).join('');
+          const statusBtnsHtml = leadStatusOptions.map((opt) => {
+            const isActive = opt.value === status || (status === 'qualified' && opt.value === 'contacted') || (status === 'no_response' && opt.value === 'not_a_fit');
+            return `<button type="button" data-status-btn="${escapeHtml(opt.value)}" style="padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #d1d5db; cursor:pointer; white-space:nowrap; background:${isActive ? '#0f766e' : '#f1f5f9'}; color:${isActive ? '#fff' : '#374151'}; font-weight:${isActive ? '700' : '400'};">${opt.label}</button>`;
+          }).join('');
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${dateStr}</td>
@@ -345,25 +347,18 @@
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientPhone || ''}</td>
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientName || ''}</td>
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">
-              <select data-lead-status="${escapeHtml(l.leadId || '')}" style="padding:6px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;">
-                ${statusOptionsHtml}
-              </select>
+              <div style="display:flex; flex-wrap:wrap; gap:4px;">${statusBtnsHtml}</div>
             </td>
-            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${statusUpdated}</td>
-            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">
-              <button class="dash-btn secondary" type="button" data-lead-save="${escapeHtml(l.leadId || '')}" style="padding:6px 10px;">Save</button>
-            </td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;" data-updated-cell>${statusUpdated}</td>
           `;
           body.appendChild(tr);
-        });
-        body.querySelectorAll('[data-lead-save]').forEach((btn) => {
-          btn.addEventListener('click', async () => {
-            const leadId = btn.getAttribute('data-lead-save');
-            const select = body.querySelector(`[data-lead-status="${CSS.escape(leadId)}"]`);
-            if (!leadId || !select) return;
-            await updateLeadStatus(leadId, select.value, btn);
+          tr.querySelectorAll('[data-status-btn]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const newStatus = btn.getAttribute('data-status-btn');
+              if (!l.leadId || !newStatus) return;
+              updateLeadStatus(l.leadId, newStatus, tr);
+            });
           });
-        });
         document.getElementById('page-info').textContent = `Page ${leads.page || 1} of ${Math.max(1, Math.ceil((leads.total || 0)/(leads.pageSize || 10)))}`;
         document.getElementById('prev-page').disabled = (leads.page || 1) <= 1;
         document.getElementById('next-page').disabled = (leads.page || 1) >= Math.max(1, Math.ceil((leads.total || 0)/(leads.pageSize || 10)));
