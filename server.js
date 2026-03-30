@@ -5720,7 +5720,21 @@ const GUIDE_PATHS = [
   '/guides/medicare-hospice-coverage',
   '/guides/when-is-it-time-for-hospice',
   '/guides/hospice-vs-palliative-care',
-  '/guides/home-health-care-costs'
+  '/guides/home-health-care-costs',
+  '/guides/does-hospice-mean-giving-up',
+  '/guides/hospice-care-for-dementia',
+  '/guides/hospice-care-for-cancer',
+  '/guides/hospice-care-for-copd-heart-failure',
+  '/guides/hospice-care-birmingham-alabama',
+  '/guides/palliative-care-vs-hospice-arizona',
+  '/guides/hospice-care-cancer-arizona',
+  '/guides/hospice-care-dementia-alzheimers-arizona',
+  '/guides/hospice-care-heart-failure-arizona',
+  '/guides/hospice-care-copd-arizona',
+  '/guides/when-is-it-time-for-hospice-arizona',
+  '/guides/how-to-pay-for-hospice-care-arizona',
+  '/guides/veteran-hospice-care-arizona',
+  '/guides/altcs-home-care-arizona'
 ];
 const CORE_CONTENT_PAGES = [
   '/',
@@ -5908,6 +5922,33 @@ app.get('/guides/hospice-care-for-copd-heart-failure', (_req, res) => {
 });
 app.get('/guides/hospice-care-birmingham-alabama', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'hospice-care-birmingham-alabama.html'));
+});
+app.get('/guides/palliative-care-vs-hospice-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'palliative-care-vs-hospice-arizona.html'));
+});
+app.get('/guides/hospice-care-cancer-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-cancer-arizona.html'));
+});
+app.get('/guides/hospice-care-dementia-alzheimers-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-dementia-alzheimers-arizona.html'));
+});
+app.get('/guides/hospice-care-heart-failure-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-heart-failure-arizona.html'));
+});
+app.get('/guides/hospice-care-copd-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-copd-arizona.html'));
+});
+app.get('/guides/when-is-it-time-for-hospice-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'when-is-it-time-for-hospice-arizona.html'));
+});
+app.get('/guides/how-to-pay-for-hospice-care-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'how-to-pay-for-hospice-care-arizona.html'));
+});
+app.get('/guides/veteran-hospice-care-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'veteran-hospice-care-arizona.html'));
+});
+app.get('/guides/altcs-home-care-arizona', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'altcs-home-care-arizona.html'));
 });
 
 // Paid ads landing page (serve 200 on all aliases for strict ad crawlers)
