@@ -983,10 +983,9 @@ app.get('/cities/:city-:state', async (req, res) => {
 
     const city = providers[0].city;
     const stateCode = String(providers[0].state || '').toLowerCase();
-    const html = renderCityPage({ serviceKey: 'hospice-care', city, state: stateCode, providers });
-    res.send(html);
+    return res.redirect(301, `/hospice-care/${slugify(city)}-${stateCode}`);
   } catch (err) {
-    console.error('Dynamic city page failed', err);
+    console.error('Dynamic city page redirect failed', err);
     res.status(500).send('Server error');
   }
 });
