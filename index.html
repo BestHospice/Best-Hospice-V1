@@ -558,6 +558,7 @@
       <p style="margin:0 0 16px; color:#4b5563;">Get helpful guides for families navigating hospice, palliative, and home care: free, no spam.</p>
       <div id="newsletter-success" style="display:none; color:#15803d; font-weight:600; padding:12px 0;">You're subscribed! We'll send helpful hospice, palliative, and home care guides to your inbox.</div>
       <form id="newsletter-form" novalidate>
+        <input type="text" name="website" id="nl-website" tabindex="-1" autocomplete="off" style="display:none;" />
         <div style="display:grid; gap:10px; max-width:480px;">
           <input id="nl-name" type="text" placeholder="Your name" autocomplete="name"
             style="padding:10px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:15px;" />
@@ -594,7 +595,7 @@
               var res = await fetch('/api/newsletter/subscribe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name, email: email })
+                body: JSON.stringify({ name: name, email: email, website: document.getElementById('nl-website').value })
               });
               var data = await res.json();
               if (data.ok) {

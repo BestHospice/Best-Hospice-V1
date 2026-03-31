@@ -118,6 +118,7 @@
           You're subscribed! We'll send helpful hospice, palliative, and home care guides to your inbox.
         </div>
         <form id="nl-form" novalidate>
+          <input type="text" name="website" id="nl-website" tabindex="-1" autocomplete="off" style="display:none;" />
           <div style="display:grid;gap:12px;max-width:480px;">
             <input id="nl-name" class="nl-input" type="text" placeholder="Your name" autocomplete="name" />
             <input id="nl-email" class="nl-input" type="email" placeholder="Your email address" autocomplete="email" />
@@ -254,7 +255,7 @@
         const res = await fetch('/api/newsletter/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email })
+          body: JSON.stringify({ name, email, website: document.getElementById('nl-website').value })
         });
         const data = await res.json();
         if (data.ok) {

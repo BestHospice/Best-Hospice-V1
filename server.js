@@ -3015,6 +3015,7 @@ app.get('/api/newsletter/issues', (req, res) => {
 });
 
 app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
+  if (req.body?.website) return res.json({ ok: true, message: 'Subscribed successfully.' });
   try {
     const name = String(req.body?.name || '').trim();
     const email = String(req.body?.email || '').trim().toLowerCase();
