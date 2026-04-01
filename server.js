@@ -5734,7 +5734,12 @@ const GUIDE_PATHS = [
   '/guides/when-is-it-time-for-hospice-arizona',
   '/guides/how-to-pay-for-hospice-care-arizona',
   '/guides/veteran-hospice-care-arizona',
-  '/guides/altcs-home-care-arizona'
+  '/guides/altcs-home-care-arizona',
+  '/guides/hospice-care-cost',
+  '/guides/hospice-care-nashville-tennessee',
+  '/guides/hospice-care-denver-colorado',
+  '/guides/hospice-care-tampa-florida',
+  '/guides/hospice-care-charlotte-north-carolina'
 ];
 const CORE_CONTENT_PAGES = [
   '/',
@@ -5949,6 +5954,21 @@ app.get('/guides/veteran-hospice-care-arizona', (_req, res) => {
 });
 app.get('/guides/altcs-home-care-arizona', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'altcs-home-care-arizona.html'));
+});
+app.get('/guides/hospice-care-cost', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-cost.html'));
+});
+app.get('/guides/hospice-care-nashville-tennessee', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-nashville-tennessee.html'));
+});
+app.get('/guides/hospice-care-denver-colorado', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-denver-colorado.html'));
+});
+app.get('/guides/hospice-care-tampa-florida', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-tampa-florida.html'));
+});
+app.get('/guides/hospice-care-charlotte-north-carolina', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-charlotte-north-carolina.html'));
 });
 
 // Paid ads landing page (serve 200 on all aliases for strict ad crawlers)
