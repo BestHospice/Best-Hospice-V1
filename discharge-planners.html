@@ -156,19 +156,19 @@
       padding: 20px 40px;
     }
     .trust-bar-inner {
-      max-width: 900px; margin: 0 auto;
-      display: flex; gap: 40px; flex-wrap: wrap; align-items: center; justify-content: center;
+      max-width: 520px; margin: 0 auto;
+      display: flex; flex-direction: column; gap: 12px;
     }
     .trust-item {
       display: flex; align-items: center; gap: 10px;
       font-size: 0.875rem; font-weight: 500; color: var(--navy-mid);
     }
-    .trust-icon {
-      width: 28px; height: 28px;
+    .trust-item::before {
+      content: '';
+      width: 8px; height: 8px;
       background: var(--teal);
       border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      color: white; font-size: 0.75rem; flex-shrink: 0;
+      flex-shrink: 0;
     }
 
     /* SECTIONS */
@@ -272,9 +272,11 @@
       color: rgba(255,255,255,0.8); font-size: 0.875rem;
     }
     .verify-list li::before {
-      content: '✓';
-      color: var(--teal-light);
-      font-weight: 700;
+      content: '';
+      width: 8px; height: 8px;
+      background: var(--teal-light);
+      border-radius: 50%;
+      display: inline-block;
       flex-shrink: 0;
       margin-top: 1px;
     }
@@ -426,22 +428,10 @@
   <!-- TRUST BAR -->
   <div class="trust-bar">
     <div class="trust-bar-inner">
-      <div class="trust-item">
-        <div class="trust-icon">✓</div>
-        Verified & Licensed Providers
-      </div>
-      <div class="trust-item">
-        <div class="trust-icon">⏱</div>
-        24-Hour Response Guarantee
-      </div>
-      <div class="trust-item">
-        <div class="trust-icon">$</div>
-        Zero Commission — No Referral Fees
-      </div>
-      <div class="trust-item">
-        <div class="trust-icon">🔒</div>
-        HIPAA-Conscious Handling
-      </div>
+      <div class="trust-item">Verified & Licensed Providers</div>
+      <div class="trust-item">24-Hour Response Guarantee</div>
+      <div class="trust-item">Zero Commission — No Referral Fees</div>
+      <div class="trust-item">HIPAA-Conscious Handling</div>
     </div>
   </div>
 
@@ -454,32 +444,32 @@
 
       <div class="why-grid">
         <div class="why-card">
-          <div class="why-card-icon">🛡️</div>
+          
           <h3>Every Provider Is Verified</h3>
           <p>We manually verify licensure, accreditation, and service area before any provider appears on the platform. No outdated listings, no unresponsive agencies.</p>
         </div>
         <div class="why-card">
-          <div class="why-card-icon">⚡</div>
+          
           <h3>No Account Required to Submit</h3>
           <p>Submit a family's information in under 60 seconds. No registration wall, no lengthy forms. Register later if you want to track your referrals.</p>
         </div>
         <div class="why-card">
-          <div class="why-card-icon">🚫</div>
+          
           <h3>Zero Commission Bias</h3>
           <p>Providers pay a flat subscription — not a fee per referral. That means families get matched to the right provider, not the one that pays the biggest commission.</p>
         </div>
         <div class="why-card">
-          <div class="why-card-icon">📍</div>
+          
           <h3>Nationwide Coverage</h3>
           <p>Verified providers across the country — hospice, home care, and palliative care all in one place.</p>
         </div>
         <div class="why-card">
-          <div class="why-card-icon">📋</div>
+          
           <h3>You Stay Informed</h3>
           <p>Every referral you submit is confirmed immediately. Register for an account and track the status of every patient referral you've sent.</p>
         </div>
         <div class="why-card">
-          <div class="why-card-icon">🤝</div>
+          
           <h3>Built on Integrity</h3>
           <p>Founded after a personal family experience navigating hospice. We're not a lead-gen company — we're a marketplace built on trust, transparency, and accountability.</p>
         </div>
@@ -638,7 +628,7 @@
         </form>
 
         <div class="success-msg" id="successMsg">
-          ✓ Referral received. We'll confirm to your email shortly and match the patient with verified providers in their area within 24 hours. Thank you for trusting Best Hospice & Home Health.
+          Referral received. We'll confirm to your email shortly and match the patient with verified providers in their area within 24 hours. Thank you for trusting Best Hospice & Home Health.
         </div>
       </div>
     </div>
