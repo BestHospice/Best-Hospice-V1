@@ -306,6 +306,61 @@ async function sendJobSeekerNotification({ providerEmails, candidateName, candid
   }
 }
 
+function buildDischargeReferralProviderEmailHtml({ patientName, patientZip, careType, urgency, plannerName, plannerTitle, plannerEmail, plannerPhone, facility, insurance, notes }) {
+  const careLabels = { hospice: 'Hospice Care', home_health: 'Home Health Care', palliative: 'Palliative Care', unsure: 'Unsure — Needs Guidance' };
+  const urgencyLabels = { immediate: 'Immediate (today/tomorrow)', within_week: 'Within the week', planning_ahead: 'Planning ahead (2+ weeks)' };
+  return `
+<div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #222;">
+  <p>A discharge planner has submitted a patient referral in your service area.</p>
+  <hr />
+  <p><strong>PATIENT INFORMATION:</strong><br />
+  Name: ${toDisplay(patientName)}<br />
+  ZIP Code: ${toDisplay(patientZip)}<br />
+  Care Type: ${careLabels[careType] || toDisplay(careType)}<br />
+  Urgency: ${urgencyLabels[urgency] || toDisplay(urgency)}<br />
+  Insurance: ${toDisplay(insurance, 'Not provided')}<br />
+  Notes: ${toDisplay(notes, 'None')}</p>
+  <p><strong>REFERRING PLANNER:</strong><br />
+  Name: ${toDisplay(plannerName)}<br />
+  ${plannerTitle ? `Title: ${toDisplay(plannerTitle)}<br />` : ''}
+  Facility: ${toDisplay(facility)}<br />
+  Email: ${toDisplay(plannerEmail)}<br />
+  Phone: ${toDisplay(plannerPhone, 'Not provided')}</p>
+  <p><strong>NEXT STEPS:</strong></p>
+  <p>View your lead dashboard: <a href="https://www.besthospice.com/provider-dashboard.html">Provider Dashboard</a></p>
+  ${sharedSignatureBlock()}
+  <hr />
+  <p style="font-size:12px; color:#666;">This message contains confidential referral information.</p>
+</div>
+`;
+}
+
+async function sendDischargeReferralNotifications({ patientName, patientZip, careType, urgency, plannerName, plannerTitle, plannerEmail, plannerPhone, facility, insurance, notes, providers }) {
+  if (!initSendGrid()) throw new Error('SendGrid not configured');
+  const from = process.env.SENDGRID_FROM_EMAIL;
+  const replyTo = process.env.SENDGRID_REPLY_TO || from;
+  const leadMonitorEmail = String(process.env.LEAD_EMAIL_MONITOR || 'contact@besthospice.com').trim();
+  const subject = `Discharge Planner Referral — ZIP ${toDisplay(patientZip, 'Unknown')} — Best Hospice and Home Health`;
+  const html = buildDischargeReferralProviderEmailHtml({ patientName, patientZip, careType, urgency, plannerName, plannerTitle, plannerEmail, plannerPhone, facility, insurance, notes });
+
+  for (const provider of (providers || [])) {
+    const recipientEmails = Array.isArray(provider.emails)
+      ? provider.emails.map((e) => String(e || '').trim()).filter(Boolean)
+      : [String(provider.email || '').trim()].filter(Boolean);
+    for (const recipient of recipientEmails) {
+      const msg = { to: recipient, from, replyTo, subject, html };
+      if (leadMonitorEmail && leadMonitorEmail.toLowerCase() !== String(recipient).toLowerCase()) {
+        msg.bcc = leadMonitorEmail;
+      }
+      try {
+        await sgMail.send(msg);
+      } catch (error) {
+        console.error('SendGrid discharge referral notification failed for', recipient, error?.response?.body || error);
+      }
+    }
+  }
+}
+
 async function sendGenericEmail(to, subject, html) {
   if (!initSendGrid()) throw new Error('SendGrid not configured');
   const msg = {
@@ -322,4 +377,4 @@ async function sendTestEmail(to) {
   return sendGenericEmail(to, 'Best Hospice and Home Health test email', '<p>This is a test email from Best Hospice and Home Health backend.</p>');
 }
 
-module.exports = { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, sendJobSeekerNotification, emailEnabled };
+module.exports = { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, sendJobSeekerNotification, sendDischargeReferralNotifications, emailEnabled };

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>For Discharge Planners | Best Hospice & Home Health</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -619,6 +620,15 @@
             </div>
           </div>
 
+          <div style="margin-top:20px;">
+            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.85rem;color:var(--gray-700);line-height:1.5;">
+              <input type="checkbox" name="privacy_agree" id="privacyCheck" required style="margin-top:3px;accent-color:var(--teal);width:16px;height:16px;flex-shrink:0;">
+              <span>I agree to the <a href="/privacy" target="_blank" style="color:var(--teal);">Privacy Policy</a> and consent to Best Hospice &amp; Home Health sharing this referral with verified providers.</span>
+            </label>
+          </div>
+
+          <div id="turnstile-referral" style="margin-top:16px;"></div>
+
           <div class="submit-row">
             <button type="submit" class="btn-submit">Submit Referral →</button>
             <span class="submit-note">We'll confirm receipt within minutes.</span>
@@ -648,16 +658,42 @@
   </footer>
 
   <script>
+    let turnstileToken = null;
+
+    async function initTurnstile() {
+      try {
+        const res = await fetch('/api/config/turnstile');
+        if (!res.ok) return;
+        const data = await res.json();
+        const siteKey = data.siteKey;
+        if (!siteKey || !window.turnstile) return;
+        window.turnstile.render('#turnstile-referral', {
+          sitekey: siteKey,
+          callback: (token) => { turnstileToken = token; }
+        });
+      } catch (_) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Wait briefly for turnstile script to load
+      setTimeout(initTurnstile, 300);
+    });
+
     document.getElementById('referralForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
       const form = e.target;
       const data = Object.fromEntries(new FormData(form));
 
-      // Honeypot check (client-side reinforcement)
+      // Honeypot check
       if (data.website && data.website.length > 0) {
-        // Silently fake success
         showSuccess();
+        return;
+      }
+
+      // Privacy policy check
+      if (!document.getElementById('privacyCheck').checked) {
+        document.getElementById('privacyCheck').focus();
         return;
       }
 
@@ -678,8 +714,9 @@
       btn.textContent = 'Submitting...';
       btn.disabled = true;
 
+      if (turnstileToken) data.captchaToken = turnstileToken;
+
       try {
-        // POST to your Express route
         const res = await fetch('/api/discharge-referral', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -689,15 +726,17 @@
         if (res.ok) {
           showSuccess();
           form.reset();
+          turnstileToken = null;
+          if (window.turnstile) window.turnstile.reset('#turnstile-referral');
         } else {
           btn.textContent = 'Submit Referral →';
           btn.disabled = false;
           alert('Something went wrong. Please try again or call us directly.');
         }
       } catch (err) {
-        // If endpoint not wired yet, show success for demo
-        showSuccess();
-        form.reset();
+        btn.textContent = 'Submit Referral →';
+        btn.disabled = false;
+        alert('Something went wrong. Please try again.');
       }
     });
 

@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { v4: uuid } = require('uuid');
 const { PrismaClient } = require('@prisma/client');
-const { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, sendJobSeekerNotification, emailEnabled } = require('./email');
+const { sendProviderNotifications, sendLeadStatusNudgeEmail, sendTestEmail, sendGenericEmail, sendJobSeekerNotification, sendDischargeReferralNotifications, emailEnabled } = require('./email');
 const { sendProviderSms, smsEnabled } = require('./sms');
 const Stripe = require('stripe');
 const bcrypt = require('bcryptjs');
@@ -6121,10 +6121,16 @@ app.post('/api/discharge-referral', async (req, res) => {
     const {
       planner_name, planner_title, planner_email, planner_phone,
       facility, patient_first, patient_last, patient_zip,
-      care_type, urgency, insurance, notes
+      care_type, urgency, insurance, notes, captchaToken
     } = req.body || {};
     if (!planner_name || !planner_email || !facility || !patient_first || !patient_last || !patient_zip || !care_type || !urgency) {
       return res.status(400).json({ error: 'Missing required fields.' });
+    }
+    if (captchaToken) {
+      const captchaResult = await verifyTurnstile(captchaToken, req.ip);
+      if (!captchaResult.success && !captchaResult.bypass) {
+        return res.status(403).json({ error: 'Captcha verification failed.' });
+      }
     }
     const id = uuid();
     await prisma.$executeRawUnsafe(
@@ -6157,6 +6163,36 @@ app.post('/api/discharge-referral', async (req, res) => {
         <p>Thank you for trusting Best Hospice & Home Health.<br><br>— The Best Hospice Team</p>
       </div>`;
       sendGenericEmail(String(planner_email).trim().toLowerCase(), 'Referral Received — Best Hospice & Home Health', html).catch(() => {});
+    }
+    // Notify all providers
+    if (EMAIL_ENABLED) {
+      try {
+        const allProviders = await prisma.provider.findMany({
+          select: { id: true, email: true, secondaryContactEmail: true }
+        });
+        const providerList = allProviders.map((p) => ({
+          id: p.id,
+          emails: [p.email, p.secondaryContactEmail].filter(Boolean)
+        }));
+        if (providerList.length) {
+          sendDischargeReferralNotifications({
+            patientName: `${String(patient_first).trim()} ${String(patient_last).trim()}`,
+            patientZip: String(patient_zip).trim(),
+            careType: String(care_type).trim(),
+            urgency: String(urgency).trim(),
+            plannerName: String(planner_name).trim(),
+            plannerTitle: String(planner_title || '').trim(),
+            plannerEmail: String(planner_email).trim(),
+            plannerPhone: String(planner_phone || '').trim(),
+            facility: String(facility).trim(),
+            insurance: String(insurance || '').trim(),
+            notes: String(notes || '').trim(),
+            providers: providerList
+          }).catch((err) => console.error('Discharge referral provider notifications failed', err));
+        }
+      } catch (err) {
+        console.error('Could not fetch providers for discharge referral notification', err);
+      }
     }
     res.json({ ok: true });
   } catch (err) {
