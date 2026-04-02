@@ -415,6 +415,7 @@
       const peakDay = timeline.reduce((acc, t) => (t.count > acc.count ? t : acc), { date: '-', count: 0 });
       const uniqueZips = new Set((topZips || []).map((z) => z.zip)).size;
       const cards = [
+        ['Total Leads All Time', fmtNum((totals.leadsAllTime || 0) + (totals.dischargeReferralsAllTime || 0))],
         ['Clients Generated (All Time)', fmtNum(totals.leadsAllTime)],
         ['Clients In Range', fmtNum(totals.leadsInRange)],
         ['Discharge Referrals (All Time)', fmtNum(totals.dischargeReferralsAllTime || 0)],
