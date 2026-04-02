@@ -49,7 +49,8 @@ const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-audit.html',
   '/admin-newsletter.html',
   '/admin-territory.html',
-  '/admin-hiring.html'
+  '/admin-hiring.html',
+  '/admin-discharge-leads.html'
 ]);
 
 function isAdminMainToken(token) {
@@ -292,6 +293,33 @@ async function ensureWaitlistTable() {
     )
   `);
   waitlistTableReady = true;
+}
+
+let dischargeReferralTableReady = false;
+async function ensureDischargeReferralTable() {
+  if (dischargeReferralTableReady) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "DischargeReferral" (
+      "id" TEXT NOT NULL,
+      "planner_name" TEXT,
+      "planner_title" TEXT,
+      "planner_email" TEXT,
+      "planner_phone" TEXT,
+      "facility" TEXT,
+      "patient_first" TEXT,
+      "patient_last" TEXT,
+      "patient_zip" TEXT,
+      "care_type" TEXT,
+      "urgency" TEXT,
+      "insurance" TEXT,
+      "notes" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'new',
+      "source" TEXT NOT NULL DEFAULT 'discharge_planner',
+      "submitted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "DischargeReferral_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  dischargeReferralTableReady = true;
 }
 
 let jobLeadTableReady = false;
@@ -6060,6 +6088,107 @@ ${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.5<
   res.type('text/xml').send(body);
 });
 
+// ─── DISCHARGE PLANNER PAGES ─────────────────────────────────────────────────
+app.get('/discharge-planners', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'discharge-planners.html'));
+});
+
+app.get('/admin-discharge-leads.html', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-discharge-leads.html'));
+});
+
+// POST /api/discharge-referral — submit a discharge planner referral
+app.post('/api/discharge-referral', async (req, res) => {
+  if (req.body?.website) return res.json({ ok: true });
+  try {
+    await ensureDischargeReferralTable();
+    const {
+      planner_name, planner_title, planner_email, planner_phone,
+      facility, patient_first, patient_last, patient_zip,
+      care_type, urgency, insurance, notes
+    } = req.body || {};
+    if (!planner_name || !planner_email || !facility || !patient_first || !patient_last || !patient_zip || !care_type || !urgency) {
+      return res.status(400).json({ error: 'Missing required fields.' });
+    }
+    const id = uuid();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "DischargeReferral" (id, planner_name, planner_title, planner_email, planner_phone, facility, patient_first, patient_last, patient_zip, care_type, urgency, insurance, notes, status, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'new','discharge_planner')`,
+      id,
+      String(planner_name || '').trim(),
+      String(planner_title || '').trim(),
+      String(planner_email || '').trim().toLowerCase(),
+      String(planner_phone || '').trim(),
+      String(facility || '').trim(),
+      String(patient_first || '').trim(),
+      String(patient_last || '').trim(),
+      String(patient_zip || '').trim(),
+      String(care_type || '').trim(),
+      String(urgency || '').trim(),
+      String(insurance || '').trim(),
+      String(notes || '').trim()
+    );
+    if (EMAIL_ENABLED && planner_email) {
+      const careLabels = { hospice: 'Hospice Care', home_health: 'Home Health Care', palliative: 'Palliative Care', unsure: 'Unsure — Needs Guidance' };
+      const urgencyLabels = { immediate: 'Immediate (today/tomorrow)', within_week: 'Within the week', planning_ahead: 'Planning ahead (2+ weeks)' };
+      const html = `<div style="font-family:sans-serif;max-width:560px;">
+        <h2 style="color:#0f2744;">Referral Received — Best Hospice & Home Health</h2>
+        <p>Hi ${String(planner_name).split(' ')[0]},</p>
+        <p>We've received your referral for <strong>${String(patient_first).trim()} ${String(patient_last).trim()}</strong> (ZIP: ${String(patient_zip).trim()}).</p>
+        <p><strong>Care type:</strong> ${careLabels[care_type] || care_type}<br>
+        <strong>Urgency:</strong> ${urgencyLabels[urgency] || urgency}</p>
+        <p>We'll match this patient with verified providers in their area within 24 hours. You'll be kept informed as the referral progresses.</p>
+        <p>Thank you for trusting Best Hospice & Home Health.<br><br>— The Best Hospice Team</p>
+      </div>`;
+      sendGenericEmail(String(planner_email).trim().toLowerCase(), 'Referral Received — Best Hospice & Home Health', html).catch(() => {});
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Discharge referral failed', err);
+    res.status(500).json({ error: 'Could not submit referral. Please try again.' });
+  }
+});
+
+// GET /api/admin/discharge-referrals — list all referrals (admin only)
+app.get('/api/admin/discharge-referrals', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    await ensureDischargeReferralTable();
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT * FROM "DischargeReferral" ORDER BY submitted_at DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Discharge referrals fetch failed', err);
+    res.status(500).json({ error: 'Could not load referrals.' });
+  }
+});
+
+// PATCH /api/admin/discharge-referrals/:id/status — update referral status (admin only)
+app.patch('/api/admin/discharge-referrals/:id/status', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { id } = req.params;
+  const status = String(req.body?.status || '').trim().toLowerCase();
+  if (!['new', 'contacted', 'matched', 'closed'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status. Must be new, contacted, matched, or closed.' });
+  }
+  try {
+    await ensureDischargeReferralTable();
+    await prisma.$executeRawUnsafe(
+      `UPDATE "DischargeReferral" SET status = $1 WHERE id = $2`,
+      status, id
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Discharge referral status update failed', err);
+    res.status(500).json({ error: 'Could not update status.' });
+  }
+});
+
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send(`User-agent: *
 Allow: /
@@ -6072,7 +6201,8 @@ Sitemap: ${CANONICAL_DOMAIN}/sitemap-providers.xml
 
 Promise.all([
   ensureWaitlistTable(),
-  ensureJobLeadTable()
+  ensureJobLeadTable(),
+  ensureDischargeReferralTable()
 ]).catch((err) => console.error('Table setup failed:', err)).finally(() => {
   app.listen(PORT, () => {
     console.log(`Best Hospice and Home Health server running on http://localhost:${PORT}`);

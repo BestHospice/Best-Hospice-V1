@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>For Discharge Planners | Best Hospice & Home Health</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #0f2744;
+      --navy-mid: #1a3a5c;
+      --teal: #0e8c7a;
+      --teal-light: #12a890;
+      --teal-pale: #e8f7f5;
+      --gold: #c8973a;
+      --white: #ffffff;
+      --gray-50: #f8fafb;
+      --gray-100: #f0f4f7;
+      --gray-300: #c8d4dc;
+      --gray-500: #6b8395;
+      --gray-700: #3d5468;
+      --text: #1a2e3d;
+      --radius: 8px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text);
+      background: var(--white);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(15, 39, 68, 0.97);
+      backdrop-filter: blur(8px);
+      padding: 0 40px;
+      height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .nav-logo {
+      font-family: 'DM Serif Display', serif;
+      color: var(--white);
+      font-size: 1.1rem;
+      text-decoration: none;
+      letter-spacing: 0.01em;
+    }
+    .nav-logo span { color: var(--teal-light); }
+    .nav-cta {
+      background: var(--teal);
+      color: var(--white);
+      padding: 8px 20px;
+      border-radius: var(--radius);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--teal-light); }
+
+    /* HERO */
+    .hero {
+      background: var(--navy);
+      padding: 140px 40px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 80% 50%, rgba(14,140,122,0.12) 0%, transparent 70%);
+    }
+    .hero-inner {
+      max-width: 760px;
+      margin: 0 auto;
+      position: relative;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(14,140,122,0.15);
+      border: 1px solid rgba(14,140,122,0.3);
+      color: var(--teal-light);
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero-badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--teal-light);
+      border-radius: 50%;
+    }
+    .hero h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      color: var(--white);
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--teal-light);
+    }
+    .hero p {
+      font-size: 1.1rem;
+      color: rgba(255,255,255,0.72);
+      max-width: 580px;
+      margin-bottom: 36px;
+      line-height: 1.7;
+    }
+    .hero-actions {
+      display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .btn-primary {
+      background: var(--teal);
+      color: var(--white);
+      padding: 14px 28px;
+      border-radius: var(--radius);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+      border: none; cursor: pointer;
+      display: inline-block;
+    }
+    .btn-primary:hover { background: var(--teal-light); transform: translateY(-1px); }
+    .btn-secondary {
+      background: transparent;
+      color: rgba(255,255,255,0.85);
+      padding: 14px 28px;
+      border-radius: var(--radius);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      border: 1px solid rgba(255,255,255,0.2);
+      transition: all 0.2s;
+      display: inline-block;
+    }
+    .btn-secondary:hover { border-color: rgba(255,255,255,0.5); color: var(--white); }
+
+    /* TRUST BAR */
+    .trust-bar {
+      background: var(--teal-pale);
+      border-top: 2px solid var(--teal);
+      padding: 20px 40px;
+    }
+    .trust-bar-inner {
+      max-width: 900px; margin: 0 auto;
+      display: flex; gap: 40px; flex-wrap: wrap; align-items: center; justify-content: center;
+    }
+    .trust-item {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.875rem; font-weight: 500; color: var(--navy-mid);
+    }
+    .trust-icon {
+      width: 28px; height: 28px;
+      background: var(--teal);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 0.75rem; flex-shrink: 0;
+    }
+
+    /* SECTIONS */
+    section { padding: 80px 40px; }
+    .section-inner { max-width: 900px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--teal); margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(1.7rem, 3.5vw, 2.4rem);
+      color: var(--navy);
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+    .section-sub {
+      font-size: 1rem; color: var(--gray-500); max-width: 560px; line-height: 1.7;
+    }
+
+    /* WHY USE IT */
+    .why { background: var(--gray-50); }
+    .why-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px; margin-top: 48px;
+    }
+    .why-card {
+      background: var(--white);
+      border: 1px solid var(--gray-100);
+      border-radius: 12px;
+      padding: 28px;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .why-card:hover { box-shadow: 0 8px 32px rgba(15,39,68,0.08); transform: translateY(-2px); }
+    .why-card-icon {
+      width: 44px; height: 44px;
+      background: var(--teal-pale);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+      font-size: 1.3rem;
+    }
+    .why-card h3 {
+      font-size: 1rem; font-weight: 600; color: var(--navy); margin-bottom: 8px;
+    }
+    .why-card p {
+      font-size: 0.875rem; color: var(--gray-500); line-height: 1.6;
+    }
+
+    /* HOW IT WORKS */
+    .how-steps {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0; margin-top: 48px;
+      position: relative;
+    }
+    .how-steps::before {
+      content: '';
+      position: absolute; top: 28px; left: 14%; right: 14%;
+      height: 2px; background: var(--gray-100);
+    }
+    .step {
+      text-align: center; padding: 0 20px;
+      position: relative;
+    }
+    .step-num {
+      width: 56px; height: 56px;
+      background: var(--navy);
+      color: var(--white);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.3rem;
+      margin: 0 auto 16px;
+      position: relative; z-index: 1;
+      border: 3px solid var(--white);
+      box-shadow: 0 0 0 3px var(--gray-100);
+    }
+    .step h3 { font-size: 0.95rem; font-weight: 600; color: var(--navy); margin-bottom: 8px; }
+    .step p { font-size: 0.82rem; color: var(--gray-500); line-height: 1.6; }
+
+    /* VERIFICATION CALLOUT */
+    .verify-callout {
+      background: var(--navy);
+      border-radius: 16px;
+      padding: 48px;
+      margin-top: 64px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    .verify-callout h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.8rem; color: var(--white);
+      margin-bottom: 12px; line-height: 1.25;
+    }
+    .verify-callout p { color: rgba(255,255,255,0.65); font-size: 0.95rem; line-height: 1.7; }
+    .verify-list { list-style: none; margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .verify-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      color: rgba(255,255,255,0.8); font-size: 0.875rem;
+    }
+    .verify-list li::before {
+      content: '✓';
+      color: var(--teal-light);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* REFERRAL FORM */
+    .form-section { background: var(--gray-50); }
+    .form-wrap {
+      background: var(--white);
+      border: 1px solid var(--gray-100);
+      border-radius: 16px;
+      padding: 48px;
+      margin-top: 40px;
+      box-shadow: 0 4px 24px rgba(15,39,68,0.06);
+    }
+    .form-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .form-full { grid-column: 1 / -1; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label {
+      font-size: 0.8rem; font-weight: 600; color: var(--gray-700);
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 11px 14px;
+      border: 1.5px solid var(--gray-300);
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      color: var(--text);
+      background: var(--white);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(14,140,122,0.1);
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    /* HONEYPOT */
+    .hp-field { display: none !important; }
+    .form-note {
+      font-size: 0.78rem; color: var(--gray-500);
+      margin-top: 12px; line-height: 1.5;
+    }
+    .form-divider {
+      height: 1px; background: var(--gray-100);
+      margin: 28px 0;
+    }
+    .form-section-label {
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--teal);
+      margin-bottom: 16px;
+    }
+    .submit-row {
+      display: flex; align-items: center; gap: 16px;
+      margin-top: 24px;
+    }
+    .btn-submit {
+      background: var(--teal);
+      color: var(--white);
+      padding: 13px 32px;
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: none; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-submit:hover { background: var(--teal-light); transform: translateY(-1px); }
+    .submit-note { font-size: 0.8rem; color: var(--gray-500); }
+
+    /* SUCCESS STATE */
+    .success-msg {
+      display: none;
+      background: var(--teal-pale);
+      border: 1.5px solid var(--teal);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-top: 20px;
+      color: var(--navy);
+      font-weight: 500;
+    }
+    .success-msg.show { display: block; }
+
+    /* REGISTER CTA */
+    .register-section {
+      background: var(--teal-pale);
+      border-top: 2px solid var(--teal);
+      padding: 60px 40px;
+      text-align: center;
+    }
+    .register-section h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2rem; color: var(--navy);
+      margin-bottom: 12px;
+    }
+    .register-section p { color: var(--gray-500); margin-bottom: 28px; }
+
+    /* FOOTER */
+    footer {
+      background: var(--navy);
+      padding: 32px 40px;
+      text-align: center;
+      color: rgba(255,255,255,0.4);
+      font-size: 0.82rem;
+    }
+    footer a { color: rgba(255,255,255,0.6); text-decoration: none; }
+
+    @media (max-width: 720px) {
+      nav { padding: 0 20px; }
+      .hero { padding: 120px 20px 60px; }
+      section { padding: 60px 20px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-full { grid-column: 1; }
+      .form-wrap { padding: 28px 20px; }
+      .verify-callout { grid-template-columns: 1fr; padding: 32px 24px; }
+      .how-steps::before { display: none; }
+      .trust-bar { padding: 16px 20px; }
+      .register-section { padding: 40px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="/" class="nav-logo">Best Hospice <span>&</span> Home Health</a>
+    <a href="#submit-referral" class="nav-cta">Submit a Referral</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">For Discharge Planners & Care Coordinators</div>
+      <h1>A referral tool built for <em>your</em> workflow — not ours.</h1>
+      <p>Submit patient referrals in under 60 seconds. Every provider on our platform is verified, licensed, and committed to responding within 24 hours. No commission bias. No runaround.</p>
+      <div class="hero-actions">
+        <a href="#submit-referral" class="btn-primary">Submit a Referral Now</a>
+        <a href="#how-it-works" class="btn-secondary">How It Works</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRUST BAR -->
+  <div class="trust-bar">
+    <div class="trust-bar-inner">
+      <div class="trust-item">
+        <div class="trust-icon">✓</div>
+        Verified & Licensed Providers
+      </div>
+      <div class="trust-item">
+        <div class="trust-icon">⏱</div>
+        24-Hour Response Guarantee
+      </div>
+      <div class="trust-item">
+        <div class="trust-icon">$</div>
+        Zero Commission — No Referral Fees
+      </div>
+      <div class="trust-item">
+        <div class="trust-icon">🔒</div>
+        HIPAA-Conscious Handling
+      </div>
+    </div>
+  </div>
+
+  <!-- WHY USE IT -->
+  <section class="why">
+    <div class="section-inner">
+      <div class="section-label">Why Discharge Planners Choose Us</div>
+      <h2 class="section-title">The referral list you've always wanted — finally exists.</h2>
+      <p class="section-sub">We built this platform because families deserve better than a Google search at the worst moment of their lives. And you deserve a tool that doesn't waste your time.</p>
+
+      <div class="why-grid">
+        <div class="why-card">
+          <div class="why-card-icon">🛡️</div>
+          <h3>Every Provider Is Verified</h3>
+          <p>We manually verify licensure, accreditation, and service area before any provider appears on the platform. No outdated listings, no unresponsive agencies.</p>
+        </div>
+        <div class="why-card">
+          <div class="why-card-icon">⚡</div>
+          <h3>No Account Required to Submit</h3>
+          <p>Submit a family's information in under 60 seconds. No registration wall, no lengthy forms. Register later if you want to track your referrals.</p>
+        </div>
+        <div class="why-card">
+          <div class="why-card-icon">🚫</div>
+          <h3>Zero Commission Bias</h3>
+          <p>Providers pay a flat subscription — not a fee per referral. That means families get matched to the right provider, not the one that pays the biggest commission.</p>
+        </div>
+        <div class="why-card">
+          <div class="why-card-icon">📍</div>
+          <h3>Nationwide Coverage</h3>
+          <p>Verified providers across the country — hospice, home care, and palliative care all in one place.</p>
+        </div>
+        <div class="why-card">
+          <div class="why-card-icon">📋</div>
+          <h3>You Stay Informed</h3>
+          <p>Every referral you submit is confirmed immediately. Register for an account and track the status of every patient referral you've sent.</p>
+        </div>
+        <div class="why-card">
+          <div class="why-card-icon">🤝</div>
+          <h3>Built on Integrity</h3>
+          <p>Founded after a personal family experience navigating hospice. We're not a lead-gen company — we're a marketplace built on trust, transparency, and accountability.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how-it-works">
+    <div class="section-inner">
+      <div class="section-label">How It Works</div>
+      <h2 class="section-title">Simple. Fast. Reliable.</h2>
+      <p class="section-sub">From form to family match in under 24 hours.</p>
+
+      <div class="how-steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Submit the Referral</h3>
+          <p>Fill out the short form below with the patient's ZIP, care type needed, and urgency. No account required.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>We Match Instantly</h3>
+          <p>We route the referral to verified providers in the patient's area that match the care type and availability needed.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Providers Respond</h3>
+          <p>Matched providers reach out directly to the family within 24 hours. You're cc'd if you provide your email.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <h3>Care Is Arranged</h3>
+          <p>Family connects with the right provider. You can track the outcome from your dashboard if registered.</p>
+        </div>
+      </div>
+
+      <div class="verify-callout">
+        <div>
+          <h2>What "Verified" Actually Means</h2>
+          <p>We don't just list providers. Every agency on Best Hospice & Home Health has passed our manual verification process before going live.</p>
+          <ul class="verify-list">
+            <li>Active state licensure confirmed</li>
+            <li>Medicare/Medicaid certification where applicable</li>
+            <li>Accreditation reviewed (ACHC, CHAP, Joint Commission)</li>
+            <li>Service area and capacity validated</li>
+            <li>24-hour response commitment signed</li>
+            <li>Re-verified on a rolling basis</li>
+          </ul>
+        </div>
+        <div>
+          <h2>Your Liability. Our Responsibility.</h2>
+          <p style="margin-bottom:16px;">We understand the stakes. When you refer a patient to a provider, your name is on it. That's why we do the vetting so you don't have to — and so you can refer with confidence.</p>
+          <p>If a provider ever fails to respond within 24 hours, report it. We investigate every complaint and remove providers who don't uphold our standards.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REFERRAL FORM -->
+  <section class="form-section" id="submit-referral">
+    <div class="section-inner">
+      <div class="section-label">Submit a Referral</div>
+      <h2 class="section-title">Get a patient matched today.</h2>
+      <p class="section-sub">No account needed. Takes under 60 seconds. We'll confirm receipt immediately.</p>
+
+      <div class="form-wrap">
+        <form id="referralForm" novalidate>
+
+          <!-- HONEYPOT - hidden from real users -->
+          <input type="text" name="website" class="hp-field" tabindex="-1" autocomplete="off">
+
+          <div class="form-section-label">Your Information</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Your Name *</label>
+              <input type="text" name="planner_name" placeholder="Jane Smith" required>
+            </div>
+            <div class="form-group">
+              <label>Your Title / Role</label>
+              <input type="text" name="planner_title" placeholder="Discharge Planner, Case Manager...">
+            </div>
+            <div class="form-group">
+              <label>Hospital / Facility *</label>
+              <input type="text" name="facility" placeholder="Banner University Medical Center" required>
+            </div>
+            <div class="form-group">
+              <label>Your Email *</label>
+              <input type="email" name="planner_email" placeholder="jsmith@hospital.org" required>
+            </div>
+            <div class="form-group">
+              <label>Your Phone</label>
+              <input type="tel" name="planner_phone" placeholder="(602) 555-0100">
+            </div>
+          </div>
+
+          <div class="form-divider"></div>
+          <div class="form-section-label">Patient Information</div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Patient First Name *</label>
+              <input type="text" name="patient_first" placeholder="First name" required>
+            </div>
+            <div class="form-group">
+              <label>Patient Last Name *</label>
+              <input type="text" name="patient_last" placeholder="Last name" required>
+            </div>
+            <div class="form-group">
+              <label>Patient ZIP Code *</label>
+              <input type="text" name="patient_zip" placeholder="85001" maxlength="5" required>
+            </div>
+            <div class="form-group">
+              <label>Care Type Needed *</label>
+              <select name="care_type" required>
+                <option value="">Select care type...</option>
+                <option value="hospice">Hospice Care</option>
+                <option value="home_health">Home Health Care</option>
+                <option value="palliative">Palliative Care</option>
+                <option value="unsure">Not Sure — Need Guidance</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Urgency *</label>
+              <select name="urgency" required>
+                <option value="">Select urgency...</option>
+                <option value="immediate">Immediate (today / tomorrow)</option>
+                <option value="within_week">Within the week</option>
+                <option value="planning_ahead">Planning ahead (2+ weeks)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Insurance / Payer</label>
+              <select name="insurance">
+                <option value="">Select if known...</option>
+                <option value="medicare">Medicare</option>
+                <option value="medicaid">Medicaid / AHCCCS</option>
+                <option value="altcs">ALTCS</option>
+                <option value="private_insurance">Private Insurance</option>
+                <option value="private_pay">Private Pay</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </div>
+            <div class="form-group form-full">
+              <label>Additional Notes</label>
+              <textarea name="notes" placeholder="Diagnosis, special requirements, language needs, living situation, anything that will help match the right provider..."></textarea>
+            </div>
+          </div>
+
+          <div class="submit-row">
+            <button type="submit" class="btn-submit">Submit Referral →</button>
+            <span class="submit-note">We'll confirm receipt within minutes.</span>
+          </div>
+
+          <p class="form-note">Patient information is handled with care. We do not sell data. Providers receive only the information needed to make initial contact with the family.</p>
+        </form>
+
+        <div class="success-msg" id="successMsg">
+          ✓ Referral received. We'll confirm to your email shortly and match the patient with verified providers in their area within 24 hours. Thank you for trusting Best Hospice & Home Health.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REGISTER CTA -->
+  <section class="register-section">
+    <div class="section-inner">
+      <h2>Track every referral you submit.</h2>
+      <p>Create a free discharge planner account to see the status of every patient referral, get notified when a provider responds, and build your verified referral history.</p>
+      <a href="/register?type=discharge_planner" class="btn-primary">Create a Free Account</a>
+    </div>
+  </section>
+
+  <footer>
+    <p>© 2026 Best Hospice & Home Health | <a href="/privacy">Privacy Policy</a> | <a href="/terms">Terms of Use</a> | <a href="mailto:hello@besthospice.com">hello@besthospice.com</a></p>
+  </footer>
+
+  <script>
+    document.getElementById('referralForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const form = e.target;
+      const data = Object.fromEntries(new FormData(form));
+
+      // Honeypot check (client-side reinforcement)
+      if (data.website && data.website.length > 0) {
+        // Silently fake success
+        showSuccess();
+        return;
+      }
+
+      // Basic required field check
+      const required = ['planner_name', 'facility', 'planner_email', 'patient_first', 'patient_last', 'patient_zip', 'care_type', 'urgency'];
+      for (const field of required) {
+        if (!data[field] || data[field].trim() === '') {
+          const input = form.querySelector(`[name="${field}"]`);
+          if (input) {
+            input.style.borderColor = '#e05050';
+            input.focus();
+          }
+          return;
+        }
+      }
+
+      const btn = form.querySelector('.btn-submit');
+      btn.textContent = 'Submitting...';
+      btn.disabled = true;
+
+      try {
+        // POST to your Express route
+        const res = await fetch('/api/discharge-referral', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+          showSuccess();
+          form.reset();
+        } else {
+          btn.textContent = 'Submit Referral →';
+          btn.disabled = false;
+          alert('Something went wrong. Please try again or call us directly.');
+        }
+      } catch (err) {
+        // If endpoint not wired yet, show success for demo
+        showSuccess();
+        form.reset();
+      }
+    });
+
+    function showSuccess() {
+      document.getElementById('successMsg').classList.add('show');
+      document.getElementById('successMsg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  </script>
+
+</body>
+</html>

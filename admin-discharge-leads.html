@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discharge Planner Leads | Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #0f2744;
+      --navy-mid: #1a3a5c;
+      --teal: #0e8c7a;
+      --teal-light: #12a890;
+      --teal-pale: #e8f7f5;
+      --gold: #c8973a;
+      --white: #ffffff;
+      --bg: #f4f7fa;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --gray-400: #94a3b8;
+      --gray-600: #475569;
+      --text: #1e2d3d;
+      --radius: 8px;
+
+      --status-new: #2563eb;
+      --status-new-bg: #eff6ff;
+      --status-contacted: #d97706;
+      --status-contacted-bg: #fffbeb;
+      --status-matched: #0e8c7a;
+      --status-matched-bg: #e8f7f5;
+      --status-closed: #64748b;
+      --status-closed-bg: #f1f5f9;
+
+      --urgent-immediate: #dc2626;
+      --urgent-week: #d97706;
+      --urgent-planning: #64748b;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    /* LAYOUT */
+    .admin-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 100vh;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      background: var(--navy);
+      padding: 24px 0;
+      position: sticky; top: 0; height: 100vh;
+      overflow-y: auto;
+    }
+    .sidebar-logo {
+      padding: 0 20px 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 16px;
+    }
+    .sidebar-logo span {
+      font-size: 0.85rem; font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      line-height: 1.3; display: block;
+    }
+    .sidebar-logo small {
+      font-size: 0.7rem; color: rgba(255,255,255,0.35);
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .nav-section {
+      padding: 0 12px;
+      margin-bottom: 8px;
+    }
+    .nav-label {
+      font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: rgba(255,255,255,0.3);
+      padding: 8px 8px 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      border-radius: 6px;
+      color: rgba(255,255,255,0.55);
+      text-decoration: none;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); }
+    .nav-item.active { background: rgba(14,140,122,0.2); color: var(--teal-light); }
+    .nav-item .icon { font-size: 1rem; width: 18px; text-align: center; }
+    .nav-badge {
+      margin-left: auto;
+      background: var(--teal);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 100px;
+    }
+
+    /* MAIN */
+    .main { overflow: hidden; }
+
+    /* TOPBAR */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .topbar-title {
+      font-size: 1.1rem; font-weight: 600; color: var(--navy);
+    }
+    .topbar-sub { font-size: 0.78rem; color: var(--gray-400); margin-top: 1px; }
+    .topbar-actions { display: flex; gap: 10px; align-items: center; }
+    .btn-sm {
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--gray-600);
+    }
+    .btn-sm:hover { border-color: var(--teal); color: var(--teal); }
+    .btn-sm.primary {
+      background: var(--teal); color: white; border-color: var(--teal);
+    }
+    .btn-sm.primary:hover { background: var(--teal-light); border-color: var(--teal-light); }
+
+    /* CONTENT */
+    .content { padding: 28px 32px; }
+
+    /* STAT CARDS */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .stat-label {
+      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--gray-400);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 2rem; font-weight: 600; color: var(--navy);
+      line-height: 1; margin-bottom: 4px;
+      font-family: 'DM Mono', monospace;
+    }
+    .stat-delta {
+      font-size: 0.75rem; color: var(--teal);
+      display: flex; align-items: center; gap: 3px;
+    }
+    .stat-card.highlight { border-left: 3px solid var(--teal); }
+
+    /* FILTERS */
+    .filters-row {
+      display: flex; gap: 10px; align-items: center;
+      margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .filter-select {
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      color: var(--gray-600);
+      background: var(--surface);
+      cursor: pointer;
+      outline: none;
+    }
+    .filter-select:focus { border-color: var(--teal); }
+    .search-input {
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      width: 220px;
+    }
+    .search-input:focus { border-color: var(--teal); }
+    .filter-spacer { flex: 1; }
+    .result-count { font-size: 0.78rem; color: var(--gray-400); }
+
+    /* TABLE */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr {
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    th:hover { color: var(--navy); }
+    th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+    th.sorted .sort-arrow { opacity: 1; color: var(--teal); }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+      cursor: pointer;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--teal-pale); }
+    td {
+      padding: 12px 16px;
+      font-size: 0.845rem;
+      color: var(--text);
+      vertical-align: middle;
+    }
+    .td-patient { font-weight: 600; }
+    .td-planner { color: var(--gray-600); }
+    .td-facility { font-size: 0.78rem; color: var(--gray-400); }
+    .td-zip {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem; color: var(--gray-600);
+    }
+    .td-date { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--gray-400); }
+
+    /* STATUS BADGE */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 0.72rem; font-weight: 600;
+      white-space: nowrap;
+    }
+    .badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .badge-new { background: var(--status-new-bg); color: var(--status-new); }
+    .badge-new::before { background: var(--status-new); }
+    .badge-contacted { background: var(--status-contacted-bg); color: var(--status-contacted); }
+    .badge-contacted::before { background: var(--status-contacted); }
+    .badge-matched { background: var(--status-matched-bg); color: var(--status-matched); }
+    .badge-matched::before { background: var(--status-matched); }
+    .badge-closed { background: var(--status-closed-bg); color: var(--status-closed); }
+    .badge-closed::before { background: var(--status-closed); }
+
+    /* URGENCY */
+    .urgency {
+      font-size: 0.72rem; font-weight: 600; padding: 2px 8px;
+      border-radius: 4px; white-space: nowrap;
+    }
+    .urgency-immediate { background: #fef2f2; color: var(--urgent-immediate); }
+    .urgency-week { background: #fffbeb; color: var(--urgent-week); }
+    .urgency-planning { background: var(--bg); color: var(--urgent-planning); }
+
+    /* CARE TYPE */
+    .care-type { font-size: 0.78rem; color: var(--gray-600); }
+
+    /* ROW DETAIL PANEL */
+    .detail-panel {
+      display: none;
+      background: var(--teal-pale);
+      border-top: 1px solid var(--border);
+    }
+    .detail-panel.open { display: table-row; }
+    .detail-inner {
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr) auto;
+      gap: 16px;
+      align-items: start;
+    }
+    .detail-group label {
+      font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--gray-400); display: block; margin-bottom: 3px;
+    }
+    .detail-group p { font-size: 0.85rem; color: var(--text); }
+    .detail-actions { display: flex; flex-direction: column; gap: 8px; }
+    .status-select {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.78rem;
+      background: white;
+      cursor: pointer;
+      outline: none;
+      width: 140px;
+    }
+    .status-select:focus { border-color: var(--teal); }
+
+    /* EMPTY STATE */
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--gray-400);
+    }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* PAGINATION */
+    .pagination {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.78rem; color: var(--gray-400);
+    }
+    .page-btns { display: flex; gap: 4px; }
+    .page-btn {
+      padding: 4px 10px; border-radius: 5px;
+      border: 1px solid var(--border);
+      background: white; cursor: pointer;
+      font-size: 0.78rem; color: var(--gray-600);
+      transition: all 0.1s;
+    }
+    .page-btn:hover { border-color: var(--teal); color: var(--teal); }
+    .page-btn.active { background: var(--teal); color: white; border-color: var(--teal); }
+
+    @media (max-width: 900px) {
+      .admin-layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .content { padding: 16px; }
+      .topbar { padding: 12px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="admin-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>Best Hospice & Home Health</span>
+      <small>Admin Dashboard</small>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <button class="nav-item"><span class="icon">📊</span> Dashboard</button>
+      <button class="nav-item"><span class="icon">👥</span> All Leads</button>
+      <button class="nav-item active"><span class="icon">🏥</span> Discharge Planner Leads <span class="nav-badge" id="newCount">3</span></button>
+      <button class="nav-item"><span class="icon">👨‍👩‍👧</span> Family Leads</button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Providers</div>
+      <button class="nav-item"><span class="icon">✅</span> Verified Providers</button>
+      <button class="nav-item"><span class="icon">⏳</span> Pending Review</button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Platform</div>
+      <button class="nav-item"><span class="icon">📧</span> Newsletter</button>
+      <button class="nav-item"><span class="icon">⚙️</span> Settings</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">Discharge Planner Referrals</div>
+        <div class="topbar-sub">Leads submitted via /discharge-planners</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-sm" onclick="exportCSV()">↓ Export CSV</button>
+        <button class="btn-sm primary" onclick="loadLeads()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- STATS -->
+      <div class="stats-row">
+        <div class="stat-card highlight">
+          <div class="stat-label">Total Referrals</div>
+          <div class="stat-value" id="statTotal">0</div>
+          <div class="stat-delta">All time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">New (Uncontacted)</div>
+          <div class="stat-value" id="statNew">0</div>
+          <div class="stat-delta">Needs action</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Matched to Provider</div>
+          <div class="stat-value" id="statMatched">0</div>
+          <div class="stat-delta">Successfully placed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Unique Planners</div>
+          <div class="stat-value" id="statPlanners">0</div>
+          <div class="stat-delta">Referral sources</div>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="filters-row">
+        <input type="text" class="search-input" placeholder="Search patient, planner, facility..." id="searchInput" oninput="renderTable()">
+        <select class="filter-select" id="filterStatus" onchange="renderTable()">
+          <option value="">All Statuses</option>
+          <option value="new">New</option>
+          <option value="contacted">Contacted</option>
+          <option value="matched">Matched</option>
+          <option value="closed">Closed</option>
+        </select>
+        <select class="filter-select" id="filterCare" onchange="renderTable()">
+          <option value="">All Care Types</option>
+          <option value="hospice">Hospice</option>
+          <option value="home_health">Home Health</option>
+          <option value="palliative">Palliative</option>
+        </select>
+        <select class="filter-select" id="filterUrgency" onchange="renderTable()">
+          <option value="">All Urgency</option>
+          <option value="immediate">Immediate</option>
+          <option value="within_week">Within Week</option>
+          <option value="planning_ahead">Planning Ahead</option>
+        </select>
+        <span class="filter-spacer"></span>
+        <span class="result-count" id="resultCount"></span>
+      </div>
+
+      <!-- TABLE -->
+      <div class="table-wrap">
+        <table id="leadsTable">
+          <thead>
+            <tr>
+              <th onclick="sortBy('submitted_at')">Date <span class="sort-arrow">↕</span></th>
+              <th onclick="sortBy('patient_last')">Patient <span class="sort-arrow">↕</span></th>
+              <th onclick="sortBy('planner_name')">Planner <span class="sort-arrow">↕</span></th>
+              <th onclick="sortBy('facility')">Facility <span class="sort-arrow">↕</span></th>
+              <th onclick="sortBy('patient_zip')">ZIP</th>
+              <th onclick="sortBy('care_type')">Care Type <span class="sort-arrow">↕</span></th>
+              <th onclick="sortBy('urgency')">Urgency <span class="sort-arrow">↕</span></th>
+              <th onclick="sortBy('status')">Status <span class="sort-arrow">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none">
+          <p>No referrals match your filters.</p>
+        </div>
+        <div class="pagination">
+          <span id="pageInfo"></span>
+          <div class="page-btns" id="pageBtns"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// ─── SAMPLE DATA (replace with real API fetch) ──────────────────────────────
+const SAMPLE_LEADS = [
+  {
+    id: 'dp_001',
+    submitted_at: '2026-03-31T14:22:00Z',
+    patient_first: 'Margaret', patient_last: 'Collins',
+    patient_zip: '85251',
+    care_type: 'hospice',
+    urgency: 'immediate',
+    insurance: 'medicare',
+    planner_name: 'Sarah Torres',
+    planner_title: 'Discharge Planner',
+    planner_email: 'storres@bannerhealth.com',
+    planner_phone: '(602) 555-0142',
+    facility: 'Banner Desert Medical Center',
+    notes: 'Advanced COPD. Family in Scottsdale. Spanish-speaking preferred.',
+    status: 'new'
+  },
+  {
+    id: 'dp_002',
+    submitted_at: '2026-03-30T09:15:00Z',
+    patient_first: 'Robert', patient_last: 'Yuen',
+    patient_zip: '85016',
+    care_type: 'home_health',
+    urgency: 'within_week',
+    insurance: 'private_insurance',
+    planner_name: 'James Okafor',
+    planner_title: 'Case Manager',
+    planner_email: 'jokafor@honorhealth.com',
+    planner_phone: '(602) 555-0198',
+    facility: 'HonorHealth Scottsdale',
+    notes: 'Post-surgical wound care. Lives alone. Needs daily visit.',
+    status: 'contacted'
+  },
+  {
+    id: 'dp_003',
+    submitted_at: '2026-03-29T16:44:00Z',
+    patient_first: 'Dorothy', patient_last: 'Reyes',
+    patient_zip: '85282',
+    care_type: 'palliative',
+    urgency: 'planning_ahead',
+    insurance: 'altcs',
+    planner_name: 'Angela Kim',
+    planner_title: 'Social Worker',
+    planner_email: 'akim@dignityhealth.org',
+    planner_phone: '(602) 555-0167',
+    facility: 'Dignity Health St. Joseph',
+    notes: 'Stage 3 CHF. Family requesting comfort-focused care alongside curative treatment.',
+    status: 'matched'
+  },
+  {
+    id: 'dp_004',
+    submitted_at: '2026-03-28T11:02:00Z',
+    patient_first: 'Harold', patient_last: 'Simmons',
+    patient_zip: '85301',
+    care_type: 'hospice',
+    urgency: 'immediate',
+    insurance: 'medicare',
+    planner_name: 'Sarah Torres',
+    planner_title: 'Discharge Planner',
+    planner_email: 'storres@bannerhealth.com',
+    planner_phone: '(602) 555-0142',
+    facility: 'Banner Desert Medical Center',
+    notes: 'Glioblastoma. Prognosis < 6 months. Family needs hospice ASAP.',
+    status: 'matched'
+  },
+  {
+    id: 'dp_005',
+    submitted_at: '2026-03-26T08:30:00Z',
+    patient_first: 'Evelyn', patient_last: 'Park',
+    patient_zip: '85260',
+    care_type: 'home_health',
+    urgency: 'within_week',
+    insurance: 'medicaid',
+    planner_name: 'Marcus Webb',
+    planner_title: 'Discharge Coordinator',
+    planner_email: 'mwebb@valleywise.org',
+    planner_phone: '(602) 555-0211',
+    facility: 'Valleywise Health',
+    notes: 'Diabetes management, PT needed. Limited mobility.',
+    status: 'closed'
+  },
+  {
+    id: 'dp_006',
+    submitted_at: '2026-04-01T07:55:00Z',
+    patient_first: 'Thomas', patient_last: 'Nguyen',
+    patient_zip: '85204',
+    care_type: 'hospice',
+    urgency: 'immediate',
+    insurance: 'medicare',
+    planner_name: 'Lisa Fernandez',
+    planner_title: 'Nurse Navigator',
+    planner_email: 'lfernandez@chandlerregional.com',
+    planner_phone: '(480) 555-0088',
+    facility: 'Chandler Regional Medical Center',
+    notes: 'End-stage renal. Family requesting home hospice over inpatient.',
+    status: 'new'
+  },
+  {
+    id: 'dp_007',
+    submitted_at: '2026-04-01T10:20:00Z',
+    patient_first: 'Barbara', patient_last: 'Holloway',
+    patient_zip: '85308',
+    care_type: 'palliative',
+    urgency: 'within_week',
+    insurance: 'private_pay',
+    planner_name: 'James Okafor',
+    planner_title: 'Case Manager',
+    planner_email: 'jokafor@honorhealth.com',
+    planner_phone: '(602) 555-0198',
+    facility: 'HonorHealth Scottsdale',
+    notes: 'Ovarian cancer, ongoing treatment. Palliative symptom management.',
+    status: 'new'
+  }
+];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let leads = [...SAMPLE_LEADS];
+let sortCol = 'submitted_at';
+let sortDir = 'desc';
+let openRow = null;
+let currentPage = 1;
+const PER_PAGE = 10;
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function loadLeads() {
+  try {
+    const res = await fetch('/api/admin/discharge-referrals');
+    if (res.ok) {
+      leads = await res.json();
+    }
+  } catch(e) {
+    // Use sample data if API not wired
+    leads = [...SAMPLE_LEADS];
+  }
+  renderStats();
+  renderTable();
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
+function renderStats() {
+  document.getElementById('statTotal').textContent = leads.length;
+  document.getElementById('statNew').textContent = leads.filter(l => l.status === 'new').length;
+  document.getElementById('statMatched').textContent = leads.filter(l => l.status === 'matched').length;
+  const planners = new Set(leads.map(l => l.planner_email));
+  document.getElementById('statPlanners').textContent = planners.size;
+  document.getElementById('newCount').textContent = leads.filter(l => l.status === 'new').length;
+}
+
+// ─── SORT ─────────────────────────────────────────────────────────────────────
+function sortBy(col) {
+  if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortCol = col; sortDir = 'asc'; }
+  currentPage = 1;
+  renderTable();
+}
+
+// ─── FILTER + RENDER ─────────────────────────────────────────────────────────
+function getFiltered() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const status = document.getElementById('filterStatus').value;
+  const care = document.getElementById('filterCare').value;
+  const urgency = document.getElementById('filterUrgency').value;
+
+  return leads.filter(l => {
+    const matchSearch = !search ||
+      (l.patient_first + ' ' + l.patient_last).toLowerCase().includes(search) ||
+      l.planner_name.toLowerCase().includes(search) ||
+      l.facility.toLowerCase().includes(search) ||
+      l.patient_zip.includes(search);
+    const matchStatus = !status || l.status === status;
+    const matchCare = !care || l.care_type === care;
+    const matchUrgency = !urgency || l.urgency === urgency;
+    return matchSearch && matchStatus && matchCare && matchUrgency;
+  }).sort((a, b) => {
+    let va = a[sortCol] || ''; let vb = b[sortCol] || '';
+    if (sortCol === 'submitted_at') { va = new Date(va); vb = new Date(vb); }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+function renderTable() {
+  const filtered = getFiltered();
+  const total = filtered.length;
+  const pages = Math.ceil(total / PER_PAGE);
+  if (currentPage > pages) currentPage = 1;
+  const start = (currentPage - 1) * PER_PAGE;
+  const pageLeads = filtered.slice(start, start + PER_PAGE);
+
+  document.getElementById('resultCount').textContent = `${total} referral${total !== 1 ? 's' : ''}`;
+  document.getElementById('emptyState').style.display = total === 0 ? 'block' : 'none';
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  pageLeads.forEach(lead => {
+    const date = new Date(lead.submitted_at);
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+    const tr = document.createElement('tr');
+    tr.dataset.id = lead.id;
+    tr.innerHTML = `
+      <td class="td-date">${dateStr}<br><small>${timeStr}</small></td>
+      <td class="td-patient">${lead.patient_last}, ${lead.patient_first}</td>
+      <td>
+        <div class="td-planner">${lead.planner_name}</div>
+        <div class="td-facility">${lead.planner_title || ''}</div>
+      </td>
+      <td class="td-facility">${lead.facility}</td>
+      <td class="td-zip">${lead.patient_zip}</td>
+      <td class="care-type">${formatCareType(lead.care_type)}</td>
+      <td><span class="urgency urgency-${lead.urgency.replace('_','')}">${formatUrgency(lead.urgency)}</span></td>
+      <td><span class="badge badge-${lead.status}">${capitalize(lead.status)}</span></td>
+    `;
+    tr.addEventListener('click', () => toggleDetail(tr, lead));
+    tbody.appendChild(tr);
+
+    // Detail row
+    const detailTr = document.createElement('tr');
+    detailTr.classList.add('detail-panel');
+    detailTr.id = `detail-${lead.id}`;
+    detailTr.innerHTML = `
+      <td colspan="8">
+        <div class="detail-inner">
+          <div class="detail-group">
+            <label>Planner Contact</label>
+            <p>${lead.planner_name}</p>
+            <p style="font-size:0.8rem;color:var(--gray-400)">${lead.planner_email}</p>
+            <p style="font-size:0.8rem;color:var(--gray-400)">${lead.planner_phone || '—'}</p>
+          </div>
+          <div class="detail-group">
+            <label>Insurance</label>
+            <p>${formatInsurance(lead.insurance)}</p>
+            <label style="margin-top:10px">ZIP Code</label>
+            <p>${lead.patient_zip}</p>
+          </div>
+          <div class="detail-group">
+            <label>Notes</label>
+            <p style="font-size:0.82rem;line-height:1.5">${lead.notes || '—'}</p>
+          </div>
+          <div class="detail-actions">
+            <label style="font-size:0.68rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--gray-400);display:block;margin-bottom:4px">Update Status</label>
+            <select class="status-select" onchange="updateStatus('${lead.id}', this.value)">
+              <option value="new" ${lead.status==='new'?'selected':''}>New</option>
+              <option value="contacted" ${lead.status==='contacted'?'selected':''}>Contacted</option>
+              <option value="matched" ${lead.status==='matched'?'selected':''}>Matched</option>
+              <option value="closed" ${lead.status==='closed'?'selected':''}>Closed</option>
+            </select>
+            <button class="btn-sm" style="margin-top:6px" onclick="emailPlanner('${lead.planner_email}')">✉ Email Planner</button>
+          </div>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(detailTr);
+  });
+
+  renderPagination(total, pages);
+}
+
+function toggleDetail(tr, lead) {
+  const detailRow = document.getElementById(`detail-${lead.id}`);
+  const isOpen = detailRow.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.detail-panel.open').forEach(r => r.classList.remove('open'));
+  if (!isOpen) detailRow.classList.add('open');
+}
+
+function renderPagination(total, pages) {
+  document.getElementById('pageInfo').textContent =
+    `Showing ${Math.min((currentPage-1)*PER_PAGE+1, total)}–${Math.min(currentPage*PER_PAGE, total)} of ${total}`;
+  const btns = document.getElementById('pageBtns');
+  btns.innerHTML = '';
+  if (pages <= 1) return;
+  for (let i = 1; i <= pages; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+    btn.textContent = i;
+    btn.onclick = () => { currentPage = i; renderTable(); };
+    btns.appendChild(btn);
+  }
+}
+
+// ─── ACTIONS ──────────────────────────────────────────────────────────────────
+async function updateStatus(id, status) {
+  const lead = leads.find(l => l.id === id);
+  if (!lead) return;
+  lead.status = status;
+
+  try {
+    await fetch(`/api/admin/discharge-referrals/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+  } catch(e) { /* local update only if API not wired */ }
+
+  renderStats();
+  renderTable();
+}
+
+function emailPlanner(email) {
+  window.location.href = `mailto:${email}`;
+}
+
+function exportCSV() {
+  const filtered = getFiltered();
+  const headers = ['Date','Patient','Planner','Facility','ZIP','Care Type','Urgency','Insurance','Status','Notes'];
+  const rows = filtered.map(l => [
+    new Date(l.submitted_at).toLocaleDateString(),
+    `${l.patient_last}, ${l.patient_first}`,
+    l.planner_name,
+    l.facility,
+    l.patient_zip,
+    formatCareType(l.care_type),
+    formatUrgency(l.urgency),
+    formatInsurance(l.insurance),
+    capitalize(l.status),
+    `"${(l.notes||'').replace(/"/g,'""')}"`
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `discharge-referrals-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function formatCareType(t) {
+  return { hospice: 'Hospice', home_health: 'Home Health', palliative: 'Palliative', unsure: 'Unsure' }[t] || t;
+}
+function formatUrgency(u) {
+  return { immediate: '🔴 Immediate', within_week: '🟡 This Week', planning_ahead: '⚪ Planning Ahead' }[u] || u;
+}
+function formatInsurance(i) {
+  return { medicare: 'Medicare', medicaid: 'Medicaid/AHCCCS', altcs: 'ALTCS', private_insurance: 'Private Insurance', private_pay: 'Private Pay', unknown: 'Unknown' }[i] || i || '—';
+}
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+loadLeads();
+</script>
+</body>
+</html>
