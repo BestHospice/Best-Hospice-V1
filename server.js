@@ -3692,6 +3692,20 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       console.error('Website analytics query failed (continuing with lead analytics)', webAnalyticsErr?.message || webAnalyticsErr);
     }
 
+    let dischargeReferralsAllTime = 0;
+    let dischargeReferralsInRange = 0;
+    try {
+      await ensureDischargeReferralTable();
+      const [drAllTime, drInRange] = await Promise.all([
+        prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS count FROM "DischargeReferral"`),
+        prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS count FROM "DischargeReferral" WHERE submitted_at >= $1 AND submitted_at <= $2`, from, to)
+      ]);
+      dischargeReferralsAllTime = Number(drAllTime?.[0]?.count || 0);
+      dischargeReferralsInRange = Number(drInRange?.[0]?.count || 0);
+    } catch (drErr) {
+      console.error('Discharge referral count failed (continuing)', drErr?.message || drErr);
+    }
+
     res.json({
       ok: true,
       from: from.toISOString().slice(0, 10),
@@ -3712,7 +3726,9 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         sessionsInRange,
         pagesPerSession,
         avgEngagementSeconds,
-        avgScrollDepthPct
+        avgScrollDepthPct,
+        dischargeReferralsAllTime,
+        dischargeReferralsInRange
       },
       breakdowns: {
         careTypes: careTypeMap,

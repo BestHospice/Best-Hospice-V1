@@ -417,6 +417,8 @@
       const cards = [
         ['Clients Generated (All Time)', fmtNum(totals.leadsAllTime)],
         ['Clients In Range', fmtNum(totals.leadsInRange)],
+        ['Discharge Referrals (All Time)', fmtNum(totals.dischargeReferralsAllTime || 0)],
+        ['Discharge Referrals (In Range)', fmtNum(totals.dischargeReferralsInRange || 0)],
         ['Initial Emails Sent', fmtNum(totals.initialEmailsSentInRange)],
         ['Additional Emails Sent', fmtNum(totals.additionalEmailsSentInRange)],
         ['Notifications Sent (Total)', fmtNum(totals.notificationsSentInRange)],
