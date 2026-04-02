@@ -53,6 +53,8 @@
     .empty-state { padding: 40px; text-align: center; color: #6b7280; }
     .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-family: inherit; font-weight: 600; }
     .btn-sm:hover { border-color: #0f766e; color: #0f766e; }
+    .btn-del { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+    .btn-del:hover { background: #fee2e2; border-color: #dc2626; }
   </style>
   <script src="/abel-chat.js" defer></script>
   <script src="/admin-auth.js" defer></script>
@@ -272,6 +274,7 @@
                   <option value="closed" ${lead.status==='closed'?'selected':''}>Closed</option>
                 </select>
                 <button class="btn-sm" style="margin-top:6px;" onclick="emailPlanner('${lead.planner_email}')">Email Planner</button>
+                <button class="btn-sm btn-del" style="margin-top:4px;" onclick="deleteLead('${lead.id}')">Delete</button>
               </div>
             </div>
           </td>
@@ -322,6 +325,19 @@
 
     function emailPlanner(email) {
       if (email) window.location.href = `mailto:${email}`;
+    }
+
+    async function deleteLead(id) {
+      if (!confirm('Delete this referral? This cannot be undone.')) return;
+      try {
+        const res = await fetch(`/api/admin/discharge-referrals/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (!res.ok) { alert('Delete failed.'); return; }
+        leads = leads.filter(l => l.id !== id);
+        renderStats();
+        renderTable();
+      } catch(e) {
+        alert('Delete failed.');
+      }
     }
 
     function exportCSV() {

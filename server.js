@@ -6166,6 +6166,21 @@ app.get('/api/admin/discharge-referrals', async (req, res) => {
   }
 });
 
+// DELETE /api/admin/discharge-referrals/:id — delete a referral (admin only)
+app.delete('/api/admin/discharge-referrals/:id', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    await ensureDischargeReferralTable();
+    await prisma.$executeRawUnsafe(`DELETE FROM "DischargeReferral" WHERE id = $1`, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Discharge referral delete failed', err);
+    res.status(500).json({ error: 'Could not delete referral.' });
+  }
+});
+
 // PATCH /api/admin/discharge-referrals/:id/status — update referral status (admin only)
 app.patch('/api/admin/discharge-referrals/:id/status', async (req, res) => {
   if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
