@@ -6164,13 +6164,20 @@ app.post('/api/discharge-referral', async (req, res) => {
       </div>`;
       sendGenericEmail(String(planner_email).trim().toLowerCase(), 'Referral Received — Best Hospice & Home Health', html).catch(() => {});
     }
-    // Notify all providers
+    // Notify providers in the patient's area
     if (EMAIL_ENABLED) {
       try {
+        const geo = await geocodeAddress(`${String(patient_zip).trim()}, USA`).catch(() => null);
         const allProviders = await prisma.provider.findMany({
-          select: { id: true, email: true, secondaryContactEmail: true }
+          select: { id: true, email: true, secondaryContactEmail: true, lat: true, lon: true, serviceRadiusKm: true }
         });
-        const providerList = allProviders.map((p) => ({
+        const nearbyProviders = geo
+          ? allProviders.filter((p) => {
+              const radiusKm = Number(p.serviceRadiusKm) || 96.6;
+              return haversineKm(geo.lat, geo.lon, p.lat, p.lon) <= radiusKm;
+            })
+          : allProviders;
+        const providerList = nearbyProviders.map((p) => ({
           id: p.id,
           emails: [p.email, p.secondaryContactEmail].filter(Boolean)
         }));
