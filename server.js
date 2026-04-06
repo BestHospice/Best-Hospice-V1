@@ -928,7 +928,82 @@ app.get('/states/:state', async (req, res) => {
       select: { name: true, city: true, state: true, phone: true, website: true, address: true, careType: true },
       orderBy: [{ city: 'asc' }, { name: 'asc' }]
     });
-    if (!providers.length) return res.status(404).send('State not found');
+    if (!providers.length) {
+      const rawSlug = stateSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return res.status(200).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hospice & Home Care Providers in ${rawSlug} | Best Hospice</title>
+  <meta name="description" content="Best Hospice and Home Health is expanding to ${rawSlug}. Find verified hospice, palliative care, and home care providers near you. 100% free for families." />
+  <link rel="canonical" href="${CANONICAL_DOMAIN}/states/${stateSlug}" />
+  <link rel="stylesheet" href="/styles-modern.css" />
+  <link rel="stylesheet" href="/styles/main.css" />
+  <script src="/abel-chat.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="brand"><img src="/BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo"></div>
+        <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+        <div class="top-links" id="topLinks">
+          <a class="pill ghost-pill" href="/">Main Menu</a>
+          <a class="pill ghost-pill" href="/locations.html">All Locations</a>
+          <a class="pill ghost-pill" href="/search.html">Find Providers</a>
+        </div>
+      </div>
+      <div class="hero-body" style="grid-template-columns:1fr;">
+        <div class="hero-text">
+          <h1>Hospice and Home Care in ${rawSlug}</h1>
+          <p class="tagline">We are actively expanding our verified provider network to ${rawSlug}. In the meantime, we can still help your family find care.</p>
+        </div>
+      </div>
+    </header>
+    <main>
+      <section class="card" style="padding:24px; margin-bottom:18px; text-align:center;">
+        <h2 style="margin:0 0 10px;">We are growing to ${rawSlug}</h2>
+        <p style="margin:0 0 16px; color:#5b6474;">Our team is verifying providers in ${rawSlug} now. Search below to see what is currently available near you, or contact us directly and we will help you find the right care.</p>
+        <a href="/search.html" class="button" style="font-size:1rem; padding:12px 28px; margin-right:10px;">Search Providers Near Me</a>
+        <a href="/contact.html" class="button ghost-pill" style="font-size:1rem; padding:12px 28px;">Contact Us for Help</a>
+      </section>
+      <section class="card" style="padding:18px; margin-bottom:18px;">
+        <h2 style="margin:0 0 8px;">What Best Hospice and Home Health Does</h2>
+        <p style="margin:0 0 10px;">We connect families with verified hospice, palliative care, and home care providers — at no cost to families, with no referral commissions, and no sales pressure.</p>
+        <p style="margin:0;">Enter your ZIP code to instantly see verified providers near you. If we do not have providers in your area yet, we will let you know as soon as we do.</p>
+      </section>
+      <section class="card" style="padding:18px;">
+        <h2 style="margin:0 0 8px;">Need Help Now?</h2>
+        <p style="margin:0 0 10px;">Call us at <a href="tel:+12057391592">(205) 739-1592</a> or email <a href="mailto:contact@besthospice.com">contact@besthospice.com</a> and our team will help you find the right care in ${rawSlug}.</p>
+        <p style="margin:0;">You can also search <a href="https://www.medicare.gov/care-compare" target="_blank" rel="noopener">Medicare Care Compare</a> for Medicare-certified hospice providers in your area.</p>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">Best Hospice and Home Health</div>
+        <div class="footer-meta">Contact: contact@besthospice.com &bull; United States</div>
+        <div class="footer-links">
+          <a href="/privacy.html">Privacy Policy</a>
+          <a href="/terms.html">Terms of Service</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+  <script>
+    (() => {
+      const toggle = document.querySelector('.menu-toggle');
+      const links = document.getElementById('topLinks');
+      if (!toggle || !links) return;
+      toggle.addEventListener('click', () => {
+        const open = links.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    })();
+  </script>
+</body>
+</html>`);
+    }
 
     const stateName = normalizeStateLabel(providers[0].state);
     const cityMap = new Map();
@@ -960,9 +1035,11 @@ app.get('/states/:state', async (req, res) => {
     <header class="hero">
       <div class="hero-top">
         <div class="brand"><img src="/BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health logo" class="brand-logo"></div>
-        <div class="top-links" style="display:flex;">
+        <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+        <div class="top-links" id="topLinks">
           <a class="pill ghost-pill" href="/">Main Menu</a>
           <a class="pill ghost-pill" href="/cities.html">Browse Cities</a>
+          <a class="pill ghost-pill" href="/search.html">Find Providers</a>
         </div>
       </div>
       <div class="hero-body" style="grid-template-columns:1fr;">
@@ -979,6 +1056,17 @@ app.get('/states/:state', async (req, res) => {
       </section>
     </main>
   </div>
+  <script>
+    (() => {
+      const toggle = document.querySelector('.menu-toggle');
+      const links = document.getElementById('topLinks');
+      if (!toggle || !links) return;
+      toggle.addEventListener('click', () => {
+        const open = links.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    })();
+  </script>
 </body>
 </html>`;
     res.send(html);
