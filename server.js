@@ -6273,6 +6273,14 @@ Sitemap: ${CANONICAL_DOMAIN}/sitemap-providers.xml
 `);
 });
 
+app.get('/llms.txt', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'llms.txt'));
+});
+
+app.get('/llms', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'llms.html'));
+});
+
 Promise.all([
   ensureWaitlistTable(),
   ensureJobLeadTable(),
