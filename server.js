@@ -5886,7 +5886,9 @@ const GUIDE_PATHS = [
   '/guides/hospice-care-nashville-tennessee',
   '/guides/hospice-care-denver-colorado',
   '/guides/hospice-care-tampa-florida',
-  '/guides/hospice-care-charlotte-north-carolina'
+  '/guides/hospice-care-charlotte-north-carolina',
+  '/guides/hospice-care-dallas-texas',
+  '/guides/hospice-care-houston-texas'
 ];
 const CORE_CONTENT_PAGES = [
   '/',
@@ -6116,6 +6118,12 @@ app.get('/guides/hospice-care-tampa-florida', (_req, res) => {
 });
 app.get('/guides/hospice-care-charlotte-north-carolina', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'hospice-care-charlotte-north-carolina.html'));
+});
+app.get('/guides/hospice-care-dallas-texas', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-dallas-texas.html'));
+});
+app.get('/guides/hospice-care-houston-texas', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-houston-texas.html'));
 });
 
 // Paid ads landing page (serve 200 on all aliases for strict ad crawlers)
