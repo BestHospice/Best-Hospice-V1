@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Testimonials | Best Hospice Admin</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles-modern.css" />
+  <link rel="stylesheet" href="/styles/main.css" />
+  <style>
+    .admin-shell { max-width: 900px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 24px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); margin-bottom: 20px; }
+    .note { color: #4b5563; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 8px 10px; border-bottom: 2px solid #e5e7eb; color: #374151; font-weight: 600; }
+    td { padding: 10px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    .table-wrap { overflow-x: auto; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; font-family: inherit; }
+    .btn-del { background: #fef2f2; color: #dc2626; }
+    .btn-del:hover { background: #fee2e2; }
+    .btn-toggle { background: #f0fdf4; color: #15803d; }
+    .btn-toggle:hover { background: #dcfce7; }
+    .btn-toggle.inactive { background: #fafafa; color: #6b7280; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-active { background: #d1fae5; color: #065f46; }
+    .badge-inactive { background: #f3f4f6; color: #6b7280; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .form-group label { font-size: 13px; font-weight: 600; color: #374151; }
+    .form-group input, .form-group textarea { padding: 9px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-family: inherit; font-size: 14px; color: #111; outline: none; transition: border-color 0.15s; }
+    .form-group input:focus, .form-group textarea:focus { border-color: #0f766e; }
+    .form-group textarea { min-height: 90px; resize: vertical; }
+    .quote-cell { max-width: 340px; font-style: italic; color: #374151; }
+  </style>
+  <script src="/abel-chat.js" defer></script>
+  <script src="/admin-auth.js" defer></script>
+</head>
+<body>
+  <div class="admin-shell">
+
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+      <div>
+        <h1 style="margin:0;">Testimonials</h1>
+        <p class="note">Manage testimonials shown in the rotating banner on the home page.</p>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="button ghost" href="admin-menu.html">Back to Admin</a>
+        <button class="button ghost" id="admin-logout-btn" type="button">Log Out</button>
+      </div>
+    </div>
+
+    <!-- Add new testimonial -->
+    <div class="card">
+      <h2 style="margin:0 0 16px;">Add New Testimonial</h2>
+      <div class="form-group">
+        <label>Quote *</label>
+        <textarea id="new-quote" placeholder="Type the testimonial here..."></textarea>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="form-group">
+          <label>Author Name *</label>
+          <input type="text" id="new-author-name" placeholder="e.g. Sarah M.">
+        </div>
+        <div class="form-group">
+          <label>Author Title / Location (optional)</label>
+          <input type="text" id="new-author-title" placeholder="e.g. Family member, Phoenix AZ">
+        </div>
+      </div>
+      <div class="form-group" style="max-width:160px;">
+        <label>Display Order</label>
+        <input type="number" id="new-order" value="0" min="0">
+      </div>
+      <button class="button" id="add-btn" onclick="addTestimonial()">Add Testimonial</button>
+      <p id="add-msg" style="margin-top:10px;font-size:13px;display:none;"></p>
+    </div>
+
+    <!-- Testimonials table -->
+    <div class="card">
+      <h2 style="margin:0 0 16px;">All Testimonials</h2>
+      <div class="table-wrap">
+        <table id="testimonials-table">
+          <thead>
+            <tr>
+              <th style="width:40%;">Quote</th>
+              <th>Author</th>
+              <th>Order</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr><td colspan="5" style="color:#6b7280;text-align:center;padding:24px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let testimonials = [];
+
+    async function authHeaders() {
+      const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken') || '';
+      const cookie = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('bh_admin_session_v2='));
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['x-admin-token'] = token;
+      return headers;
+    }
+
+    async function loadTestimonials() {
+      const headers = await authHeaders();
+      const res = await fetch('/api/admin/testimonials', { headers });
+      if (!res.ok) return;
+      testimonials = await res.json();
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('table-body');
+      if (!testimonials.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:#6b7280;text-align:center;padding:24px;">No testimonials yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = testimonials.map(t => `
+        <tr id="row-${t.id}">
+          <td class="quote-cell">"${escHtml(t.quote)}"</td>
+          <td>
+            <div style="font-weight:600;">${escHtml(t.author_name)}</div>
+            ${t.author_title ? `<div style="font-size:12px;color:#6b7280;">${escHtml(t.author_title)}</div>` : ''}
+          </td>
+          <td>${t.display_order}</td>
+          <td><span class="badge ${t.active ? 'badge-active' : 'badge-inactive'}">${t.active ? 'Active' : 'Inactive'}</span></td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn-sm btn-toggle ${t.active ? '' : 'inactive'}" onclick="toggleActive('${t.id}', ${!t.active})">${t.active ? 'Deactivate' : 'Activate'}</button>
+            <button class="btn-sm btn-del" onclick="deleteTestimonial('${t.id}')">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function escHtml(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function addTestimonial() {
+      const quote = document.getElementById('new-quote').value.trim();
+      const author_name = document.getElementById('new-author-name').value.trim();
+      const author_title = document.getElementById('new-author-title').value.trim();
+      const display_order = Number(document.getElementById('new-order').value) || 0;
+      const msg = document.getElementById('add-msg');
+
+      if (!quote || !author_name) {
+        msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = 'Quote and author name are required.';
+        return;
+      }
+
+      const btn = document.getElementById('add-btn');
+      btn.disabled = true; btn.textContent = 'Saving...';
+
+      const headers = await authHeaders();
+      const res = await fetch('/api/admin/testimonials', {
+        method: 'POST', headers,
+        body: JSON.stringify({ quote, author_name, author_title, display_order })
+      });
+
+      btn.disabled = false; btn.textContent = 'Add Testimonial';
+      if (res.ok) {
+        msg.style.display = 'block'; msg.style.color = '#15803d'; msg.textContent = 'Testimonial added!';
+        document.getElementById('new-quote').value = '';
+        document.getElementById('new-author-name').value = '';
+        document.getElementById('new-author-title').value = '';
+        document.getElementById('new-order').value = '0';
+        await loadTestimonials();
+      } else {
+        msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = 'Failed to add. Try again.';
+      }
+    }
+
+    async function toggleActive(id, newActive) {
+      const t = testimonials.find(x => x.id === id);
+      if (!t) return;
+      const headers = await authHeaders();
+      await fetch(`/api/admin/testimonials/${id}`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ quote: t.quote, author_name: t.author_name, author_title: t.author_title, active: newActive, display_order: t.display_order })
+      });
+      await loadTestimonials();
+    }
+
+    async function deleteTestimonial(id) {
+      if (!confirm('Delete this testimonial? This cannot be undone.')) return;
+      const headers = await authHeaders();
+      await fetch(`/api/admin/testimonials/${id}`, { method: 'DELETE', headers });
+      await loadTestimonials();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTestimonials();
+      const logoutBtn = document.getElementById('admin-logout-btn');
+      if (logoutBtn) logoutBtn.addEventListener('click', () => window.adminAuth && window.adminAuth.logout());
+    });
+  </script>
+</body>
+</html>

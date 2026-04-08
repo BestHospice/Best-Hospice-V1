@@ -50,7 +50,8 @@ const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-newsletter.html',
   '/admin-territory.html',
   '/admin-hiring.html',
-  '/admin-discharge-leads.html'
+  '/admin-discharge-leads.html',
+  '/admin-testimonials.html'
 ]);
 
 function isAdminMainToken(token) {
@@ -279,6 +280,20 @@ async function ensureWebsiteEventsTable() {
 }
 
 let waitlistTableReady = false;
+async function ensureTestimonialsTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Testimonial" (
+      id TEXT PRIMARY KEY,
+      quote TEXT NOT NULL,
+      author_name TEXT NOT NULL,
+      author_title TEXT,
+      active BOOLEAN NOT NULL DEFAULT true,
+      display_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
 async function ensureWaitlistTable() {
   if (waitlistTableReady) return;
   await prisma.$executeRawUnsafe(`
@@ -6201,6 +6216,79 @@ app.get('/admin-discharge-leads.html', (_req, res) => {
   res.sendFile(path.join(__dirname, 'admin-discharge-leads.html'));
 });
 
+// GET /api/testimonials — public, active testimonials for home page
+app.get('/api/testimonials', async (req, res) => {
+  try {
+    await ensureTestimonialsTable();
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT id, quote, author_name, author_title FROM "Testimonial" WHERE active = true ORDER BY display_order ASC, created_at ASC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Testimonials fetch failed', err);
+    res.json([]);
+  }
+});
+
+// GET /api/admin/testimonials — all testimonials
+app.get('/api/admin/testimonials', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await ensureTestimonialsTable();
+    const rows = await prisma.$queryRawUnsafe(`SELECT * FROM "Testimonial" ORDER BY display_order ASC, created_at ASC`);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load testimonials.' });
+  }
+});
+
+// POST /api/admin/testimonials — create
+app.post('/api/admin/testimonials', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) return res.status(401).json({ error: 'Unauthorized' });
+  const { quote, author_name, author_title, display_order } = req.body || {};
+  if (!quote || !author_name) return res.status(400).json({ error: 'quote and author_name are required.' });
+  try {
+    await ensureTestimonialsTable();
+    const id = uuid();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "Testimonial" (id, quote, author_name, author_title, active, display_order) VALUES ($1,$2,$3,$4,true,$5)`,
+      id, String(quote).trim(), String(author_name).trim(), String(author_title || '').trim(), Number(display_order) || 0
+    );
+    res.json({ ok: true, id });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not create testimonial.' });
+  }
+});
+
+// PATCH /api/admin/testimonials/:id — update
+app.patch('/api/admin/testimonials/:id', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) return res.status(401).json({ error: 'Unauthorized' });
+  const { quote, author_name, author_title, active, display_order } = req.body || {};
+  try {
+    await ensureTestimonialsTable();
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Testimonial" SET quote=$1, author_name=$2, author_title=$3, active=$4, display_order=$5 WHERE id=$6`,
+      String(quote).trim(), String(author_name).trim(), String(author_title || '').trim(),
+      Boolean(active), Number(display_order) || 0, req.params.id
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not update testimonial.' });
+  }
+});
+
+// DELETE /api/admin/testimonials/:id — delete
+app.delete('/api/admin/testimonials/:id', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await ensureTestimonialsTable();
+    await prisma.$executeRawUnsafe(`DELETE FROM "Testimonial" WHERE id=$1`, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not delete testimonial.' });
+  }
+});
+
 // POST /api/discharge-referral — submit a discharge planner referral
 app.post('/api/discharge-referral', async (req, res) => {
   if (req.body?.website) return res.json({ ok: true });
@@ -6372,7 +6460,8 @@ app.get('/llms', (_req, res) => {
 Promise.all([
   ensureWaitlistTable(),
   ensureJobLeadTable(),
-  ensureDischargeReferralTable()
+  ensureDischargeReferralTable(),
+  ensureTestimonialsTable()
 ]).catch((err) => console.error('Table setup failed:', err)).finally(() => {
   app.listen(PORT, () => {
     console.log(`Best Hospice and Home Health server running on http://localhost:${PORT}`);

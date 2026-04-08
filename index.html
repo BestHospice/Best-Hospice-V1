@@ -213,6 +213,20 @@
     </header>
 
     <main>
+      <section id="testimonial-banner" style="display:none; background:#f0fdf9; border:1px solid rgba(15,118,110,0.18); border-radius:14px; padding:20px 28px; margin:12px 0 18px; position:relative; min-height:90px;">
+        <div id="testimonial-track" style="position:relative; overflow:hidden;">
+          <div id="testimonial-content" style="transition:opacity 0.5s ease;">
+            <p id="testimonial-quote" style="font-size:1rem; color:#1a2e3d; font-style:italic; margin:0 0 10px; line-height:1.6;"></p>
+            <p id="testimonial-author" style="font-size:0.85rem; font-weight:600; color:#0f766e; margin:0;"></p>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px;">
+          <button id="t-prev" onclick="testimonialNav(-1)" style="background:none;border:none;cursor:pointer;color:#0f766e;font-size:18px;padding:4px 8px;">&#8592;</button>
+          <div id="t-dots" style="display:flex;gap:6px;"></div>
+          <button id="t-next" onclick="testimonialNav(1)" style="background:none;border:none;cursor:pointer;color:#0f766e;font-size:18px;padding:4px 8px;">&#8594;</button>
+        </div>
+      </section>
+
       <section class="card" style="padding:16px; margin:12px 0 18px;">
         <h2 id="trust-title" style="margin:0;">Why families trust Best Hospice and Home Health</h2>
         <p class="tagline" id="trust-subtitle" style="margin:6px 0 12px;">Transparent access to verified providers, nationwide coverage, and no-cost support for families.</p>
@@ -866,5 +880,62 @@
     });
   })();
   // ───────────────────────────────────────────────────────────────────────
+
+  // Testimonial banner
+  (function() {
+    let testimonials = [];
+    let current = 0;
+    let timer = null;
+
+    function renderDots() {
+      const dots = document.getElementById('t-dots');
+      if (!dots) return;
+      dots.innerHTML = testimonials.map((_, i) =>
+        `<span style="width:8px;height:8px;border-radius:50%;background:${i===current?'#0f766e':'#c7d2d9'};display:inline-block;cursor:pointer;" onclick="testimonialGoTo(${i})"></span>`
+      ).join('');
+    }
+
+    function showTestimonial(idx) {
+      const content = document.getElementById('testimonial-content');
+      const quote = document.getElementById('testimonial-quote');
+      const author = document.getElementById('testimonial-author');
+      if (!content || !quote || !author || !testimonials.length) return;
+      content.style.opacity = '0';
+      setTimeout(() => {
+        const t = testimonials[idx];
+        quote.textContent = '\u201C' + t.quote + '\u201D';
+        author.textContent = '\u2014 ' + t.author_name + (t.author_title ? ', ' + t.author_title : '');
+        content.style.opacity = '1';
+        renderDots();
+      }, 250);
+    }
+
+    window.testimonialNav = function(dir) {
+      if (!testimonials.length) return;
+      current = (current + dir + testimonials.length) % testimonials.length;
+      showTestimonial(current);
+      resetTimer();
+    };
+
+    window.testimonialGoTo = function(idx) {
+      current = idx;
+      showTestimonial(current);
+      resetTimer();
+    };
+
+    function resetTimer() {
+      clearInterval(timer);
+      if (testimonials.length > 1) timer = setInterval(() => { current = (current + 1) % testimonials.length; showTestimonial(current); }, 6000);
+    }
+
+    fetch('/api/testimonials').then(r => r.json()).then(data => {
+      if (!Array.isArray(data) || !data.length) return;
+      testimonials = data;
+      const banner = document.getElementById('testimonial-banner');
+      if (banner) banner.style.display = 'block';
+      showTestimonial(0);
+      resetTimer();
+    }).catch(() => {});
+  })();
 </script>
 </html>
