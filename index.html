@@ -133,6 +133,14 @@
     #wq-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;line-height:1;}
     #wq-success{display:none;text-align:center;padding:20px 0;}
     #wq-success h3{color:#0f766e;margin:0 0 10px;font-size:1.2rem;}
+  .president-section { display:flex; flex-direction:row; gap:16px; align-items:center; }
+  .president-section-video { flex-shrink:0; display:flex; justify-content:center; }
+  .president-section-text { flex:1; }
+  @media (max-width: 768px) {
+    .president-section { flex-direction:column; align-items:center; }
+    .president-section-video { order:1; }
+    .president-section-text { order:2; width:100%; }
+  }
   </style>
 </head>
 <body class="home-page">
@@ -228,13 +236,13 @@
       </section>
 
       <section class="card" style="padding:18px; margin:0 0 18px;">
-        <div style="display:grid; grid-template-columns: minmax(0, 160px) 1fr; gap:16px; align-items:center;">
-          <div style="display:flex; justify-content:center;">
+        <div class="president-section">
+          <div class="president-section-video">
             <div style="width:140px; border-radius:16px; overflow:hidden; aspect-ratio:9/16; background:#000;">
               <iframe src="https://www.youtube.com/embed/sN2-UTN-9jE" title="About the President" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%; height:100%; display:block;"></iframe>
             </div>
           </div>
-          <div>
+          <div class="president-section-text">
             <h2 style="margin:0 0 8px;">Meet the President</h2>
             <p class="tagline" style="margin:0 0 10px;">A West Point graduate and Ranger-qualified Army officer who served in the 101st Airborne Division and in The Old Guard as a Platoon Leader in Arlington National Cemetery. While leading ceremonial missions honoring our nation's heroes and supporting grieving families, Crawford witnessed his own family struggle to navigate hospice care. He built Best Hospice and Home Health to ensure no family faces that confusion alone, connecting them with verified providers quickly, simply, and compassionately.</p>
             <a class="pill ghost-pill" href="why.html" style="display:inline-block; margin-top:12px;">Who We Are</a>
