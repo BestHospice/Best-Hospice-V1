@@ -5908,7 +5908,8 @@ const CORE_CONTENT_PAGES = [
   '/search.html',
   '/search-results.html',
   '/phoenix',
-  '/sitemap.html'
+  '/sitemap.html',
+  '/hospice-care-near-me'
 ];
 
 async function buildSitemapUrls() {
@@ -6124,6 +6125,10 @@ app.get('/guides/hospice-care-dallas-texas', (_req, res) => {
 });
 app.get('/guides/hospice-care-houston-texas', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'hospice-care-houston-texas.html'));
+});
+
+app.get('/hospice-care-near-me', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'hospice-care-near-me.html'));
 });
 
 // Paid ads landing page (serve 200 on all aliases for strict ad crawlers)

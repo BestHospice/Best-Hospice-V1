@@ -217,6 +217,7 @@ Cities: Charleston, Huntington, Parkersburg, Morgantown, Wheeling, Martinsburg
 ## Key URLs
 
 - Homepage and family search: https://besthospice.com
+- Hospice care near me: https://besthospice.com/hospice-care-near-me
 - Start a care search: https://besthospice.com/search.html
 - Hospice care providers: https://besthospice.com/hospice-care
 - Palliative care providers: https://besthospice.com/palliative-care
