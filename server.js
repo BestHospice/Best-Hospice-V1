@@ -2816,6 +2816,27 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     const toList = providers.filter((p) => !!p.id);
     if (!toList.length) return res.status(400).json({ error: 'No providers to notify' });
 
+    // Deduplicate: block exact same email + phone + timeline within 24 hours
+    if (notifyMode === 'initial') {
+      const dedupEmail = String(answers.contactEmail || '').trim().toLowerCase();
+      const dedupPhone = String(answers.contactPhone || '').trim();
+      const dedupTimeline = String(answers.timeline || '').trim();
+      if (dedupEmail && dedupPhone && dedupTimeline) {
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const existing = await prisma.lead.findFirst({
+          where: {
+            clientEmail: dedupEmail,
+            clientPhone: dedupPhone,
+            careDays: dedupTimeline,
+            createdAt: { gte: cutoff }
+          }
+        });
+        if (existing) {
+          return res.json({ ok: true, deduplicated: true });
+        }
+      }
+    }
+
     let requestSubmittedBy = toSubmittedBy(answers.relationship);
     let careDays = answers.timeline || 'Not specified';
     let careTimes = 'Not specified';
