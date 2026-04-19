@@ -1928,7 +1928,7 @@ function renderTrustBlock(dateStr) {
   `;
 }
 
-function renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas = [] }) {
+function renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas = [], noindex = false }) {
   const jsonLd = [];
   if (breadcrumbItems?.length) jsonLd.push(renderBreadcrumbList(breadcrumbItems));
   if (faqSchema) jsonLd.push(faqSchema);
@@ -1950,6 +1950,7 @@ function renderPageHTML({ title, description, canonical, breadcrumbItems, body, 
     </script>
     <title>${title}</title>
     <meta name="description" content="${description}" />
+    ${noindex ? '<meta name="robots" content="noindex, follow" />' : ''}
     <link rel="canonical" href="${canonical}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${canonical}" />
@@ -2160,7 +2161,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
       </div>
     </main>
   `;
-  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas });
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: serviceKey !== 'hospice-care' });
 }
 
 function renderStatePage({ serviceKey, state, providers = [] }) {
@@ -2229,7 +2230,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
       ${renderTrustBlock(formatDateISO())}
     </main>
   `;
-  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas });
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: serviceKey !== 'hospice-care' });
 }
 
 function renderHubPage({ serviceKey, states = [] }) {
@@ -2413,7 +2414,7 @@ function renderProviderPage(provider) {
     </section>
     ${renderTrustBlock(formatDateISO())}
   `;
-  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [provider] });
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [provider], noindex: true });
 }
 function toSubmittedBy(relationship) {
   if (relationship === 'me') return 'TheClient';
