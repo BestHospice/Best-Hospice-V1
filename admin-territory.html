@@ -26,6 +26,8 @@
     .stat-box { background: #fff; border-radius: 10px; padding: 16px 20px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(15,23,42,0.06); min-width: 140px; }
     .stat-box .val { font-size: 2rem; font-weight: 700; color: #b45309; line-height: 1; }
     .stat-box .lbl { font-size: 13px; color: #6b7280; margin-top: 4px; }
+    .btn-del { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; font-family: inherit; background: #fef2f2; color: #dc2626; }
+    .btn-del:hover { background: #fee2e2; }
   </style>
   <script src="/abel-chat.js" defer></script>
   <script src="/admin-auth.js" defer></script>
@@ -72,6 +74,7 @@
               <th>Email</th>
               <th>Phone</th>
               <th>Care Timeline</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="tl-body"></tbody>
@@ -85,6 +88,20 @@
   <script>
     let territoryMap = null;
     let mapLayers = [];
+    let allRequests = [];
+
+    async function deleteLead(id) {
+      if (!confirm('Delete this lead? This cannot be undone.')) return;
+      const res = await fetch(`/api/admin/territory/leads/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+      if (res.ok) {
+        allRequests = allRequests.filter(r => r.id !== id);
+        renderTable(allRequests);
+        document.getElementById('stat-total').textContent = allRequests.length.toLocaleString();
+        document.getElementById('stat-zips').textContent = new Set(allRequests.map(r => r.zip).filter(Boolean)).size.toLocaleString();
+      } else {
+        alert('Could not delete. Please try again.');
+      }
+    }
 
     function initMap() {
       if (territoryMap) return;
@@ -127,46 +144,49 @@
       });
     }
 
-    async function loadData() {
-      const loadingEl = document.getElementById('tl-loading');
+    function renderTable(requests) {
       const tableWrap = document.getElementById('tl-table-wrap');
       const emptyEl = document.getElementById('tl-empty');
       const tbody = document.getElementById('tl-body');
-      const statRow = document.getElementById('stat-row');
+      if (!requests.length) {
+        tableWrap.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
+      }
+      emptyEl.style.display = 'none';
+      tbody.innerHTML = requests.map((r) => {
+        const email = r.contactEmail && r.contactEmail !== 'Not provided'
+          ? `<a href="mailto:${r.contactEmail}">${r.contactEmail}</a>` : '—';
+        const phone = r.contactPhone && r.contactPhone !== 'Not provided' ? r.contactPhone : '—';
+        const timeline = r.timeline && r.timeline !== 'Not specified' ? r.timeline : '—';
+        return `<tr>
+          <td style="white-space:nowrap;">${fmtDateTime(r.createdAt)}</td>
+          <td><strong>${r.zip || '—'}</strong></td>
+          <td style="font-size:13px;">${email}</td>
+          <td style="white-space:nowrap;">${phone}</td>
+          <td>${timeline}</td>
+          <td><button class="btn-del" onclick="deleteLead('${r.id}')">Delete</button></td>
+        </tr>`;
+      }).join('');
+      tableWrap.style.display = 'block';
+    }
 
+    async function loadData() {
+      const loadingEl = document.getElementById('tl-loading');
+      const statRow = document.getElementById('stat-row');
       try {
         const res = await fetch('/api/admin/territory/leads', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Failed to load data');
         const data = await res.json();
-        const requests = data.requests || [];
-
+        allRequests = data.requests || [];
         renderMap(data.heatPoints || []);
         loadingEl.style.display = 'none';
-
-        if (!requests.length) {
-          emptyEl.style.display = 'block';
-          return;
+        if (allRequests.length) {
+          document.getElementById('stat-total').textContent = allRequests.length.toLocaleString();
+          document.getElementById('stat-zips').textContent = new Set(allRequests.map(r => r.zip).filter(Boolean)).size.toLocaleString();
+          statRow.style.display = 'flex';
         }
-
-        const uniqueZips = new Set(requests.map((r) => r.zip).filter(Boolean));
-        document.getElementById('stat-total').textContent = requests.length.toLocaleString();
-        document.getElementById('stat-zips').textContent = uniqueZips.size.toLocaleString();
-        statRow.style.display = 'flex';
-
-        tbody.innerHTML = requests.map((r) => {
-          const email = r.contactEmail && r.contactEmail !== 'Not provided'
-            ? `<a href="mailto:${r.contactEmail}">${r.contactEmail}</a>` : '—';
-          const phone = r.contactPhone && r.contactPhone !== 'Not provided' ? r.contactPhone : '—';
-          const timeline = r.timeline && r.timeline !== 'Not specified' ? r.timeline : '—';
-          return `<tr>
-            <td style="white-space:nowrap;">${fmtDateTime(r.createdAt)}</td>
-            <td><strong>${r.zip || '—'}</strong></td>
-            <td style="font-size:13px;">${email}</td>
-            <td style="white-space:nowrap;">${phone}</td>
-            <td>${timeline}</td>
-          </tr>`;
-        }).join('');
-        tableWrap.style.display = 'block';
+        renderTable(allRequests);
       } catch (err) {
         loadingEl.textContent = 'Could not load data. ' + (err.message || '');
       }

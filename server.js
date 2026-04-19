@@ -3963,6 +3963,18 @@ app.get('/api/admin/territory/leads', async (req, res) => {
   }
 });
 
+app.delete('/api/admin/territory/leads/:id', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await ensureWaitlistTable();
+    await prisma.waitlistRequest.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Territory lead delete failed', err);
+    res.status(500).json({ error: 'Could not delete.' });
+  }
+});
+
 app.post('/api/job-notify', rateLimit, async (req, res) => {
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {
