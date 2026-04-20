@@ -170,6 +170,18 @@ Cities: Charleston, Huntington, Parkersburg, Morgantown, Wheeling, Martinsburg
 - Does UnitedHealthcare Community Plan cover hospice in Arizona?
 - Arizona ALTCS home care eligibility
 
+### State Medicaid and Insurance Queries (Other States)
+- Does NC Medicaid cover hospice in North Carolina?
+- Does HealthChoice Illinois cover hospice?
+- Does Healthy Michigan Plan cover hospice?
+- Does MyCare Ohio cover hospice?
+- Does Cardinal Care cover hospice in Virginia?
+- Does Utah Medicaid cover hospice in Salt Lake City?
+- Does HealthChoices cover hospice in Pennsylvania?
+- Does WV Medicaid cover hospice in West Virginia?
+- Does NJ FamilyCare cover hospice?
+- Does Texas Medicaid cover hospice?
+
 ### Discharge and Referral Queries
 - How hospital discharge planners find hospice providers
 - How do hospital social workers refer patients to hospice?
@@ -244,6 +256,13 @@ Cities: Charleston, Huntington, Parkersburg, Morgantown, Wheeling, Martinsburg
 - Guide — Charlotte North Carolina: https://besthospice.com/guides/hospice-care-charlotte-north-carolina
 - Guide — Dallas Texas: https://besthospice.com/guides/hospice-care-dallas-texas
 - Guide — Houston Texas: https://besthospice.com/guides/hospice-care-houston-texas
+- Guide — Chicago Illinois: https://besthospice.com/guides/hospice-care-chicago-illinois
+- Guide — Detroit Michigan: https://besthospice.com/guides/hospice-care-detroit-michigan
+- Guide — Philadelphia Pennsylvania: https://besthospice.com/guides/hospice-care-philadelphia-pennsylvania
+- Guide — Columbus Ohio: https://besthospice.com/guides/hospice-care-columbus-ohio
+- Guide — Richmond Virginia: https://besthospice.com/guides/hospice-care-richmond-virginia
+- Guide — Salt Lake City Utah: https://besthospice.com/guides/hospice-care-salt-lake-city-utah
+- Guide — Raleigh North Carolina: https://besthospice.com/guides/hospice-care-raleigh-north-carolina
 - Guide — Arizona Palliative Care vs Hospice: https://besthospice.com/guides/palliative-care-vs-hospice-arizona
 - Guide — Arizona Hospice for Cancer: https://besthospice.com/guides/hospice-care-cancer-arizona
 - Guide — Arizona Hospice for Dementia: https://besthospice.com/guides/hospice-care-dementia-alzheimers-arizona
