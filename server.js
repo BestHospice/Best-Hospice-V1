@@ -6308,6 +6308,23 @@ app.get('/api/youtube/videos', async (req, res) => {
   }
 });
 
+// GET /api/admin/youtube/resolve-channel — one-time helper to find channel ID from handle
+app.get('/api/admin/youtube/resolve-channel', requireAdminSession, async (req, res) => {
+  try {
+    const pageRes = await fetch('https://www.youtube.com/@besthospiceandhomehealth', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BestHospice/1.0)' }
+    });
+    const html = await pageRes.text();
+    const match = html.match(/"channelId"\s*:\s*"(UC[^"]+)"/);
+    if (match) return res.json({ channelId: match[1] });
+    const match2 = html.match(/channel\/(UC[A-Za-z0-9_-]{22})/);
+    if (match2) return res.json({ channelId: match2[1] });
+    res.json({ channelId: null, hint: 'Not found in page HTML' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/testimonials — public, active testimonials for home page
 app.get('/api/testimonials', async (req, res) => {
   try {
