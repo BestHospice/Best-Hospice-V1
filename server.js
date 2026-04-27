@@ -32,6 +32,7 @@ function getRequiredSecret(name) {
 }
 
 const PORT = process.env.PORT || 8080;
+const YOUTUBE_CHANNEL_ID = String(process.env.YOUTUBE_CHANNEL_ID || '').trim();
 const ADMIN_TOKEN_ADD = getRequiredSecret('ADMIN_TOKEN_ADD');
 const ADMIN_TOKEN_REMOVE = getRequiredSecret('ADMIN_TOKEN_REMOVE');
 const ADMIN_TOKEN_DASH = getRequiredSecret('ADMIN_TOKEN_DASH');
@@ -1928,9 +1929,10 @@ function renderTrustBlock(dateStr) {
   `;
 }
 
-function renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas = [], noindex = false }) {
+function renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas = [], noindex = false, articleSchema = null }) {
   const jsonLd = [];
   if (breadcrumbItems?.length) jsonLd.push(renderBreadcrumbList(breadcrumbItems));
+  if (articleSchema) jsonLd.push(articleSchema);
   if (faqSchema) jsonLd.push(faqSchema);
   if (providerSchemas?.length) {
     providerSchemas.forEach((p) => jsonLd.push(renderProviderSchema(p)));
@@ -2063,6 +2065,15 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
   const providerSchemas = providers.slice(0, 10);
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: `${service.name} in ${cityState}: Providers, Cost & Eligibility`,
+    description,
+    url: canonical,
+    dateModified: formatDateISO(),
+    publisher: { '@type': 'Organization', name: 'Best Hospice and Home Health', url: 'https://www.besthospice.com' }
+  };
   const cityFaqItems = (service.faq || [])
     .map(
       ([q, a]) => `
@@ -2161,7 +2172,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
       </div>
     </main>
   `;
-  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: serviceKey !== 'hospice-care' });
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: serviceKey !== 'hospice-care', articleSchema: serviceKey === 'hospice-care' ? articleSchema : null });
 }
 
 function renderStatePage({ serviceKey, state, providers = [] }) {
@@ -6265,6 +6276,36 @@ app.get('/discharge-planners', (_req, res) => {
 
 app.get('/admin-discharge-leads.html', (_req, res) => {
   res.sendFile(path.join(__dirname, 'admin-discharge-leads.html'));
+});
+
+// GET /api/youtube/videos — public, latest videos from YouTube channel RSS
+app.get('/api/youtube/videos', async (req, res) => {
+  if (!YOUTUBE_CHANNEL_ID) return res.json([]);
+  try {
+    const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`;
+    const feedRes = await fetch(feedUrl, { headers: { 'User-Agent': 'BestHospice/1.0' } });
+    if (!feedRes.ok) return res.json([]);
+    const xml = await feedRes.text();
+    const entries = xml.split('<entry>').slice(1);
+    const videos = entries.map((entry) => {
+      const idMatch = entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
+      const titleMatch = entry.match(/<title>([^<]+)<\/title>/);
+      const publishedMatch = entry.match(/<published>([^<]+)<\/published>/);
+      const thumbMatch = entry.match(/<media:thumbnail url="([^"]+)"/);
+      if (!idMatch) return null;
+      return {
+        videoId: idMatch[1].trim(),
+        title: titleMatch ? titleMatch[1].trim() : '',
+        published: publishedMatch ? publishedMatch[1].trim() : '',
+        thumbnail: thumbMatch ? thumbMatch[1].trim() : `https://i.ytimg.com/vi/${idMatch[1].trim()}/hqdefault.jpg`
+      };
+    }).filter(Boolean);
+    res.set('Cache-Control', 'public, max-age=1800');
+    res.json(videos);
+  } catch (err) {
+    console.error('YouTube RSS fetch failed', err);
+    res.json([]);
+  }
 });
 
 // GET /api/testimonials — public, active testimonials for home page
