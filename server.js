@@ -3941,6 +3941,23 @@ app.get('/api/admin/no-provider-leads', async (req, res) => {
   }
 });
 
+// GET /api/admin/client-emails — all unique client emails from leads + discharge referrals
+app.get('/api/admin/client-emails', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [leadEmails, dischargeEmails] = await Promise.all([
+      prisma.lead.findMany({ select: { clientEmail: true }, where: { clientEmail: { not: null } } }),
+      prisma.$queryRawUnsafe(`SELECT planner_email AS email FROM "DischargeReferral" WHERE planner_email IS NOT NULL AND planner_email <> ''`)
+    ]);
+    const all = new Set();
+    leadEmails.forEach(r => { if (r.clientEmail && r.clientEmail !== 'Not provided') all.add(r.clientEmail.trim().toLowerCase()); });
+    dischargeEmails.forEach(r => { if (r.email) all.add(r.email.trim().toLowerCase()); });
+    res.json({ emails: [...all].sort() });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load emails' });
+  }
+});
+
 app.get('/api/admin/territory/leads', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });

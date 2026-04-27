@@ -307,6 +307,16 @@
         </div>
       </div>
 
+      <div class="card">
+        <h2>Client Email List</h2>
+        <p class="note">All unique client emails from family leads and discharge referrals — ready to copy and BCC for feedback requests.</p>
+        <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
+          <span id="email-count" style="font-size:13px; color:#64748b;"></span>
+          <button class="button" id="copy-emails-btn" style="padding:6px 14px; font-size:13px;">Copy All Emails</button>
+        </div>
+        <textarea id="email-list-box" readonly style="width:100%; height:140px; font-size:13px; font-family:monospace; border:1px solid #d1d5db; border-radius:8px; padding:10px; resize:vertical; background:#f8fafc; box-sizing:border-box;" placeholder="Loading…"></textarea>
+      </div>
+
     </section>
   </div>
 
@@ -1030,7 +1040,29 @@
       }
     }
 
+    async function loadEmailList() {
+      try {
+        const res = await fetch('/api/admin/client-emails', { credentials: 'same-origin', headers: authHeaders() });
+        if (!res.ok) return;
+        const { emails } = await res.json();
+        const box = document.getElementById('email-list-box');
+        const count = document.getElementById('email-count');
+        box.value = emails.join(', ');
+        count.textContent = `${emails.length} unique email${emails.length !== 1 ? 's' : ''}`;
+      } catch (e) { /* silently fail */ }
+    }
+
+    document.getElementById('copy-emails-btn').addEventListener('click', () => {
+      const box = document.getElementById('email-list-box');
+      box.select();
+      document.execCommand('copy');
+      const btn = document.getElementById('copy-emails-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy All Emails'; }, 2000);
+    });
+
     initAdminMain();
+    loadEmailList();
   </script>
 </body>
 </html>
