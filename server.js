@@ -6309,7 +6309,8 @@ app.get('/api/youtube/videos', async (req, res) => {
 });
 
 // GET /api/admin/youtube/resolve-channel — one-time helper to find channel ID from handle
-app.get('/api/admin/youtube/resolve-channel', requireAdminSession, async (req, res) => {
+app.get('/api/admin/youtube/resolve-channel', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const pageRes = await fetch('https://www.youtube.com/@besthospiceandhomehealth', {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BestHospice/1.0)' }
