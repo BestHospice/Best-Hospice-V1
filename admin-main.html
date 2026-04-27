@@ -1042,14 +1042,14 @@
 
     async function loadEmailList() {
       try {
-        const res = await fetch('/api/admin/client-emails', { credentials: 'same-origin', headers: authHeaders() });
-        if (!res.ok) return;
-        const { emails } = await res.json();
+        const res = await fetch('/api/admin/client-emails', { credentials: 'same-origin' });
         const box = document.getElementById('email-list-box');
         const count = document.getElementById('email-count');
+        if (!res.ok) { box.placeholder = 'Could not load emails.'; return; }
+        const { emails } = await res.json();
         box.value = emails.join(', ');
         count.textContent = `${emails.length} unique email${emails.length !== 1 ? 's' : ''}`;
-      } catch (e) { /* silently fail */ }
+      } catch (e) { document.getElementById('email-list-box').placeholder = 'Could not load emails.'; }
     }
 
     document.getElementById('copy-emails-btn').addEventListener('click', () => {
