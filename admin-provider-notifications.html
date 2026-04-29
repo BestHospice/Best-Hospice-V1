@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Provider Notifications | Best Hospice Admin</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles-modern.css" />
+  <link rel="stylesheet" href="/styles/main.css" />
+  <style>
+    .admin-shell { max-width: 1100px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb; box-shadow: 0 12px 24px rgba(15,23,42,0.08); margin-bottom: 20px; }
+    .note { color: #4b5563; font-size: 14px; }
+    .state-heading { font-size: 15px; font-weight: 700; color: #374151; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; margin: 20px 0 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 8px 10px; border-bottom: 2px solid #e5e7eb; color: #374151; font-weight: 600; }
+    td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    .toggle-wrap { display: flex; align-items: center; gap: 8px; }
+    .toggle { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; inset: 0; background: #d1d5db; border-radius: 999px; cursor: pointer; transition: background .2s; }
+    .slider:before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: transform .2s; }
+    input:checked + .slider { background: #0f766e; }
+    input:checked + .slider:before { transform: translateX(18px); }
+    .toggle-label { font-size: 12px; color: #6b7280; min-width: 30px; }
+    #loading { color: #64748b; padding: 20px 0; }
+  </style>
+  <script src="/admin-auth.js" defer></script>
+</head>
+<body>
+  <div class="admin-shell">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+      <div>
+        <h1 style="margin:0;">Provider Notifications</h1>
+        <p class="note">Control which providers receive client leads and job seeker leads. Toggling off stops future notifications — it does not affect leads already sent.</p>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="button ghost" href="admin-menu.html">Back to Admin</a>
+        <button class="button ghost" id="admin-logout-btn" type="button">Log Out</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; gap:24px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+        <input id="search-box" type="text" placeholder="Filter by name, city, or email…" style="flex:1; min-width:200px; padding:9px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; font-family:inherit;" />
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#374151; cursor:pointer;">
+          <input type="checkbox" id="show-disabled-only" style="width:auto;" />
+          Show disabled only
+        </label>
+      </div>
+      <p id="loading" class="note">Loading providers…</p>
+      <div id="provider-list" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script>
+    let allProviders = [];
+
+    async function loadProviders() {
+      const res = await fetch('/api/admin/provider-notifications', { credentials: 'same-origin' });
+      if (!res.ok) { document.getElementById('loading').textContent = 'Could not load providers.'; return; }
+      const { providers } = await res.json();
+      allProviders = providers;
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('provider-list').style.display = 'block';
+      renderList(providers);
+    }
+
+    function renderList(providers) {
+      const container = document.getElementById('provider-list');
+      if (!providers.length) { container.innerHTML = '<p class="note">No providers match.</p>'; return; }
+
+      const byState = {};
+      providers.forEach(p => {
+        const s = p.state || 'Unknown';
+        if (!byState[s]) byState[s] = [];
+        byState[s].push(p);
+      });
+
+      container.innerHTML = Object.keys(byState).sort().map(state => `
+        <div class="state-heading">${state}</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>City</th>
+              <th style="text-align:center;">Client Leads</th>
+              <th style="text-align:center;">Job Seeker Leads</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${byState[state].map(p => `
+              <tr id="row-${p.id}">
+                <td>
+                  <div style="font-weight:600;">${p.name}</div>
+                  <div style="font-size:12px; color:#6b7280;">${p.email}</div>
+                </td>
+                <td>${p.city}</td>
+                <td style="text-align:center;">
+                  <div class="toggle-wrap" style="justify-content:center;">
+                    <label class="toggle">
+                      <input type="checkbox" ${p.receiveClientLeads !== false ? 'checked' : ''} onchange="toggle('${p.id}', 'receiveClientLeads', this.checked, this)" />
+                      <span class="slider"></span>
+                    </label>
+                    <span class="toggle-label" id="cl-label-${p.id}">${p.receiveClientLeads !== false ? 'On' : 'Off'}</span>
+                  </div>
+                </td>
+                <td style="text-align:center;">
+                  <div class="toggle-wrap" style="justify-content:center;">
+                    <label class="toggle">
+                      <input type="checkbox" ${p.receiveJobLeads !== false ? 'checked' : ''} onchange="toggle('${p.id}', 'receiveJobLeads', this.checked, this)" />
+                      <span class="slider"></span>
+                    </label>
+                    <span class="toggle-label" id="jl-label-${p.id}">${p.receiveJobLeads !== false ? 'On' : 'Off'}</span>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `).join('');
+    }
+
+    async function toggle(providerId, field, value, checkbox) {
+      checkbox.disabled = true;
+      try {
+        const res = await fetch(`/api/admin/provider-notifications/${providerId}`, {
+          method: 'PATCH',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field, value })
+        });
+        if (!res.ok) throw new Error();
+        // Update local data
+        const p = allProviders.find(x => x.id === providerId);
+        if (p) p[field] = value;
+        const labelEl = document.getElementById(field === 'receiveClientLeads' ? `cl-label-${providerId}` : `jl-label-${providerId}`);
+        if (labelEl) labelEl.textContent = value ? 'On' : 'Off';
+      } catch {
+        alert('Could not save change. Please try again.');
+        checkbox.checked = !value; // revert
+      } finally {
+        checkbox.disabled = false;
+      }
+    }
+
+    document.getElementById('search-box').addEventListener('input', applyFilters);
+    document.getElementById('show-disabled-only').addEventListener('change', applyFilters);
+
+    function applyFilters() {
+      const q = document.getElementById('search-box').value.toLowerCase();
+      const disabledOnly = document.getElementById('show-disabled-only').checked;
+      const filtered = allProviders.filter(p => {
+        if (disabledOnly && p.receiveClientLeads !== false && p.receiveJobLeads !== false) return false;
+        if (q) {
+          const haystack = `${p.name} ${p.city} ${p.email} ${p.state}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return true;
+      });
+      renderList(filtered);
+    }
+
+    document.getElementById('admin-logout-btn').addEventListener('click', async () => {
+      await window.adminAuth.logout();
+      window.location.href = 'admin.html';
+    });
+
+    loadProviders();
+  </script>
+</body>
+</html>

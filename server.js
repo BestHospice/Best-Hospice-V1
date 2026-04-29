@@ -52,7 +52,8 @@ const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-territory.html',
   '/admin-hiring.html',
   '/admin-discharge-leads.html',
-  '/admin-testimonials.html'
+  '/admin-testimonials.html',
+  '/admin-provider-notifications.html'
 ]);
 
 function isAdminMainToken(token) {
@@ -361,6 +362,12 @@ async function ensureJobLeadTable() {
   `);
   await prisma.$executeRawUnsafe(`
     ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "activelyHiring" BOOLEAN NOT NULL DEFAULT TRUE
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "receiveClientLeads" BOOLEAN NOT NULL DEFAULT TRUE
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "receiveJobLeads" BOOLEAN NOT NULL DEFAULT TRUE
   `);
   jobLeadTableReady = true;
 }
@@ -2825,7 +2832,14 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       }
     }
 
-    const toList = providers.filter((p) => !!p.id);
+    const rawToList = providers.filter((p) => !!p.id);
+    if (!rawToList.length) return res.status(400).json({ error: 'No providers to notify' });
+    await ensureJobLeadTable();
+    const disabledClientLeads = await prisma.$queryRawUnsafe(
+      `SELECT id FROM "Provider" WHERE "receiveClientLeads" = false`
+    );
+    const disabledClientSet = new Set(disabledClientLeads.map((r) => r.id));
+    const toList = rawToList.filter((p) => !disabledClientSet.has(p.id));
     if (!toList.length) return res.status(400).json({ error: 'No providers to notify' });
 
     // Deduplicate: block exact same email + phone + timeline within 24 hours
@@ -3958,6 +3972,39 @@ app.get('/api/admin/client-emails', async (req, res) => {
   }
 });
 
+// GET /api/admin/provider-notifications — all providers grouped by state with notification settings
+app.get('/api/admin/provider-notifications', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await ensureJobLeadTable();
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT id, name, city, state, email, "receiveClientLeads", "receiveJobLeads" FROM "Provider" ORDER BY state ASC, name ASC`
+    );
+    res.json({ providers: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load providers' });
+  }
+});
+
+// PATCH /api/admin/provider-notifications/:id — toggle client/job leads for a provider
+app.patch('/api/admin/provider-notifications/:id', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  const { id } = req.params;
+  const { field, value } = req.body || {};
+  if (!['receiveClientLeads', 'receiveJobLeads'].includes(field)) return res.status(400).json({ error: 'Invalid field' });
+  if (typeof value !== 'boolean') return res.status(400).json({ error: 'value must be boolean' });
+  try {
+    await ensureJobLeadTable();
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Provider" SET "${field}" = $1 WHERE id = $2`,
+      value, id
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update provider' });
+  }
+});
+
 app.get('/api/admin/territory/leads', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -4018,12 +4065,13 @@ app.post('/api/job-notify', rateLimit, async (req, res) => {
     const geo = await geocodeAddress(`${safeZip}, USA`);
     if (!geo) return res.status(400).json({ error: 'Could not locate that ZIP code. Please check and try again.' });
 
-    const allProviders = await prisma.provider.findMany({
-      select: { id: true, email: true, secondaryContactEmail: true, lat: true, lon: true, serviceRadiusKm: true, serviceZipCodes: true, activelyHiring: true }
-    });
+    const allProviders = await prisma.$queryRawUnsafe(
+      `SELECT id, email, "secondaryContactEmail", lat, lon, "serviceRadiusKm", "serviceZipCodes", "activelyHiring", "receiveJobLeads" FROM "Provider"`
+    );
 
     const matchedProviders = allProviders.filter((p) => {
       if (p.activelyHiring === false) return false;
+      if (p.receiveJobLeads === false) return false;
       const serviceZips = String(p.serviceZipCodes || '').split(',').map((z) => z.trim()).filter(Boolean);
       if (serviceZips.includes(safeZip)) return true;
       const radiusKm = Number(p.serviceRadiusKm) || 0;
