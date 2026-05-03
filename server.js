@@ -3852,6 +3852,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
 
     // Admin-confirmed admit rates (uses adminStatus on Lead, not provider-reported LeadOutcome)
     let confirmedAdmitsAllTime = 0;
+    let adminConversionByProvider = [];
     const adminAdmitByCareType = {};
     const adminAdmitByGeography = {};
     try {
@@ -3893,6 +3894,29 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         if (!adminAdmitByGeography[geo]) adminAdmitByGeography[geo] = { total: 0, admitted: 0 };
         adminAdmitByGeography[geo].total += 1;
       });
+
+      // Conversion by provider: leads sent to each provider vs admin-confirmed admits for that provider
+      const providerLeadCounts = new Map();
+      allTimeSentNotifications.forEach(n => {
+        if (!n.providerId) return;
+        const name = n.provider?.name || 'Unknown';
+        const cur = providerLeadCounts.get(n.providerId) || { providerId: n.providerId, providerName: name, leadIds: new Set(), admitted: 0 };
+        cur.leadIds.add(n.leadId);
+        providerLeadCounts.set(n.providerId, cur);
+      });
+      allLeadsForRates.filter(r => r.adminStatus === 'admitted' && r.adminProviderId).forEach(l => {
+        const entry = providerLeadCounts.get(l.adminProviderId);
+        if (entry) entry.admitted += 1;
+      });
+      adminConversionByProvider = Array.from(providerLeadCounts.values())
+        .map(row => ({
+          providerId: row.providerId,
+          providerName: row.providerName,
+          leads: row.leadIds.size,
+          admitted: row.admitted,
+          conversionRatePct: row.leadIds.size ? Number(((row.admitted / row.leadIds.size) * 100).toFixed(1)) : 0
+        }))
+        .sort((a, b) => b.conversionRatePct - a.conversionRatePct || b.leads - a.leads);
     } catch (admitErr) {
       console.error('Admin admit rate calc failed (continuing)', admitErr?.message || admitErr);
     }
@@ -3952,7 +3976,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         clientNeedTimesAllTime,
         clientNeedDaysAllTime,
         providerClientRanking,
-        conversionByProvider,
+        conversionByProvider: adminConversionByProvider.length ? adminConversionByProvider : conversionByProvider,
         admitRateByCareType: adminAdmitRateByCareType,
         admitRateByGeography: adminAdmitRateByGeography,
         noUpdateLeads: staleNoUpdateLeads,
