@@ -3850,6 +3850,62 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       console.error('Website analytics query failed (continuing with lead analytics)', webAnalyticsErr?.message || webAnalyticsErr);
     }
 
+    // Admin-confirmed admit rates (uses adminStatus on Lead, not provider-reported LeadOutcome)
+    let confirmedAdmitsAllTime = 0;
+    const adminAdmitByCareType = {};
+    const adminAdmitByGeography = {};
+    try {
+      await ensureLeadAdminStatusColumns();
+      const [allLeadsForRates, allLeadsForTotal] = await Promise.all([
+        prisma.$queryRawUnsafe(`
+          SELECT l.id, l.services, l."adminStatus", p.state AS "providerState"
+          FROM "Lead" l
+          LEFT JOIN "Provider" p ON p.id = l."adminProviderId"
+        `),
+        prisma.$queryRawUnsafe(`SELECT id, services, zip FROM "Lead"`)
+      ]);
+      confirmedAdmitsAllTime = allLeadsForRates.filter(r => r.adminStatus === 'admitted').length;
+      // Build totals per care type and geography from ALL leads
+      allLeadsForTotal.forEach(l => {
+        const ct = parsePrimaryCareType(l.services);
+        if (!adminAdmitByCareType[ct]) adminAdmitByCareType[ct] = { total: 0, admitted: 0 };
+        adminAdmitByCareType[ct].total += 1;
+      });
+      // Add admitted counts
+      allLeadsForRates.filter(r => r.adminStatus === 'admitted').forEach(l => {
+        const ct = parsePrimaryCareType(l.services);
+        if (adminAdmitByCareType[ct]) adminAdmitByCareType[ct].admitted += 1;
+        const geo = l.providerState || 'Unknown';
+        if (!adminAdmitByGeography[geo]) adminAdmitByGeography[geo] = { total: 0, admitted: 0 };
+        adminAdmitByGeography[geo].admitted += 1;
+      });
+      // Geography totals: use all leads, match state from any sent notification
+      const notifStateRows = await prisma.$queryRawUnsafe(`
+        SELECT DISTINCT ln."leadId", p.state
+        FROM "LeadNotification" ln
+        JOIN "Provider" p ON p.id = ln."providerId"
+        WHERE ln.status = 'sent'
+      `);
+      const leadStateMap = new Map();
+      notifStateRows.forEach(r => { if (!leadStateMap.has(r.leadId)) leadStateMap.set(r.leadId, r.state); });
+      allLeadsForTotal.forEach(l => {
+        const geo = leadStateMap.get(l.id) || 'Unknown';
+        if (!adminAdmitByGeography[geo]) adminAdmitByGeography[geo] = { total: 0, admitted: 0 };
+        adminAdmitByGeography[geo].total += 1;
+      });
+    } catch (admitErr) {
+      console.error('Admin admit rate calc failed (continuing)', admitErr?.message || admitErr);
+    }
+
+    const adminAdmitRateByCareType = Object.entries(adminAdmitByCareType)
+      .map(([label, row]) => ({ label, leads: row.total, admitted: row.admitted, admitRatePct: row.total ? Number(((row.admitted / row.total) * 100).toFixed(1)) : 0 }))
+      .sort((a, b) => b.admitted - a.admitted || b.leads - a.leads);
+
+    const adminAdmitRateByGeography = Object.entries(adminAdmitByGeography)
+      .filter(([geo]) => geo !== 'Unknown' || adminAdmitByGeography[geo]?.total > 0)
+      .map(([geography, row]) => ({ geography, leads: row.total, admitted: row.admitted, admitRatePct: row.total ? Number(((row.admitted / row.total) * 100).toFixed(1)) : 0 }))
+      .sort((a, b) => b.admitted - a.admitted || b.leads - a.leads);
+
     let dischargeReferralsAllTime = 0;
     let dischargeReferralsInRange = 0;
     try {
@@ -3886,7 +3942,8 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         avgEngagementSeconds,
         avgScrollDepthPct,
         dischargeReferralsAllTime,
-        dischargeReferralsInRange
+        dischargeReferralsInRange,
+        confirmedAdmitsAllTime
       },
       breakdowns: {
         careTypes: careTypeMap,
@@ -3896,8 +3953,8 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         clientNeedDaysAllTime,
         providerClientRanking,
         conversionByProvider,
-        admitRateByCareType,
-        admitRateByGeography,
+        admitRateByCareType: adminAdmitRateByCareType,
+        admitRateByGeography: adminAdmitRateByGeography,
         noUpdateLeads: staleNoUpdateLeads,
         topPages,
         topReferrers,
