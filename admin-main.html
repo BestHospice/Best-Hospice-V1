@@ -483,7 +483,7 @@
       const uniqueZips = new Set((topZips || []).map((z) => z.zip)).size;
       const cards = [
         ['Total Leads All Time', fmtNum((totals.leadsAllTime || 0) + (totals.dischargeReferralsAllTime || 0))],
-        ['✅ Confirmed Admits (All Time)', fmtNum(totals.confirmedAdmitsAllTime || 0)],
+        ['Confirmed Admits (All Time)', fmtNum(totals.confirmedAdmitsAllTime || 0)],
         ['Clients Generated (All Time)', fmtNum(totals.leadsAllTime)],
         ['Clients In Range', fmtNum(totals.leadsInRange)],
         ['Discharge Referrals (All Time)', fmtNum(totals.dischargeReferralsAllTime || 0)],
