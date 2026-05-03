@@ -382,11 +382,19 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 let leadSessionColumnReady = false;
+let leadAdminStatusColumnReady = false;
 async function ensureLeadSessionColumn() {
   if (leadSessionColumnReady) return;
   await prisma.$executeRawUnsafe(`ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "sessionId" TEXT`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_lead_session_id ON "Lead"("sessionId")`);
   leadSessionColumnReady = true;
+}
+
+async function ensureLeadAdminStatusColumns() {
+  if (leadAdminStatusColumnReady) return;
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "adminStatus" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "adminProviderId" TEXT`);
+  leadAdminStatusColumnReady = true;
 }
 
 // --- SEO / programmatic helpers ---
@@ -4289,6 +4297,45 @@ app.delete('/api/admin/main/leads/:id', async (req, res) => {
   } catch (err) {
     console.error('Admin lead delete failed', err);
     res.status(500).json({ error: 'Failed to delete lead' });
+  }
+});
+
+// GET /api/admin/main/leads-all — all leads with name, zip, date, admin status, and notified providers
+app.get('/api/admin/main/leads-all', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await ensureLeadAdminStatusColumns();
+    const [leads, providers] = await Promise.all([
+      prisma.$queryRawUnsafe(`
+        SELECT l.id, l."firstName", l."lastName", l.zip, l."clientEmail", l."createdAt",
+               l."adminStatus", l."adminProviderId"
+        FROM "Lead" l
+        ORDER BY l."createdAt" DESC
+      `),
+      prisma.provider.findMany({ select: { id: true, name: true, state: true }, orderBy: [{ state: 'asc' }, { name: 'asc' }] })
+    ]);
+    res.json({ leads, providers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/main/leads/:id/admin-status — set adminStatus and optional adminProviderId
+app.patch('/api/admin/main/leads/:id/admin-status', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  const leadId = String(req.params.id || '').trim();
+  const { status, providerId } = req.body || {};
+  const allowed = ['admitted', 'no_update', 'bad_lead', null];
+  if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  try {
+    await ensureLeadAdminStatusColumns();
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Lead" SET "adminStatus" = $1, "adminProviderId" = $2 WHERE id = $3`,
+      status, status === 'admitted' ? (providerId || null) : null, leadId
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

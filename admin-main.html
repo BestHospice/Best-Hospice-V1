@@ -39,6 +39,12 @@
     .chart-note { margin: 0 0 6px; color: #64748b; font-size: 12px; }
     .need-chart { width: 100%; height: 200px; display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
     .table-wrap { max-height: 320px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 10px; }
+    .all-leads-wrap { max-height: 520px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 10px; }
+    .status-btn { border: none; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; background: #f1f5f9; color: #475569; transition: background .15s; }
+    .status-btn.active-admitted { background: #d1fae5; color: #065f46; }
+    .status-btn.active-no_update { background: #fef3c7; color: #92400e; }
+    .status-btn.active-bad_lead { background: #fee2e2; color: #991b1b; }
+    .status-btn:hover { opacity: .85; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
     th { background: #f8fafc; position: sticky; top: 0; z-index: 1; }
@@ -303,6 +309,37 @@
               </tr>
             </thead>
             <tbody id="no-update-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>All Leads</h2>
+        <p class="note">All-time leads. Mark each lead as Admitted (select which provider), No Update, or Bad Lead.</p>
+        <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
+          <input id="all-leads-search" type="text" placeholder="Filter by name, ZIP, or email…" style="flex:1; min-width:180px; padding:7px 10px; border:1px solid #d1d5db; border-radius:7px; font-size:13px; font-family:inherit;" />
+          <select id="all-leads-filter" style="padding:7px 10px; border:1px solid #d1d5db; border-radius:7px; font-size:13px; font-family:inherit; background:#fff;">
+            <option value="">All statuses</option>
+            <option value="admitted">Admitted</option>
+            <option value="no_update">No Update</option>
+            <option value="bad_lead">Bad Lead</option>
+            <option value="unset">Unset</option>
+          </select>
+          <span id="all-leads-count" style="font-size:13px; color:#64748b;"></span>
+        </div>
+        <div class="all-leads-wrap">
+          <table id="all-leads-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Name</th>
+                <th>ZIP</th>
+                <th>Email</th>
+                <th style="text-align:center;">Status</th>
+                <th>Admitted To</th>
+              </tr>
+            </thead>
+            <tbody id="all-leads-body"><tr><td colspan="6" style="color:#64748b; padding:16px;">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1125,8 +1162,93 @@
       setTimeout(() => { btn.textContent = 'Copy All'; }, 2000);
     });
 
+    let allLeadsData = [];
+    let allLeadsProviders = [];
+
+    async function loadAllLeads() {
+      try {
+        const res = await fetch('/api/admin/main/leads-all', { credentials: 'same-origin' });
+        if (!res.ok) { document.getElementById('all-leads-body').innerHTML = '<tr><td colspan="6" style="color:#ef4444;">Could not load leads.</td></tr>'; return; }
+        const { leads, providers } = await res.json();
+        allLeadsData = leads;
+        allLeadsProviders = providers;
+        renderAllLeads();
+      } catch { document.getElementById('all-leads-body').innerHTML = '<tr><td colspan="6" style="color:#ef4444;">Error loading leads.</td></tr>'; }
+    }
+
+    function renderAllLeads() {
+      const q = (document.getElementById('all-leads-search').value || '').toLowerCase();
+      const filterStatus = document.getElementById('all-leads-filter').value;
+      const filtered = allLeadsData.filter(l => {
+        if (filterStatus === 'unset' && l.adminStatus) return false;
+        if (filterStatus && filterStatus !== 'unset' && l.adminStatus !== filterStatus) return false;
+        if (q) {
+          const hay = `${l.firstName||''} ${l.lastName||''} ${l.zip||''} ${l.clientEmail||''}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+      document.getElementById('all-leads-count').textContent = `${filtered.length} lead${filtered.length !== 1 ? 's' : ''}`;
+      const providerOptions = allLeadsProviders.map(p => `<option value="${p.id}">${p.name} (${p.state})</option>`).join('');
+      document.getElementById('all-leads-body').innerHTML = filtered.length ? filtered.map(l => {
+        const name = [l.firstName, l.lastName].filter(Boolean).join(' ') || '—';
+        const date = l.createdAt ? new Date(l.createdAt).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }) : '—';
+        const st = l.adminStatus || '';
+        const admittedProvider = st === 'admitted' ? allLeadsProviders.find(p => p.id === l.adminProviderId) : null;
+        return `<tr id="alrow-${l.id}">
+          <td style="white-space:nowrap; font-size:12px;">${date}</td>
+          <td style="font-weight:600;">${name}</td>
+          <td>${l.zip||'—'}</td>
+          <td style="font-size:12px; color:#475569;">${l.clientEmail||'—'}</td>
+          <td style="text-align:center; white-space:nowrap;">
+            <button class="status-btn ${st==='admitted'?'active-admitted':''}" onclick="setLeadStatus('${l.id}','admitted')">Admitted</button>
+            <button class="status-btn ${st==='no_update'?'active-no_update':''}" onclick="setLeadStatus('${l.id}','no_update')">No Update</button>
+            <button class="status-btn ${st==='bad_lead'?'active-bad_lead':''}" onclick="setLeadStatus('${l.id}','bad_lead')">Bad Lead</button>
+          </td>
+          <td id="alprov-${l.id}">
+            ${st === 'admitted' ? `<select style="font-size:12px; padding:3px 6px; border:1px solid #d1d5db; border-radius:6px; font-family:inherit;" onchange="setAdmittedProvider('${l.id}', this.value)">
+              <option value="">— select —</option>${providerOptions.replace(`value="${l.adminProviderId||''}"`, `value="${l.adminProviderId||''}" selected`)}
+            </select>${admittedProvider ? `<div style="font-size:11px; color:#065f46; margin-top:2px;">${admittedProvider.name}</div>` : ''}` : ''}
+          </td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="6" style="color:#64748b; padding:16px;">No leads match.</td></tr>';
+    }
+
+    async function setLeadStatus(leadId, status) {
+      const lead = allLeadsData.find(l => l.id === leadId);
+      if (!lead) return;
+      // Toggle off if clicking the same status
+      const newStatus = lead.adminStatus === status ? null : status;
+      const res = await fetch(`/api/admin/main/leads/${leadId}/admin-status`, {
+        method: 'PATCH', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, providerId: newStatus === 'admitted' ? lead.adminProviderId : null })
+      });
+      if (!res.ok) { alert('Could not save. Please try again.'); return; }
+      lead.adminStatus = newStatus;
+      if (newStatus !== 'admitted') lead.adminProviderId = null;
+      renderAllLeads();
+    }
+
+    async function setAdmittedProvider(leadId, providerId) {
+      const lead = allLeadsData.find(l => l.id === leadId);
+      if (!lead) return;
+      const res = await fetch(`/api/admin/main/leads/${leadId}/admin-status`, {
+        method: 'PATCH', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'admitted', providerId })
+      });
+      if (!res.ok) { alert('Could not save. Please try again.'); return; }
+      lead.adminProviderId = providerId;
+      renderAllLeads();
+    }
+
+    document.getElementById('all-leads-search').addEventListener('input', renderAllLeads);
+    document.getElementById('all-leads-filter').addEventListener('change', renderAllLeads);
+
     initAdminMain();
     loadEmailList();
+    loadAllLeads();
   </script>
 </body>
 </html>
