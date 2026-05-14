@@ -6146,7 +6146,8 @@ const GUIDE_PATHS = [
   '/guides/hospice-care-charlotte-north-carolina',
   '/guides/hospice-care-dallas-texas',
   '/guides/hospice-care-houston-texas',
-  '/guides/hospice-care-atlanta-georgia'
+  '/guides/hospice-care-atlanta-georgia',
+  '/guides/hospice-care-las-vegas-nevada'
 ];
 const CORE_CONTENT_PAGES = [
   '/',
@@ -6383,6 +6384,9 @@ app.get('/guides/hospice-care-dallas-texas', (_req, res) => {
 });
 app.get('/guides/hospice-care-houston-texas', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'hospice-care-houston-texas.html'));
+});
+app.get('/guides/hospice-care-las-vegas-nevada', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'hospice-care-las-vegas-nevada.html'));
 });
 app.get('/guides/hospice-care-atlanta-georgia', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'hospice-care-atlanta-georgia.html'));
