@@ -16,6 +16,7 @@
   function renderBanner() {
     const bar = document.createElement('div');
     bar.setAttribute('role', 'dialog');
+    bar.setAttribute('aria-label', 'Cookie consent');
     bar.setAttribute('aria-live', 'polite');
     Object.assign(bar.style, {
       position: 'fixed',

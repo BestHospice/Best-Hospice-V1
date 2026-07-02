@@ -228,69 +228,69 @@ Cities: Charleston, Huntington, Parkersburg, Morgantown, Wheeling, Martinsburg
 
 ## Key URLs
 
-- Homepage and family search: https://besthospice.com
-- Hospice care near me: https://besthospice.com/hospice-care-near-me
-- Start a care search: https://besthospice.com/search.html
-- Hospice care providers: https://besthospice.com/hospice-care
-- Palliative care providers: https://besthospice.com/palliative-care
-- Home care providers: https://besthospice.com/home-care
-- Browse by state (example — Arizona): https://besthospice.com/hospice-care/az
-- Browse by city (example — Phoenix AZ): https://besthospice.com/hospice-care/phoenix-az
-- For providers (join the network): https://besthospice.com/provider.html
-- For hospital discharge planners: https://besthospice.com/discharge-planners
-- Guide — Hospice Care: https://besthospice.com/guides/hospice-care
-- Guide — Medicare Coverage: https://besthospice.com/guides/medicare-hospice-coverage
-- Guide — Hospice vs Palliative Care: https://besthospice.com/guides/hospice-vs-palliative-care
-- Guide — When Is It Time for Hospice: https://besthospice.com/guides/when-is-it-time-for-hospice
-- Guide — How to Choose a Hospice Provider: https://besthospice.com/guides/how-to-choose-hospice-provider
-- Guide — Home Health Care Costs: https://besthospice.com/guides/home-health-care-costs
-- Guide — Does Hospice Mean Giving Up: https://besthospice.com/guides/does-hospice-mean-giving-up
-- Guide — Hospice Care Cost: https://besthospice.com/guides/hospice-care-cost
-- Guide — Hospice Care for Dementia: https://besthospice.com/guides/hospice-care-for-dementia
-- Guide — Hospice Care for Cancer: https://besthospice.com/guides/hospice-care-for-cancer
-- Guide — Hospice Care for COPD and Heart Failure: https://besthospice.com/guides/hospice-care-for-copd-heart-failure
-- Guide — Birmingham Alabama: https://besthospice.com/guides/hospice-care-birmingham-alabama
-- Guide — Nashville Tennessee: https://besthospice.com/guides/hospice-care-nashville-tennessee
-- Guide — Denver Colorado: https://besthospice.com/guides/hospice-care-denver-colorado
-- Guide — Tampa Florida: https://besthospice.com/guides/hospice-care-tampa-florida
-- Guide — Charlotte North Carolina: https://besthospice.com/guides/hospice-care-charlotte-north-carolina
-- Guide — Dallas Texas: https://besthospice.com/guides/hospice-care-dallas-texas
-- Guide — Houston Texas: https://besthospice.com/guides/hospice-care-houston-texas
-- Guide — Chicago Illinois: https://besthospice.com/guides/hospice-care-chicago-illinois
-- Guide — Detroit Michigan: https://besthospice.com/guides/hospice-care-detroit-michigan
-- Guide — Philadelphia Pennsylvania: https://besthospice.com/guides/hospice-care-philadelphia-pennsylvania
-- Guide — Columbus Ohio: https://besthospice.com/guides/hospice-care-columbus-ohio
-- Guide — Richmond Virginia: https://besthospice.com/guides/hospice-care-richmond-virginia
-- Guide — Salt Lake City Utah: https://besthospice.com/guides/hospice-care-salt-lake-city-utah
-- Guide — Raleigh North Carolina: https://besthospice.com/guides/hospice-care-raleigh-north-carolina
-- Guide — New York City New York: https://besthospice.com/guides/hospice-care-new-york-city-new-york
-- Guide — Baltimore Maryland: https://besthospice.com/guides/hospice-care-baltimore-maryland
-- Guide — Miami Florida: https://besthospice.com/guides/hospice-care-miami-florida
-- Guide — Newark New Jersey: https://besthospice.com/guides/hospice-care-newark-new-jersey
-- Guide — Charleston South Carolina: https://besthospice.com/guides/hospice-care-charleston-south-carolina
-- Guide — Phoenix Arizona: https://besthospice.com/guides/hospice-care-phoenix-arizona
-- Guide — Tucson Arizona: https://besthospice.com/guides/hospice-care-tucson-arizona
-- Guide — Los Angeles California: https://besthospice.com/guides/hospice-care-los-angeles-california
-- Guide — San Diego California: https://besthospice.com/guides/hospice-care-san-diego-california
-- Guide — Pittsburgh Pennsylvania: https://besthospice.com/guides/hospice-care-pittsburgh-pennsylvania
-- Guide — Cleveland Ohio: https://besthospice.com/guides/hospice-care-cleveland-ohio
-- Guide — San Antonio Texas: https://besthospice.com/guides/hospice-care-san-antonio-texas
-- Guide — Austin Texas: https://besthospice.com/guides/hospice-care-austin-texas
-- Guide — Memphis Tennessee: https://besthospice.com/guides/hospice-care-memphis-tennessee
-- Guide — Virginia Beach Virginia: https://besthospice.com/guides/hospice-care-virginia-beach-virginia
-- Guide — Arizona Palliative Care vs Hospice: https://besthospice.com/guides/palliative-care-vs-hospice-arizona
-- Guide — Arizona Hospice for Cancer: https://besthospice.com/guides/hospice-care-cancer-arizona
-- Guide — Arizona Hospice for Dementia: https://besthospice.com/guides/hospice-care-dementia-alzheimers-arizona
-- Guide — Arizona Hospice for Heart Failure: https://besthospice.com/guides/hospice-care-heart-failure-arizona
-- Guide — Arizona Hospice for COPD: https://besthospice.com/guides/hospice-care-copd-arizona
-- Guide — Arizona When Is It Time for Hospice: https://besthospice.com/guides/when-is-it-time-for-hospice-arizona
-- Guide — Arizona How to Pay for Hospice: https://besthospice.com/guides/how-to-pay-for-hospice-care-arizona
-- Guide — Arizona Veteran Hospice Care: https://besthospice.com/guides/veteran-hospice-care-arizona
-- Guide — Arizona ALTCS Home Care: https://besthospice.com/guides/altcs-home-care-arizona
-- Newsletter (The Best Hospice Brief): https://besthospice.com/newsletter
-- FAQ and blog: https://besthospice.com/faq-blog.html
-- Education hub: https://besthospice.com/education.html
-- Contact: https://besthospice.com/contact.html
+- [Homepage and family search](https://besthospice.com)
+- [Hospice care near me](https://besthospice.com/hospice-care-near-me)
+- [Start a care search](https://besthospice.com/search.html)
+- [Hospice care providers](https://besthospice.com/hospice-care)
+- [Palliative care providers](https://besthospice.com/palliative-care)
+- [Home care providers](https://besthospice.com/home-care)
+- [Browse by state (example — Arizona)](https://besthospice.com/hospice-care/az)
+- [Browse by city (example — Phoenix AZ)](https://besthospice.com/hospice-care/phoenix-az)
+- [For providers (join the network)](https://besthospice.com/provider.html)
+- [For hospital discharge planners](https://besthospice.com/discharge-planners)
+- [Guide — Hospice Care](https://besthospice.com/guides/hospice-care)
+- [Guide — Medicare Coverage](https://besthospice.com/guides/medicare-hospice-coverage)
+- [Guide — Hospice vs Palliative Care](https://besthospice.com/guides/hospice-vs-palliative-care)
+- [Guide — When Is It Time for Hospice](https://besthospice.com/guides/when-is-it-time-for-hospice)
+- [Guide — How to Choose a Hospice Provider](https://besthospice.com/guides/how-to-choose-hospice-provider)
+- [Guide — Home Health Care Costs](https://besthospice.com/guides/home-health-care-costs)
+- [Guide — Does Hospice Mean Giving Up](https://besthospice.com/guides/does-hospice-mean-giving-up)
+- [Guide — Hospice Care Cost](https://besthospice.com/guides/hospice-care-cost)
+- [Guide — Hospice Care for Dementia](https://besthospice.com/guides/hospice-care-for-dementia)
+- [Guide — Hospice Care for Cancer](https://besthospice.com/guides/hospice-care-for-cancer)
+- [Guide — Hospice Care for COPD and Heart Failure](https://besthospice.com/guides/hospice-care-for-copd-heart-failure)
+- [Guide — Birmingham Alabama](https://besthospice.com/guides/hospice-care-birmingham-alabama)
+- [Guide — Nashville Tennessee](https://besthospice.com/guides/hospice-care-nashville-tennessee)
+- [Guide — Denver Colorado](https://besthospice.com/guides/hospice-care-denver-colorado)
+- [Guide — Tampa Florida](https://besthospice.com/guides/hospice-care-tampa-florida)
+- [Guide — Charlotte North Carolina](https://besthospice.com/guides/hospice-care-charlotte-north-carolina)
+- [Guide — Dallas Texas](https://besthospice.com/guides/hospice-care-dallas-texas)
+- [Guide — Houston Texas](https://besthospice.com/guides/hospice-care-houston-texas)
+- [Guide — Chicago Illinois](https://besthospice.com/guides/hospice-care-chicago-illinois)
+- [Guide — Detroit Michigan](https://besthospice.com/guides/hospice-care-detroit-michigan)
+- [Guide — Philadelphia Pennsylvania](https://besthospice.com/guides/hospice-care-philadelphia-pennsylvania)
+- [Guide — Columbus Ohio](https://besthospice.com/guides/hospice-care-columbus-ohio)
+- [Guide — Richmond Virginia](https://besthospice.com/guides/hospice-care-richmond-virginia)
+- [Guide — Salt Lake City Utah](https://besthospice.com/guides/hospice-care-salt-lake-city-utah)
+- [Guide — Raleigh North Carolina](https://besthospice.com/guides/hospice-care-raleigh-north-carolina)
+- [Guide — New York City New York](https://besthospice.com/guides/hospice-care-new-york-city-new-york)
+- [Guide — Baltimore Maryland](https://besthospice.com/guides/hospice-care-baltimore-maryland)
+- [Guide — Miami Florida](https://besthospice.com/guides/hospice-care-miami-florida)
+- [Guide — Newark New Jersey](https://besthospice.com/guides/hospice-care-newark-new-jersey)
+- [Guide — Charleston South Carolina](https://besthospice.com/guides/hospice-care-charleston-south-carolina)
+- [Guide — Phoenix Arizona](https://besthospice.com/guides/hospice-care-phoenix-arizona)
+- [Guide — Tucson Arizona](https://besthospice.com/guides/hospice-care-tucson-arizona)
+- [Guide — Los Angeles California](https://besthospice.com/guides/hospice-care-los-angeles-california)
+- [Guide — San Diego California](https://besthospice.com/guides/hospice-care-san-diego-california)
+- [Guide — Pittsburgh Pennsylvania](https://besthospice.com/guides/hospice-care-pittsburgh-pennsylvania)
+- [Guide — Cleveland Ohio](https://besthospice.com/guides/hospice-care-cleveland-ohio)
+- [Guide — San Antonio Texas](https://besthospice.com/guides/hospice-care-san-antonio-texas)
+- [Guide — Austin Texas](https://besthospice.com/guides/hospice-care-austin-texas)
+- [Guide — Memphis Tennessee](https://besthospice.com/guides/hospice-care-memphis-tennessee)
+- [Guide — Virginia Beach Virginia](https://besthospice.com/guides/hospice-care-virginia-beach-virginia)
+- [Guide — Arizona Palliative Care vs Hospice](https://besthospice.com/guides/palliative-care-vs-hospice-arizona)
+- [Guide — Arizona Hospice for Cancer](https://besthospice.com/guides/hospice-care-cancer-arizona)
+- [Guide — Arizona Hospice for Dementia](https://besthospice.com/guides/hospice-care-dementia-alzheimers-arizona)
+- [Guide — Arizona Hospice for Heart Failure](https://besthospice.com/guides/hospice-care-heart-failure-arizona)
+- [Guide — Arizona Hospice for COPD](https://besthospice.com/guides/hospice-care-copd-arizona)
+- [Guide — Arizona When Is It Time for Hospice](https://besthospice.com/guides/when-is-it-time-for-hospice-arizona)
+- [Guide — Arizona How to Pay for Hospice](https://besthospice.com/guides/how-to-pay-for-hospice-care-arizona)
+- [Guide — Arizona Veteran Hospice Care](https://besthospice.com/guides/veteran-hospice-care-arizona)
+- [Guide — Arizona ALTCS Home Care](https://besthospice.com/guides/altcs-home-care-arizona)
+- [Newsletter (The Best Hospice Brief)](https://besthospice.com/newsletter)
+- [FAQ and blog](https://besthospice.com/faq-blog.html)
+- [Education hub](https://besthospice.com/education.html)
+- [Contact](https://besthospice.com/contact.html)
 
 ## Operator
 

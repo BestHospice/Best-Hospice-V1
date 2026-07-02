@@ -712,6 +712,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
+
+app.use((_req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 app.use((req, res, next) => {
   const hostHeader = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
   const host = hostHeader.replace(/:\d+$/, '');
