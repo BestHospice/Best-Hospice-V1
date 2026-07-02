@@ -256,7 +256,14 @@
             <div style="display:flex; flex-direction:column; align-items:center; gap:16px;">
               <div>
                 <div style="width:140px; border-radius:16px; overflow:hidden; aspect-ratio:9/16; background:#000;">
-                  <iframe src="https://www.youtube.com/embed/sN2-UTN-9jE" title="About the President" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%; height:100%; display:block;"></iframe>
+                  <div onclick="this.innerHTML='<iframe src=\'https://www.youtube.com/embed/sN2-UTN-9jE?autoplay=1\' title=\'About the President\' frameborder=\'0\' allow=\'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture\' allowfullscreen style=\'width:100%;height:100%;display:block;\'></iframe>'" style="width:100%; height:100%; cursor:pointer; position:relative;" aria-label="Play video: About the President" role="button" tabindex="0">
+                    <img src="https://i.ytimg.com/vi/sN2-UTN-9jE/hqdefault.jpg" alt="Crawford Outland, Founder — About the President" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy" width="480" height="360">
+                    <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+                      <div style="width:52px; height:52px; background:rgba(255,0,0,0.92); border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 16px rgba(0,0,0,0.5);">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div style="text-align:left;">
