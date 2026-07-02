@@ -710,6 +710,8 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 app.use((req, res, next) => {
   const hostHeader = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
   const host = hostHeader.replace(/:\d+$/, '');
@@ -1197,7 +1199,14 @@ const BLOCKED_STATIC_BASENAMES = new Set(['.env', '.ds_store', 'readme.md']);
 const rootStatic = express.static(__dirname, {
   dotfiles: 'deny',
   fallthrough: true,
-  index: false
+  index: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    } else if (/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff2?|ttf|eot|webp)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    }
+  }
 });
 
 app.use((req, res, next) => {

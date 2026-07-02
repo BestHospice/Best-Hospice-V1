@@ -204,9 +204,16 @@
     });
   }
 
+  function scheduleInit() {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(init, { timeout: 2000 });
+    } else {
+      setTimeout(init, 200);
+    }
+  }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', scheduleInit);
   } else {
-    init();
+    scheduleInit();
   }
 })();
