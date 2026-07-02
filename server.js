@@ -1170,6 +1170,10 @@ app.get('/newsletter/unsubscribe', async (req, res) => {
 });
 
 // Newsletter pages (extensionless routes)
+app.get('/reviews', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'reviews.html'));
+});
+
 app.get('/newsletter', (_req, res) => {
   res.sendFile(path.join(__dirname, 'newsletter', 'index.html'));
 });
