@@ -1189,6 +1189,10 @@ app.get('/', (_req, res) => {
   return res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+app.get('/BestHospiceSite.html', (_req, res) => {
+  return res.redirect(301, '/');
+});
+
 const BLOCKED_STATIC_EXTENSIONS = new Set([
   '.env',
   '.csv',
