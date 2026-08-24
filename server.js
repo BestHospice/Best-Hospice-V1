@@ -249,6 +249,16 @@ const providerAdmittedCount = async (providerId) => {
   }
 };
 const PLAN_NOTIFY_DELAY_MS = { priority: 0, featured: 60 * 1000, verified: 120 * 1000 };
+// Mirrors getPlanRank in search-results.js so listing order matches everywhere.
+const PLAN_RANK = { priority: 3, featured: 2, verified: 1 };
+const planRank = (planTier) => PLAN_RANK[normalizePlanTier(planTier)] || 1;
+const byPlanThenName = (a, b) => {
+  const rank = planRank(b.planTier) - planRank(a.planTier);
+  if (rank !== 0) return rank;
+  const feat = (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
+  if (feat !== 0) return feat;
+  return String(a.name || '').localeCompare(String(b.name || ''));
+};
 const JOB_POLL_MS = 5000;
 const JOB_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const JOB_MAX_ATTEMPTS = 3;
@@ -798,8 +808,13 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           status,
           periodEnd
         });
-        // Existing behaviour, unchanged: a completed checkout marks the listing featured.
-        await prisma.provider.update({ where: { id: providerId }, data: { featured: true } });
+        // Record the plan that was actually bought. Previously every checkout set
+        // featured = true, which ranked a $250 Verified listing like a $500 Priority one.
+        const purchasedTier = normalizePlanTier(session.metadata?.planTier || session.metadata?.plan);
+        await prisma.provider.update({
+          where: { id: providerId },
+          data: { planTier: purchasedTier, featured: purchasedTier !== 'verified' }
+        });
       }
     } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
       const sub = event.data.object;
@@ -1972,9 +1987,8 @@ async function providersByLocation(city, state) {
       ],
       state: { equals: state, mode: 'insensitive' }
     },
-    orderBy: { featured: 'desc' }
   });
-  return results.map(normalizeProviderCitySpelling);
+  return results.map(normalizeProviderCitySpelling).sort(byPlanThenName);
 }
 
 function renderBreadcrumbList(items) {
@@ -6682,10 +6696,9 @@ app.get('/:service(hospice-care|palliative-care|home-care)/:state([a-z]{2})', as
   try {
     const { service, state } = req.params;
     const providersRaw = await prisma.provider.findMany({
-      where: { state: { equals: state, mode: 'insensitive' } },
-      orderBy: { featured: 'desc' }
+      where: { state: { equals: state, mode: 'insensitive' } }
     });
-    const providers = providersRaw.map(normalizeProviderCitySpelling);
+    const providers = providersRaw.map(normalizeProviderCitySpelling).sort(byPlanThenName);
     const html = renderStatePage({ serviceKey: service, state, providers });
     res.send(html);
   } catch (err) {
