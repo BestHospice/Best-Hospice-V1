@@ -210,7 +210,7 @@
         <p style="color:#4b5563; font-size:14px; margin:0 0 12px;">You are notified when a lead matches your service ZIP codes <strong>or</strong> falls inside your radius. Keep at least one active.</p>
 
         <div class="cov-modes">
-          <label><input type="radio" name="cov-mode" value="radius"> Radius only</label>
+          <label><input type="radio" name="cov-mode" value="radius"> Radius only <span style="font-weight:400; color:#6b7280;">(default)</span></label>
           <label><input type="radio" name="cov-mode" value="zips"> ZIP codes only</label>
           <label><input type="radio" name="cov-mode" value="both"> Both</label>
         </div>
@@ -599,6 +599,8 @@
     });
 
     // ---- Coverage preferences ----
+    // Radius is the default way to be notified; ZIP codes are opt-in.
+    const DEFAULT_RADIUS_MILES = 60;
     const covRadiusField = document.getElementById('cov-radius-field');
     const covZipsField = document.getElementById('cov-zips-field');
     const covRadiusInput = document.getElementById('cov-radius');
@@ -633,7 +635,7 @@
       const mode = hasRadius && hasZips ? 'both' : (hasZips ? 'zips' : 'radius');
       const radio = document.querySelector(`input[name="cov-mode"][value="${mode}"]`);
       if (radio) radio.checked = true;
-      covRadiusInput.value = hasRadius ? (radiusKm / 1.60934).toFixed(0) : '';
+      covRadiusInput.value = hasRadius ? (radiusKm / 1.60934).toFixed(0) : String(DEFAULT_RADIUS_MILES);
       covZipsInput.value = zips.join(', ');
       syncCoverageFields();
     }
