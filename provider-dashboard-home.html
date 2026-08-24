@@ -54,6 +54,13 @@
     .ppanel table { font-size: 13px; }
     .ppanel table th, .ppanel table td { padding: 8px 6px; }
     .ppanel [data-status-btn], .ppanel table button { white-space: nowrap; }
+    .cov-modes { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+    .cov-modes label { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; cursor: pointer; white-space: nowrap; }
+    .cov-field { margin-top: 12px; }
+    .cov-field.hidden-field { display: none; }
+    .cov-input { padding: 9px 10px; border: 1px solid #d1d5db; border-radius: 10px; font: inherit; width: 100%; max-width: 520px; }
+    .cov-hint { margin: 4px 0 0; color: #6b7280; font-size: 13px; }
+    .dash-label { font-weight: 700; font-size: 14px; margin-bottom: 4px; display: block; }
   </style></head>
 <body>
   <div class="dash-shell">
@@ -135,7 +142,11 @@
               <input id="roi-months" type="number" min="1" value="1" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px; width:120px;">
             </label>
             <label style="font-weight:700;">Monthly subscription:
-              <input id="roi-monthly" type="number" min="0" step="1" value="250" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px; width:120px;">
+              <select id="roi-monthly" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
+                <option value="250">$250 — Verified</option>
+                <option value="375">$375 — Featured</option>
+                <option value="500">$500 — Priority</option>
+              </select>
             </label>
             <label style="font-weight:700;">Revenue per client per month:
               <select id="roi-revenue-per-client" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
@@ -191,6 +202,34 @@
             <summary>SMS &amp; Email Notice</summary>
             <p>By joining as a provider, you agree to receive text messages and emails from Best Hospice and Home Health related to hospice, palliative and home care coordination. Message &amp; data rates may apply. Message frequency varies. Reply STOP to opt out, and HELP for help.</p>
           </details>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #e5e7eb; padding-top:12px;">
+        <h3>Coverage</h3>
+        <p style="color:#4b5563; font-size:14px; margin:0 0 12px;">You are notified when a lead matches your service ZIP codes <strong>or</strong> falls inside your radius. Keep at least one active.</p>
+
+        <div class="cov-modes">
+          <label><input type="radio" name="cov-mode" value="radius"> Radius only</label>
+          <label><input type="radio" name="cov-mode" value="zips"> ZIP codes only</label>
+          <label><input type="radio" name="cov-mode" value="both"> Both</label>
+        </div>
+
+        <div id="cov-radius-field" class="cov-field">
+          <label class="dash-label" for="cov-radius">Radius in miles</label>
+          <input id="cov-radius" type="number" min="1" max="200" step="1" class="cov-input" style="width:160px;">
+          <p class="cov-hint">Measured from your listing address. Maximum 200 miles.</p>
+        </div>
+
+        <div id="cov-zips-field" class="cov-field">
+          <label class="dash-label" for="cov-zips">Service ZIP codes</label>
+          <textarea id="cov-zips" class="cov-input" rows="3" placeholder="85019, 85345, 85301"></textarea>
+          <p class="cov-hint">Five-digit ZIPs, separated by commas or spaces. <span id="cov-zip-count"></span></p>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+          <button class="dash-btn" id="cov-save">Save coverage</button>
+          <span id="cov-status" style="font-size:14px;"></span>
         </div>
       </div>
 
@@ -324,6 +363,7 @@
             : (zipCount ? `ZIP-based only: ${zipListText}` : radiusMiles);
           document.getElementById('coverage-label').textContent = `Coverage: ${coverageText}`;
           document.getElementById('coverage-summary').textContent = coverageText;
+          applyCoverageForm(data.provider);
         }
         if (data.provider && data.provider.planTier) {
           planMonthly = planToPrice(data.provider.planTier);
@@ -558,13 +598,76 @@
       }
     });
 
+    // ---- Coverage preferences ----
+    const covRadiusField = document.getElementById('cov-radius-field');
+    const covZipsField = document.getElementById('cov-zips-field');
+    const covRadiusInput = document.getElementById('cov-radius');
+    const covZipsInput = document.getElementById('cov-zips');
+    const covStatus = document.getElementById('cov-status');
+
+    function selectedCoverageMode() {
+      const checked = document.querySelector('input[name="cov-mode"]:checked');
+      return checked ? checked.value : 'radius';
+    }
+
+    function syncCoverageFields() {
+      const mode = selectedCoverageMode();
+      covRadiusField.classList.toggle('hidden-field', mode === 'zips');
+      covZipsField.classList.toggle('hidden-field', mode === 'radius');
+      updateZipCount();
+    }
+
+    function updateZipCount() {
+      const zips = String(covZipsInput.value || '').split(/[\s,;]+/).filter((z) => /^\d{5}$/.test(z));
+      const unique = Array.from(new Set(zips));
+      document.getElementById('cov-zip-count').textContent = unique.length
+        ? `${unique.length} valid ZIP${unique.length === 1 ? '' : 's'} entered.`
+        : '';
+    }
+
+    function applyCoverageForm(provider) {
+      const radiusKm = Number(provider.serviceRadiusKm || 0);
+      const zips = String(provider.serviceZipCodes || '').split(',').map((z) => z.trim()).filter(Boolean);
+      const hasRadius = radiusKm > 0;
+      const hasZips = zips.length > 0;
+      const mode = hasRadius && hasZips ? 'both' : (hasZips ? 'zips' : 'radius');
+      const radio = document.querySelector(`input[name="cov-mode"][value="${mode}"]`);
+      if (radio) radio.checked = true;
+      covRadiusInput.value = hasRadius ? (radiusKm / 1.60934).toFixed(0) : '';
+      covZipsInput.value = zips.join(', ');
+      syncCoverageFields();
+    }
+
+    document.querySelectorAll('input[name="cov-mode"]').forEach((el) => {
+      el.addEventListener('change', syncCoverageFields);
+    });
+    covZipsInput.addEventListener('input', updateZipCount);
+
+    document.getElementById('cov-save').addEventListener('click', async () => {
+      const mode = selectedCoverageMode();
+      covStatus.style.color = '#4b5563';
+      covStatus.textContent = 'Saving...';
+      try {
+        const body = { mode };
+        if (mode !== 'zips') body.radiusMiles = Number(covRadiusInput.value || 0);
+        if (mode !== 'radius') body.zipCodes = covZipsInput.value || '';
+        await callApi('/api/provider/coverage', 'PATCH', body);
+        covStatus.style.color = '#0f766e';
+        covStatus.textContent = 'Coverage saved.';
+        await loadMetrics();
+      } catch (err) {
+        covStatus.style.color = '#dc2626';
+        covStatus.textContent = err.message || 'Could not save coverage.';
+      }
+    });
+
     // ---- Section navigation: group the four h3 sections into panels ----
     (function setupProviderSections() {
       const card = document.querySelector('.dash-card');
       if (!card || card.dataset.paneled) return;
 
-      const LABELS = ['Leads', 'Performance', 'Billing', 'Job Seekers'];
-      const HEADS = ['Lead Analytics', 'Return on Investment', 'Manage Billing', 'Job Seekers'];
+      const LABELS = ['Leads', 'Performance', 'Billing', 'Coverage', 'Job Seekers'];
+      const HEADS = ['Lead Analytics', 'Return on Investment', 'Manage Billing', 'Coverage', 'Job Seekers'];
 
       const blocks = Array.from(card.children);
       const targets = [];

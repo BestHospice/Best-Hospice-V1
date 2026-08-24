@@ -217,7 +217,9 @@ async function fixTusconProviderData() {
 const PROVIDER_MONTHLY_RATE = 250;
 const PROVIDER_TIER_RATES = { verified: 250, featured: 375, priority: 500 };
 // Assumed revenue to a provider per admitted client. Estimate only; used in Abel's ROI answers.
-const REVENUE_PER_ADMISSION = 8000;
+// Defaults for Abel's ROI math, matching the dashboard calculator's starting values.
+const DEFAULT_REVENUE_PER_CLIENT_MONTH = 1000;
+const DEFAULT_MONTHS_PER_CLIENT = 3;
 // The provider dashboard already prices by tier (planToPrice in provider-dashboard-home.html).
 // Abel must agree with it, or a priority provider is quoted the verified rate.
 const providerRateForTier = (planTier) => PROVIDER_TIER_RATES[normalizePlanTier(planTier)] || PROVIDER_MONTHLY_RATE;
@@ -4486,6 +4488,77 @@ app.patch('/api/provider/actively-hiring', requireProviderAuth, async (req, res)
   }
 });
 
+// Provider self-service coverage. A lead matches on a service ZIP OR inside the
+// radius, so at least one of the two must stay active or the provider gets nothing.
+const PROVIDER_MAX_RADIUS_MILES = 200;
+const PROVIDER_MAX_SERVICE_ZIPS = 300;
+
+app.patch('/api/provider/coverage', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+
+    const mode = String(req.body?.mode || '').trim().toLowerCase();
+    if (!['radius', 'zips', 'both'].includes(mode)) {
+      return res.status(400).json({ error: 'mode must be radius, zips, or both' });
+    }
+
+    const wantsRadius = mode === 'radius' || mode === 'both';
+    const wantsZips = mode === 'zips' || mode === 'both';
+
+    let radiusKm = 0;
+    if (wantsRadius) {
+      const miles = Number(req.body?.radiusMiles);
+      if (!Number.isFinite(miles) || miles <= 0) {
+        return res.status(400).json({ error: 'Enter a radius greater than 0 miles.' });
+      }
+      if (miles > PROVIDER_MAX_RADIUS_MILES) {
+        return res.status(400).json({ error: `Radius cannot exceed ${PROVIDER_MAX_RADIUS_MILES} miles.` });
+      }
+      radiusKm = miles * 1.60934;
+    }
+
+    let zipStorage = null;
+    if (wantsZips) {
+      const zips = normalizeZipCodeList(req.body?.zipCodes);
+      if (!zips.length) {
+        return res.status(400).json({ error: 'Enter at least one valid 5-digit ZIP code.' });
+      }
+      if (zips.length > PROVIDER_MAX_SERVICE_ZIPS) {
+        return res.status(400).json({ error: `Enter at most ${PROVIDER_MAX_SERVICE_ZIPS} ZIP codes.` });
+      }
+      zipStorage = zips.join(',');
+    }
+
+    if (!radiusKm && !zipStorage) {
+      return res.status(400).json({ error: 'Keep either a radius or ZIP codes active, or you will stop receiving leads.' });
+    }
+
+    const updated = await prisma.provider.update({
+      where: { id: ctx.providerId },
+      data: { serviceRadiusKm: radiusKm, serviceZipCodes: zipStorage },
+      select: { serviceRadiusKm: true, serviceZipCodes: true }
+    });
+
+    await logAdminAction(
+      'provider_user',
+      'PROVIDER_COVERAGE_UPDATE',
+      ctx.providerId,
+      { mode, serviceRadiusKm: updated.serviceRadiusKm, serviceZipCodes: updated.serviceZipCodes },
+      hashIp(req.ip || '')
+    );
+
+    res.json({
+      ok: true,
+      serviceRadiusKm: updated.serviceRadiusKm,
+      serviceZipCodes: updated.serviceZipCodes
+    });
+  } catch (err) {
+    console.error('Provider coverage update failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.delete('/api/admin/main/website-events', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -5500,8 +5573,16 @@ const ABEL_PROVIDER_TOOLS = [
   },
   {
     name: 'get_revenue_estimate',
-    description: 'Get estimated revenue from leads and ROI based on assumed admission value.',
-    input_schema: { type: 'object', properties: {}, required: [] }
+    description: 'Estimate revenue and ROI. Ask the provider for their own numbers first; every parameter is optional and falls back to a stated default.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        revenue_per_client_per_month: { type: 'number', description: 'What one admitted client is worth per month to this provider.' },
+        months_per_client: { type: 'number', description: 'Average months a client stays on service.' },
+        converted_clients: { type: 'number', description: 'How many of the leads sent actually became clients. Defaults to admin-confirmed admissions.' }
+      },
+      required: []
+    }
   },
   {
     name: 'get_account_info',
@@ -5584,15 +5665,52 @@ async function executeAbelTool(toolName, toolInput, providerCtx) {
     case 'get_revenue_estimate': {
       const countAll = await leadCountAll();
       const admits = await providerAdmittedCount(providerId);
-      const estimatedRevenue = admits * REVENUE_PER_ADMISSION;
-      const potentialRevenue = countAll * REVENUE_PER_ADMISSION;
+
+      const perMonthRaw = Number(toolInput?.revenue_per_client_per_month);
+      const monthsRaw = Number(toolInput?.months_per_client);
+      const convertedRaw = Number(toolInput?.converted_clients);
+
+      const perMonthGiven = Number.isFinite(perMonthRaw) && perMonthRaw > 0;
+      const monthsGiven = Number.isFinite(monthsRaw) && monthsRaw > 0;
+      const convertedGiven = Number.isFinite(convertedRaw) && convertedRaw >= 0;
+
+      const perMonth = perMonthGiven ? perMonthRaw : DEFAULT_REVENUE_PER_CLIENT_MONTH;
+      const months = monthsGiven ? monthsRaw : DEFAULT_MONTHS_PER_CLIENT;
+      const converted = convertedGiven ? convertedRaw : admits;
+      const clientValue = perMonth * months;
+
+      const estimatedRevenue = converted * clientValue;
+      const potentialRevenue = countAll * clientValue;
       const firstNotif = await prisma.leadNotification.findFirst({
         where: { providerId }, orderBy: { createdAt: 'asc' }, select: { createdAt: true }
       });
       const sinceDate = firstNotif?.createdAt ? new Date(firstNotif.createdAt) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const spend = await spendSince(sinceDate);
       const net = estimatedRevenue - spend.totalSpend;
-      return `Leads sent to you all-time: ${countAll}. Confirmed admissions: ${admits}. Estimated revenue (at $${REVENUE_PER_ADMISSION.toLocaleString()}/admission): ~$${estimatedRevenue.toLocaleString()}. If every lead had converted: ~$${potentialRevenue.toLocaleString()}. Estimated spend: ~$${spend.totalSpend.toLocaleString()} ($${spend.monthlyRate}/month × ${spend.months} months). Estimated net: ~$${net.toLocaleString()}.`;
+
+      const assumed = [];
+      if (!perMonthGiven) assumed.push(`revenue per client per month ($${perMonth.toLocaleString()})`);
+      if (!monthsGiven) assumed.push(`average months per client (${months})`);
+      if (!convertedGiven) assumed.push(`converted clients (${converted}, from admin-confirmed admissions)`);
+
+      return JSON.stringify({
+        leadsSent: countAll,
+        confirmedAdmissions: admits,
+        convertedClientsUsed: converted,
+        revenuePerClientPerMonth: perMonth,
+        monthsPerClient: months,
+        valuePerClient: clientValue,
+        estimatedRevenue,
+        potentialRevenueIfAllConverted: potentialRevenue,
+        monthlySubscription: spend.monthlyRate,
+        monthsBilled: spend.months,
+        estimatedSpend: spend.totalSpend,
+        estimatedNet: net,
+        assumedDefaultsFor: assumed,
+        note: assumed.length
+          ? 'Tell the provider which figures were assumed and offer to recalculate with their own numbers.'
+          : 'All figures came from the provider.'
+      });
     }
     case 'get_account_info': {
       return JSON.stringify({
@@ -5753,6 +5871,29 @@ CRITICAL RULES:
 - Use conversation history for context. Remember what was discussed earlier in this conversation.
 - Be professional, concise, and data-driven.
 - After fetching data with a tool, present it clearly and offer a useful next step.
+
+REVENUE AND ROI QUESTIONS:
+An ROI estimate is only as good as three inputs, and you do not know them until you ask:
+1. What one admitted client is worth per month to this provider
+2. How many months an average client stays on service
+3. How many of the leads sent actually became clients
+
+When a provider asks about revenue, ROI, profit, or "is this worth it", ask for whichever
+of those three you do not already have from this conversation. Ask at most two short
+questions at a time, and offer a sensible range as a prompt rather than an open question
+(for example: "Roughly what is one client worth per month — under $1,000, $1,000-$3,000,
+or more?"). Once you have their numbers, pass them to get_revenue_estimate as
+revenue_per_client_per_month, months_per_client, and converted_clients.
+
+If the provider does not want to answer, run get_revenue_estimate anyway and say plainly
+which figures were assumed. The tool reports this in assumedDefaultsFor — always surface
+it rather than presenting an assumed number as fact.
+
+Never present potentialRevenueIfAllConverted as money earned. It is the ceiling if every
+single lead converted, and you must label it that way.
+
+Leads sent is not clients gained. Only convertedClientsUsed and confirmedAdmissions
+represent real business.
 
 Tools you have: get_lead_count, get_lead_list, get_metrics, get_spend_estimate, get_revenue_estimate, get_account_info.
 Use them proactively when the provider asks about their performance, leads, spend, or account.
@@ -6239,8 +6380,9 @@ app.post('/api/ai/chat', async (req, res) => {
     if (lower.includes('revenue') || lower.includes('profit') || lower.includes('roi')) {
       const countAll = await leadCountAll(providerId);
       const admits = await providerAdmittedCount(providerId);
-      const estimateRevenue = admits * REVENUE_PER_ADMISSION;
-      const potentialRevenue = countAll * REVENUE_PER_ADMISSION;
+      const clientValue = DEFAULT_REVENUE_PER_CLIENT_MONTH * DEFAULT_MONTHS_PER_CLIENT;
+      const estimateRevenue = admits * clientValue;
+      const potentialRevenue = countAll * clientValue;
       const firstNotif = await prisma.leadNotification.findFirst({
         where: { providerId },
         orderBy: { createdAt: 'asc' },
@@ -6256,7 +6398,7 @@ app.post('/api/ai/chat', async (req, res) => {
       const net = estimateRevenue - spend.totalSpend;
       await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', providerId, { leads: countAll, admits, estimateRevenue, spend: spend.totalSpend, net }, hashIp(req.ip || ''));
       return res.json({
-        reply: `Leads sent to you: ${countAll}. Confirmed admissions: ${admits}. Estimated revenue (at $${REVENUE_PER_ADMISSION.toLocaleString()}/admission): ~$${estimateRevenue.toLocaleString()}. If every lead had converted: ~$${potentialRevenue.toLocaleString()}. Estimated spend (at $${spend.monthlyRate}/mo): ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}. Mark your conversions in the dashboard to refine this.`,
+        reply: `Leads sent to you: ${countAll}. Confirmed admissions: ${admits}. Estimated revenue (assuming $${DEFAULT_REVENUE_PER_CLIENT_MONTH.toLocaleString()}/month per client over ${DEFAULT_MONTHS_PER_CLIENT} months): ~$${estimateRevenue.toLocaleString()}. If every lead had converted: ~$${potentialRevenue.toLocaleString()}. Estimated spend (at $${spend.monthlyRate}/mo): ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}. Mark your conversions in the dashboard to refine this.`,
         navigateTo: navigation.providerHome
       });
     }
