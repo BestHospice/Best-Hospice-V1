@@ -17,6 +17,43 @@
     .metric-card h4 { margin:0 0 6px; }
     .dash-btn { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; padding:8px 12px; border-radius:10px; font-weight:700; cursor:pointer; justify-self:end; }
     .hidden { display:none !important; }
+    .notice { margin-top: 10px; border: 1px solid #e5e7eb; border-radius: 12px; background: #f8fafc; padding: 10px 12px; }
+    .notice summary { cursor: pointer; font-weight: 700; font-size: 14px; color: #374151; }
+    .notice p { margin: 8px 0 0; color: #4b5563; font-size: 14px; line-height: 1.55; }
+
+    /* ---- Section navigation ---- */
+    .pdash-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 4px; }
+    .pdash-body, .pdash-main, .ppanel, .ppanel > * { min-width: 0; }
+    .pdash-nav { position: sticky; top: 16px; display: grid; gap: 2px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 8px; background: #fff; }
+    .pdash-nav .nav-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; font-weight: 700; padding: 6px 8px; }
+    .pdash-nav button { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; border: none; background: none; font: inherit; font-size: 13.5px; color: #475569; padding: 8px 10px; border-radius: 9px; cursor: pointer; }
+    .pdash-nav button:hover { background: #f1f5f9; color: #0f172a; }
+    .pdash-nav button.active { background: #f0fdfa; color: #0f766e; font-weight: 700; box-shadow: inset 2px 0 0 #0f766e; }
+    .pdash-nav .dot { width: 6px; height: 6px; border-radius: 999px; background: #cbd5e1; flex: 0 0 auto; }
+    .pdash-nav button.active .dot { background: #0f766e; }
+    .pbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .pbar h3 { margin: 0; flex: 1; min-width: 0; }
+    .pbar .count { font-size: 12px; color: #64748b; }
+    .pbar .nav-arrow { width: 32px; height: 32px; border-radius: 9px; border: 1px solid #e2e8f0; background: #f8fafc; cursor: pointer; color: #0f766e; font-family: inherit; font-size: 14px; }
+    .pbar .nav-arrow:hover:not(:disabled) { background: #f0fdfa; border-color: #0f766e; }
+    .pbar .nav-arrow:disabled { opacity: .3; cursor: default; }
+    .ppanel { display: none; }
+    .ppanel.active { display: block; animation: ppanelIn .2s ease both; }
+    @keyframes ppanelIn { from { opacity: 0; transform: translateX(var(--slide-from, 14px)); } to { opacity: 1; transform: none; } }
+    .ppanel > div { border-top: none !important; padding-top: 0 !important; }
+    .pnav-toggle { display: none; }
+    @media (max-width: 860px) {
+      .pdash-body { grid-template-columns: 1fr; }
+      .pdash-nav { position: static; }
+      .pdash-nav.collapsed { display: none; }
+      .pnav-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; border: 1px solid #e2e8f0; background: #f8fafc; color: #0f766e; cursor: pointer; font-family: inherit; }
+    }
+    .dash-shell { max-width: 1280px; }
+    .dash-card > .metrics { grid-template-columns: repeat(auto-fit, minmax(200px, 260px)); justify-content: start; }
+    .ppanel .metrics { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+    .ppanel table { font-size: 13px; }
+    .ppanel table th, .ppanel table td { padding: 8px 6px; }
+    .ppanel [data-status-btn], .ppanel table button { white-space: nowrap; }
   </style></head>
 <body>
   <div class="dash-shell">
@@ -39,7 +76,7 @@
 
       <div class="metrics">
         <div class="metric-card">
-          <h4>Clients Best Hospice and Home Health Has Connected You With</h4>
+          <h4>Leads Sent to You</h4>
           <div id="m-total-notifs">-</div>
         </div>
       </div>
@@ -64,12 +101,10 @@
             <thead>
               <tr style="text-align:left; border-bottom:1px solid #e5e7eb;">
                 <th style="padding:8px;">Date/Time (EST)</th>
-                <th style="padding:8px;">ZIP</th>
-                <th style="padding:8px;">Submitted by</th>
-                <th style="padding:8px;">Lead ID</th>
-                <th style="padding:8px;">Contact Email</th>
-                <th style="padding:8px;">Contact Phone</th>
                 <th style="padding:8px;">Name</th>
+                <th style="padding:8px;">ZIP</th>
+                <th style="padding:8px;">Contact</th>
+                <th style="padding:8px;">Submitted by</th>
                 <th style="padding:8px;">Client Status</th>
                 <th style="padding:8px;">Updated</th>
               </tr>
@@ -88,8 +123,8 @@
         <h3>Return on Investment</h3>
         <div style="width:100%;">
           <div class="metrics" style="margin-top:8px;">
-            <div class="metric-card"><h4>Projected revenue from leads</h4><div id="bill-revenue">-</div></div>
-            <div class="metric-card"><h4>Estimated revenue from converted leads</h4><div id="converted-revenue">$0</div></div>
+            <div class="metric-card"><h4>Potential revenue if every lead converts</h4><div id="bill-revenue">-</div></div>
+            <div class="metric-card"><h4>Revenue from leads you converted</h4><div id="converted-revenue">$0</div></div>
             <div class="metric-card"><h4>Estimated ROI (profit - spend)</h4><div id="roi-net">$0</div></div>
           </div>
           <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
@@ -144,21 +179,15 @@
           <div style="margin-top:10px;">
             <button class="dash-btn" id="billing">Open Billing Portal</button>
           </div>
-          <div style="margin-top:12px; padding:12px; border:1px solid #e5e7eb; border-radius:12px; background:#f8fafc;">
-            <h4 style="margin:0 0 6px;">Privacy & Billing Notice</h4>
-            <p style="margin:4px 0; color:#4b5563; font-size:14px;">
-              Best Hospice and Home Health collects only the information needed to deliver lead notifications and manage your subscription. Your data is used to notify you of client leads, to bill your account, and to operate your provider dashboard. We do not sell your data. Information may be shared with service providers (e.g., payment processing) solely to complete these functions, and is protected with appropriate security practices.
-            </p>
-            <p style="margin:4px 0; color:#4b5563; font-size:14px;">
-              For full details, please review our Privacy Policy and Billing Terms in the billing portal or contact support if you have questions.
-            </p>
-          </div>
-          <div style="margin-top:12px; padding:12px; border:1px solid #e5e7eb; border-radius:12px; background:#f8fafc;">
-            <h4 style="margin:0 0 6px;">SMS & Email Notice</h4>
-            <p style="margin:4px 0; color:#4b5563; font-size:14px;">
-              By joining as a provider, you agree to receive text messages and emails from Best Hospice and Home Health related to hospice, palliative and home care coordination. Message &amp; data rates may apply. Message frequency varies. Reply STOP to opt out, and HELP for help.
-            </p>
-          </div>
+          <details class="notice">
+            <summary>Privacy &amp; Billing Notice</summary>
+            <p>Best Hospice and Home Health collects only the information needed to deliver lead notifications and manage your subscription. Your data is used to notify you of client leads, to bill your account, and to operate your provider dashboard. We do not sell your data. Information may be shared with service providers (e.g., payment processing) solely to complete these functions, and is protected with appropriate security practices.</p>
+            <p>For full details, please review our Privacy Policy and Billing Terms in the billing portal or contact support if you have questions.</p>
+          </details>
+          <details class="notice">
+            <summary>SMS &amp; Email Notice</summary>
+            <p>By joining as a provider, you agree to receive text messages and emails from Best Hospice and Home Health related to hospice, palliative and home care coordination. Message &amp; data rates may apply. Message frequency varies. Reply STOP to opt out, and HELP for help.</p>
+          </details>
         </div>
       </div>
 
@@ -346,13 +375,11 @@
           }).join('');
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${dateStr}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${dateStr}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;" title="Lead ID: ${escapeHtml(l.leadId || '')}">${l.clientName || ''}</td>
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.zip || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientEmail ? `<div>${l.clientEmail}</div>` : ''}${l.clientPhone ? `<div style="color:#6b7280;">${l.clientPhone}</div>` : ''}</td>
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.submittedBy || ''}</td>
-            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.leadId || ''}</td>
-            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientEmail || ''}</td>
-            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientPhone || ''}</td>
-            <td style="padding:8px; border-bottom:1px solid #e5e7eb;">${l.clientName || ''}</td>
             <td style="padding:8px; border-bottom:1px solid #e5e7eb;">
               <div style="display:flex; flex-wrap:wrap; gap:4px;">${statusBtnsHtml}</div>
             </td>
@@ -511,6 +538,142 @@
         e.target.checked = !e.target.checked;
       }
     });
+
+    // ---- Section navigation: group the four h3 sections into panels ----
+    (function setupProviderSections() {
+      const card = document.querySelector('.dash-card');
+      if (!card || card.dataset.paneled) return;
+
+      const LABELS = ['Leads', 'Performance', 'Billing', 'Job Seekers'];
+      const HEADS = ['Lead Analytics', 'Return on Investment', 'Manage Billing', 'Job Seekers'];
+
+      const blocks = Array.from(card.children);
+      const targets = [];
+      HEADS.forEach((head) => {
+        const match = blocks.find((b) => {
+          const h = b.querySelector('h3');
+          return h && h.textContent.trim().indexOf(head) === 0;
+        });
+        targets.push(match || null);
+      });
+      if (targets.some((t) => !t)) return; // markup changed - leave the page as-is
+
+      const body = document.createElement('div');
+      body.className = 'pdash-body';
+      const nav = document.createElement('nav');
+      nav.className = 'pdash-nav';
+      const navTitle = document.createElement('div');
+      navTitle.className = 'nav-title';
+      navTitle.textContent = 'Sections';
+      nav.appendChild(navTitle);
+
+      const main = document.createElement('div');
+      main.className = 'pdash-main';
+      const bar = document.createElement('div');
+      bar.className = 'pbar';
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'pnav-toggle';
+      toggle.textContent = '☰';
+      toggle.setAttribute('aria-label', 'Toggle section list');
+      toggle.addEventListener('click', () => nav.classList.toggle('collapsed'));
+      const title = document.createElement('h3');
+      const count = document.createElement('span');
+      count.className = 'count';
+      const prev = document.createElement('button');
+      prev.type = 'button';
+      prev.className = 'nav-arrow';
+      prev.textContent = '←';
+      prev.setAttribute('aria-label', 'Previous section');
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'nav-arrow';
+      next.textContent = '→';
+      next.setAttribute('aria-label', 'Next section');
+      [toggle, title, count, prev, next].forEach((el) => bar.appendChild(el));
+      main.appendChild(bar);
+
+      // insert the shell where the first section was, then move the sections in
+      card.insertBefore(body, targets[0]);
+      body.appendChild(nav);
+      body.appendChild(main);
+
+      const panels = targets.map((block, i) => {
+        const panel = document.createElement('div');
+        panel.className = 'ppanel';
+        panel.appendChild(block);
+        main.appendChild(panel);
+        return panel;
+      });
+
+      // the bar names the section, so hide each panel's own heading
+      const panelHeads = panels.map((panel, i) => {
+        const h3 = panel.querySelector('h3');
+        if (!h3) return HEADS[i];
+        const text = h3.textContent.trim();
+        h3.style.display = 'none';
+        return text;
+      });
+
+      const navButtons = LABELS.map((label, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.innerHTML = '<span class="dot"></span>';
+        b.appendChild(document.createTextNode(label));
+        b.addEventListener('click', () => show(i));
+        nav.appendChild(b);
+        return b;
+      });
+
+      let current = -1;
+      function show(i) {
+        if (i < 0 || i >= panels.length || i === current) return;
+        const dir = current === -1 || i > current ? 1 : -1;
+        panels.forEach((panel, n) => {
+          panel.classList.toggle('active', n === i);
+          if (n === i) panel.style.setProperty('--slide-from', (dir * 14) + 'px');
+        });
+        navButtons.forEach((b, n) => b.classList.toggle('active', n === i));
+        title.textContent = panelHeads[i];
+        count.textContent = (i + 1) + ' / ' + panels.length;
+        prev.disabled = i === 0;
+        next.disabled = i === panels.length - 1;
+        current = i;
+        try { localStorage.setItem('bhProviderPanel', String(i)); } catch (_) {}
+        if (window.innerWidth <= 860) nav.classList.add('collapsed');
+      }
+      prev.addEventListener('click', () => show(current - 1));
+      next.addEventListener('click', () => show(current + 1));
+
+      document.addEventListener('keydown', (e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        const t = e.target;
+        if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+        if (e.key === 'ArrowRight') { e.preventDefault(); show(current + 1); }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); show(current - 1); }
+      });
+
+      let touchX = 0;
+      let touchY = 0;
+      main.addEventListener('touchstart', (e) => {
+        touchX = e.changedTouches[0].clientX;
+        touchY = e.changedTouches[0].clientY;
+      }, { passive: true });
+      main.addEventListener('touchend', (e) => {
+        const dx = e.changedTouches[0].clientX - touchX;
+        const dy = e.changedTouches[0].clientY - touchY;
+        if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) show(current + (dx < 0 ? 1 : -1));
+      }, { passive: true });
+
+      let start = 0;
+      try {
+        const saved = parseInt(localStorage.getItem('bhProviderPanel'), 10);
+        if (Number.isInteger(saved) && saved >= 0 && saved < panels.length) start = saved;
+      } catch (_) {}
+      card.dataset.paneled = '1';
+      show(start);
+      if (window.innerWidth <= 860) nav.classList.add('collapsed');
+    })();
 
     loadLocations();
   </script>
