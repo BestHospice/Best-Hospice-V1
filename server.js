@@ -4197,6 +4197,59 @@ app.get('/api/admin/main/verify', (req, res) => {
 
 // Read-only weekly funnel aggregates (sessions -> pageviews -> form starts/completes -> leads -> admits).
 // Honors ?from=YYYY-MM-DD&to=YYYY-MM-DD; defaults to the last 90 days when omitted.
+// Read-only subscription roster for admin: who is actually paying.
+app.get('/api/admin/main/subscriptions', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    await ensureProviderStripeColumns();
+    const rows = await prisma.$queryRaw`
+      SELECT id, name, email, "planTier", "subscriptionStatus",
+             "currentPeriodEnd", "stripeCustomerId", "stripeSubscriptionId"
+      FROM "Provider"
+      ORDER BY name ASC
+    `;
+
+    const providers = rows.map((r) => {
+      const state = subscriptionBannerState(r.subscriptionStatus);
+      const tier = normalizePlanTier(r.planTier);
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email || '',
+        planTier: tier,
+        monthlyRate: providerRateForTier(tier),
+        status: r.subscriptionStatus || null,
+        state,
+        currentPeriodEnd: r.currentPeriodEnd || null,
+        hasStripeCustomer: Boolean(r.stripeCustomerId),
+        hasSubscription: Boolean(r.stripeSubscriptionId)
+      };
+    });
+
+    const paying = providers.filter((p) => p.state === 'on');
+    const atRisk = providers.filter((p) => p.state === 'warn');
+    const off = providers.filter((p) => p.state === 'off');
+
+    res.json({
+      ok: true,
+      totals: {
+        providers: providers.length,
+        paying: paying.length,
+        atRisk: atRisk.length,
+        off: off.length,
+        // Committed monthly revenue from providers Stripe reports as paying.
+        monthlyRecurring: paying.reduce((sum, p) => sum + p.monthlyRate, 0)
+      },
+      providers
+    });
+  } catch (err) {
+    console.error('Admin subscriptions failed', err);
+    res.status(500).json({ error: 'Failed to load subscriptions' });
+  }
+});
+
 app.get('/api/admin/funnel-stats', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });

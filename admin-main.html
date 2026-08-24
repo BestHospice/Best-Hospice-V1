@@ -151,6 +151,11 @@
       .panel .table-wrap, .panel .all-leads-wrap, .panel .timeline { max-height: 62vh; }
       .panel-bar h2 { font-size: 16px; }
     }
+    .sub-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .sub-pill::before { content: ''; width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+    .sub-pill.on { background: #ecfdf5; color: #065f46; }
+    .sub-pill.warn { background: #fffbeb; color: #92400e; }
+    .sub-pill.off { background: #fef2f2; color: #991b1b; }
   </style>
   <script src="/admin-auth.js" defer></script>
 </head>
@@ -338,6 +343,36 @@
       </div>
 
       <div class="card">
+        <h2>Provider Subscriptions</h2>
+        <p class="note">Who is actually being charged, straight from the Stripe status we record on each provider.</p>
+        <div class="stats-grid" id="sub-stats-grid" style="margin-bottom:12px;"></div>
+        <div class="lead-tools">
+          <input id="sub-search" type="text" placeholder="Filter by provider name or email...">
+          <select id="sub-filter">
+            <option value="all">All providers</option>
+            <option value="on">Paying</option>
+            <option value="warn">Payment issue</option>
+            <option value="off">Not paying</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Provider</th>
+                <th>Email</th>
+                <th>Plan</th>
+                <th>Monthly</th>
+                <th>Status</th>
+                <th>Renews</th>
+              </tr>
+            </thead>
+            <tbody id="sub-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Weekly Funnel</h2>
         <p class="note">Where people drop off between landing on the site and being admitted. Follows the date range above. &ldquo;Optional Details&rdquo; is the extra-details step after a lead is already captured, so a low number here is expected.</p>
         <div class="table-wrap">
@@ -470,6 +505,7 @@
     const providerRankingBody = document.getElementById('provider-ranking-body');
     const providerConversionBody = document.getElementById('provider-conversion-body');
     const funnelBody = document.getElementById('funnel-body');
+    const subBody = document.getElementById('sub-body');
     const caretypeAdmitBody = document.getElementById('caretype-admit-body');
     const geoAdmitBody = document.getElementById('geo-admit-body');
     const noUpdateBody = document.getElementById('no-update-body');
@@ -1070,6 +1106,71 @@
       refreshLeadMapLayout();
     }
 
+    let subscriptionRows = [];
+
+    function renderSubscriptions() {
+      const term = (document.getElementById('sub-search').value || '').toLowerCase().trim();
+      const filter = document.getElementById('sub-filter').value || 'all';
+      const list = subscriptionRows.filter((p) => {
+        if (filter !== 'all' && p.state !== filter) return false;
+        if (!term) return true;
+        return `${p.name} ${p.email}`.toLowerCase().includes(term);
+      });
+
+      if (!list.length) {
+        subBody.innerHTML = '<tr><td colspan="6">No providers match this filter.</td></tr>';
+        return;
+      }
+
+      const labels = { on: 'Paying', warn: 'Payment issue', off: 'Not paying' };
+      subBody.innerHTML = list
+        .map((p) => {
+          const renews = p.currentPeriodEnd ? new Date(p.currentPeriodEnd) : null;
+          const renewsText = renews && !Number.isNaN(renews.getTime())
+            ? renews.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '-';
+          const detail = p.status && p.state !== 'on' ? ` (${p.status})` : '';
+          return `
+            <tr>
+              <td>${p.name || '-'}</td>
+              <td>${p.email ? `<a href="mailto:${p.email}">${p.email}</a>` : '-'}</td>
+              <td>${p.planTier}</td>
+              <td>$${fmtNum(p.monthlyRate)}</td>
+              <td><span class="sub-pill ${p.state}">${labels[p.state]}</span>${detail}</td>
+              <td>${renewsText}</td>
+            </tr>
+          `;
+        })
+        .join('');
+    }
+
+    async function loadSubscriptions() {
+      try {
+        const res = await fetch('/api/admin/main/subscriptions', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        subscriptionRows = data.providers || [];
+        const t = data.totals || {};
+        const cards = [
+          ['Paying Providers', fmtNum(t.paying || 0)],
+          ['Monthly Recurring', `$${fmtNum(t.monthlyRecurring || 0)}`],
+          ['Payment Issues', fmtNum(t.atRisk || 0)],
+          ['Not Paying', fmtNum(t.off || 0)],
+          ['Total Providers', fmtNum(t.providers || 0)]
+        ];
+        document.getElementById('sub-stats-grid').innerHTML = cards
+          .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`)
+          .join('');
+        renderSubscriptions();
+      } catch (err) {
+        console.error('Subscriptions load failed', err);
+        subBody.innerHTML = '<tr><td colspan="6">Could not load subscription data.</td></tr>';
+      }
+    }
+
+    document.getElementById('sub-search').addEventListener('input', renderSubscriptions);
+    document.getElementById('sub-filter').addEventListener('change', renderSubscriptions);
+
     async function loadFunnelStats(from, to) {
       try {
         const qs = new URLSearchParams();
@@ -1372,6 +1473,7 @@
         { label: 'Lead Trend',    start: 'Lead Trend' },
         { label: 'Geography',     start: 'Lead Heat Map' },
         { label: 'Providers',     start: 'Provider Client Ranking' },
+        { label: 'Subscriptions', start: 'Provider Subscriptions' },
         { label: 'Weekly Funnel', start: 'Weekly Funnel' },
         { label: 'Stale Leads',   start: 'Leads with No Updates' },
         { label: 'All Leads',     start: 'All Leads' },
@@ -1512,6 +1614,7 @@
       if (window.innerWidth <= 900) nav.classList.add('collapsed');
     })();
 
+    loadSubscriptions();
     initAdminMain();
     loadEmailList();
     loadAllLeads();
