@@ -20,94 +20,100 @@
     .status { color:#dc2626; }
     .hidden { display:none !important; }
     .dash-logo { height: 72px; width: auto; object-fit: contain; }
+    .dash-sub { margin: -8px 0 0; color: #4b5563; }
+    .auth-tabs { display: flex; gap: 8px; }
+    .auth-tabs .dash-btn { flex: 1; }
+    .auth-tabs .dash-btn.active { background: linear-gradient(135deg, #0f766e, #0b4f6c); color: #fff; border-color: transparent; }
+    .field-group { display: grid; gap: 6px; }
+    .field-group + .field-group { margin-top: 12px; }
+    .hint { margin: 2px 0 0; color: #6b7280; font-size: 13px; line-height: 1.45; }
+    .steps { margin: 0 0 14px 18px; color: #4b5563; display: grid; gap: 5px; font-size: 14px; }
+    .pw-row { display: flex; gap: 8px; }
+    .pw-row .dash-input { flex: 1; }
+    .pw-toggle { padding: 8px 12px; }
+    .auth-submit { margin-top: 14px; justify-self: start; }
+    .fine { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid #f1f5f9; color: #6b7280; font-size: 12.5px; line-height: 1.55; }
+    .fine strong { color: #475569; }
+    /* footer links were clipping at both edges instead of wrapping */
+    .site-footer .footer-links { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: center; }
   </style></head>
 <body>
   <div class="dash-shell">
     <div class="dash-card">
       <img src="BestHospiceandHomeHealthNew.png" alt="Best Hospice and Home Health and Best Home Health logo" class="dash-logo">
       <h1>Provider Dashboard</h1>
-      <p><strong>First-time sign in (create your account):</strong></p>
-      <ol style="margin:0 0 6px 18px; color:#4b5563;">
-        <li>Select your provider in the dropdown below.</li>
-        <li>Click “Sign up” and enter the provider login email for your listing.</li>
-        <li>We’ll email you a one-time code. Paste it here and create your password.</li>
-      </ol>
-      <p><strong>Already have an account?</strong> Click “Log in” and enter your email + password.</p>
-      <p style="margin-top:-6px; color:#4b5563;"><strong>Multiple locations under one email?</strong> After you log in, you’ll be prompted to choose which location’s dashboard to view.</p>
-      <div style="margin-top:12px; padding:12px; border:1px solid #e5e7eb; border-radius:12px; background:#f8fafc;">
-        <h4 style="margin:0 0 6px;">SMS & Email Notice</h4>
-        <p style="margin:4px 0; color:#4b5563; font-size:14px;">
-          By joining as a provider, you agree to receive text messages and emails from Best Hospice and Home Health related to hospice, palliative and home care coordination. Message &amp; data rates may apply. Message frequency varies. Reply STOP to opt out, and HELP for help.
-        </p>
-      </div>
+      <p class="dash-sub">Sign in to see the leads we've sent you, your coverage, and your billing.</p>
 
-      <div class="dash-row">
-        <button class="dash-btn" id="show-signup">Sign up</button>
+      <div class="auth-tabs">
         <button class="dash-btn secondary" id="show-login">Log in</button>
+        <button class="dash-btn secondary" id="show-signup">First time? Create account</button>
       </div>
 
-      <div style="margin-top:8px;">
-        <label class="dash-label" for="provider-select">Select your provider</label>
-        <input id="provider-search" class="dash-input" type="text" placeholder="Search provider name" style="margin-bottom:6px;">
+      <div class="field-group">
+        <label class="dash-label" for="provider-select">Your provider listing</label>
+        <input id="provider-search" class="dash-input" type="text" placeholder="Type to search by name">
         <select id="provider-select" class="dash-input"></select>
-        <p style="margin:4px 0; color:#4b5563; font-size:13px;">Choose the provider you represent. Your email must match the provider’s login email to receive a code.</p>
-        <p style="margin:4px 0; color:#4b5563; font-size:13px;">Coverage supports both options: service radius and optional service ZIP codes. Providers are notified when a lead matches either one.</p>
+        <p class="hint">Pick the listing you represent. Type above to narrow the list.</p>
+      </div>
+
+      <div id="login-section" class="hidden">
+        <div class="field-group">
+          <label class="dash-label" for="login-email">Email</label>
+          <input id="login-email" class="dash-input" type="email" placeholder="you@business.com">
+        </div>
+        <div class="field-group">
+          <label class="dash-label" for="login-password">Password</label>
+          <div class="pw-row">
+            <input id="login-password" class="dash-input" type="password" placeholder="Password">
+            <button type="button" id="toggle-login-pass" class="dash-btn secondary pw-toggle">&#128065;</button>
+          </div>
+        </div>
+        <button class="dash-btn auth-submit" id="login">Log in</button>
+        <p id="login-status" class="status"></p>
+        <p class="hint">Multiple locations under one email? You'll choose which location after logging in.</p>
       </div>
 
       <div id="signup-section" class="hidden">
+        <ol class="steps">
+          <li>Pick your listing above.</li>
+          <li>Enter the provider login email on that listing.</li>
+          <li>We'll email you a one-time code &mdash; paste it below and set a password.</li>
+        </ol>
+
         <div id="signup-step1">
-          <div class="dash-row">
-            <div>
-              <label class="dash-label" for="signup-email">Provider login email</label>
-              <input id="signup-email" class="dash-input" type="email" placeholder="login email for your listing">
-            </div>
-            <button class="dash-btn" id="signup-start">Send signup code</button>
+          <div class="field-group">
+            <label class="dash-label" for="signup-email">Provider login email</label>
+            <input id="signup-email" class="dash-input" type="email" placeholder="login email for your listing">
+            <p class="hint">This must match the login email on your listing to receive a code.</p>
           </div>
+          <button class="dash-btn auth-submit" id="signup-start">Send signup code</button>
           <p id="auth-status" class="status"></p>
         </div>
+
         <div id="signup-step2" class="hidden">
-          <div class="dash-row" style="border-top:1px solid #e5e7eb; padding-top:10px;">
-            <div>
-              <label class="dash-label" for="complete-email">Email (same as above)</label>
-              <input id="complete-email" class="dash-input" type="email" placeholder="login email for your listing">
-            </div>
-            <div>
-              <label class="dash-label" for="token">Signup code (from email)</label>
-              <input id="token" class="dash-input" type="text" placeholder="Paste code from your email">
-            </div>
-          <div>
-            <label class="dash-label" for="password">Create password</label>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters" style="flex:1;">
-              <button type="button" id="toggle-pass" class="dash-btn secondary" style="padding:8px 10px;">👁</button>
+          <div class="field-group">
+            <label class="dash-label" for="complete-email">Provider login email</label>
+            <input id="complete-email" class="dash-input" type="email" placeholder="login email for your listing">
+          </div>
+          <div class="field-group">
+            <label class="dash-label" for="token">Code from your email</label>
+            <input id="token" class="dash-input" type="text" placeholder="Paste code from your email">
+          </div>
+          <div class="field-group">
+            <label class="dash-label" for="password">Create a password</label>
+            <div class="pw-row">
+              <input id="password" class="dash-input" type="password" placeholder="Minimum 8 characters">
+              <button type="button" id="toggle-pass" class="dash-btn secondary pw-toggle">&#128065;</button>
             </div>
           </div>
-            <button class="dash-btn" id="complete-signup">Complete signup</button>
-          </div>
+          <button class="dash-btn auth-submit" id="complete-signup">Complete signup</button>
           <p id="complete-status" class="status"></p>
         </div>
-      </div>
 
-      <div id="login-section" class="hidden" style="border-top:1px solid #e5e7eb; padding-top:10px;">
-        <div class="dash-row">
-          <div>
-            <label class="dash-label" for="login-email">Email</label>
-            <input id="login-email" class="dash-input" type="email" placeholder="you@business.com">
-          </div>
-          <div>
-            <label class="dash-label" for="login-password">Password</label>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <input id="login-password" class="dash-input" type="password" placeholder="Password" style="flex:1;">
-              <button type="button" id="toggle-login-pass" class="dash-btn secondary" style="padding:8px 10px;">👁</button>
-            </div>
-          </div>
-          <button class="dash-btn secondary" id="login">Log in</button>
-        </div>
-        <p id="login-status" class="status"></p>
+        <p class="fine"><strong>SMS &amp; Email Notice.</strong> By joining as a provider, you agree to receive text messages and emails from Best Hospice and Home Health related to hospice, palliative and home care coordination. Message &amp; data rates may apply. Message frequency varies. Reply STOP to opt out, and HELP for help.</p>
       </div>
     </div>
   </div>
-
   <script>
     const tokenKey = 'provider_jwt';
     const statusEl = document.getElementById('auth-status');
@@ -208,10 +214,17 @@
       }
     });
 
-    // Default view: show signup
+    function setAuthTab(which) {
+      const signup = which === 'signup';
+      document.getElementById('signup-section').classList.toggle('hidden', !signup);
+      document.getElementById('login-section').classList.toggle('hidden', signup);
+      document.getElementById('show-signup').classList.toggle('active', signup);
+      document.getElementById('show-login').classList.toggle('active', !signup);
+    }
+
+    // Default view: log in (most visitors already have an account)
     (async () => {
-      document.getElementById('signup-section').classList.remove('hidden');
-      document.getElementById('login-section').classList.add('hidden');
+      setAuthTab('login');
       document.getElementById('signup-step1').classList.remove('hidden');
       document.getElementById('signup-step2').classList.add('hidden');
       await loadProviders();
@@ -221,16 +234,14 @@
     })();
 
     document.getElementById('show-signup').addEventListener('click', () => {
-      document.getElementById('signup-section').classList.remove('hidden');
-      document.getElementById('login-section').classList.add('hidden');
+      setAuthTab('signup');
       document.getElementById('signup-step1').classList.remove('hidden');
       document.getElementById('signup-step2').classList.add('hidden');
     });
-  document.getElementById('show-login').addEventListener('click', () => {
-    document.getElementById('login-section').classList.remove('hidden');
-    document.getElementById('signup-section').classList.add('hidden');
-    document.getElementById('signup-step2').classList.add('hidden');
-  });
+    document.getElementById('show-login').addEventListener('click', () => {
+      setAuthTab('login');
+      document.getElementById('signup-step2').classList.add('hidden');
+    });
 
   // Toggle password visibility
   document.getElementById('toggle-pass').addEventListener('click', () => {
