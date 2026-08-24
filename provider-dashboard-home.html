@@ -254,11 +254,18 @@
       return data;
     }
 
+    // Mirrors normalizePlanTier in server.js so legacy tier names price correctly.
+    function normalizePlanTier(value){
+      const tier = String(value || '').trim().toLowerCase();
+      if (tier === 'verified' || tier === 'featured' || tier === 'priority') return tier;
+      if (tier === 'market_leader' || tier === 'advanced') return 'priority';
+      if (tier === 'growth_plus') return 'featured';
+      if (tier === 'growth' || tier === 'starter') return 'verified';
+      return 'verified';
+    }
     function planToPrice(planTier){
-      const tier = String(planTier || '').toLowerCase();
-      if (tier === 'priority') return 500;
-      if (tier === 'featured') return 375;
-      return 250;
+      const rates = { verified: 250, featured: 375, priority: 500 };
+      return rates[normalizePlanTier(planTier)] || 250;
     }
 
     async function loadMetrics(){

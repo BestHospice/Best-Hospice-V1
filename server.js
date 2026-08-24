@@ -215,6 +215,37 @@ async function fixTusconProviderData() {
   }
 }
 const PROVIDER_MONTHLY_RATE = 250;
+const PROVIDER_TIER_RATES = { verified: 250, featured: 375, priority: 500 };
+// Assumed revenue to a provider per admitted client. Estimate only; used in Abel's ROI answers.
+const REVENUE_PER_ADMISSION = 8000;
+// The provider dashboard already prices by tier (planToPrice in provider-dashboard-home.html).
+// Abel must agree with it, or a priority provider is quoted the verified rate.
+const providerRateForTier = (planTier) => PROVIDER_TIER_RATES[normalizePlanTier(planTier)] || PROVIDER_MONTHLY_RATE;
+const providerRateById = async (providerId) => {
+  if (!providerId) return PROVIDER_MONTHLY_RATE;
+  try {
+    const provider = await prisma.provider.findUnique({ where: { id: providerId }, select: { planTier: true } });
+    return providerRateForTier(provider?.planTier);
+  } catch (err) {
+    console.error('providerRateById failed, using default rate', err?.message || err);
+    return PROVIDER_MONTHLY_RATE;
+  }
+};
+// Admin-confirmed admissions for a provider - the same source the admin dashboard counts.
+const providerAdmittedCount = async (providerId) => {
+  if (!providerId) return 0;
+  try {
+    await ensureLeadAdminStatusColumns();
+    const rows = await prisma.$queryRaw`
+      SELECT COUNT(*)::int AS n FROM "Lead"
+      WHERE "adminStatus" = 'admitted' AND "adminProviderId" = ${providerId}
+    `;
+    return Number(rows?.[0]?.n || 0);
+  } catch (err) {
+    console.error('providerAdmittedCount failed', err?.message || err);
+    return 0;
+  }
+};
 const PLAN_NOTIFY_DELAY_MS = { priority: 0, featured: 60 * 1000, verified: 120 * 1000 };
 const JOB_POLL_MS = 5000;
 const JOB_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
@@ -5268,20 +5299,23 @@ app.get('/api/provider/metrics', requireProviderAuth, async (req, res) => {
   }
 });
 
-// Provider spend since date (flat monthly rate for now)
+// Provider spend since date, priced from the provider's plan tier
 app.get('/api/provider/spend', requireProviderAuth, async (req, res) => {
   try {
     const sinceParam = req.query.since;
     const since = sinceParam ? new Date(String(sinceParam)) : null;
     if (!since || isNaN(since.getTime())) return res.status(400).json({ error: 'Invalid since date' });
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
     const today = new Date();
     const diffDays = Math.max(0, (today - since) / (1000 * 60 * 60 * 24));
     const months = Math.max(1, Math.ceil(diffDays / 30));
-    const totalSpend = months * PROVIDER_MONTHLY_RATE;
+    const monthlyRate = providerRateForTier(ctx.provider?.planTier);
+    const totalSpend = months * monthlyRate;
     res.json({
       ok: true,
       since: since.toISOString().split('T')[0],
-      monthlyRate: PROVIDER_MONTHLY_RATE,
+      monthlyRate,
       months,
       totalSpend
     });
@@ -5517,7 +5551,8 @@ async function executeAbelTool(toolName, toolInput, providerCtx) {
   const spendSince = async (sinceDate) => {
     const diffDays = Math.max(0, (Date.now() - sinceDate.getTime()) / (1000 * 60 * 60 * 24));
     const months = Math.max(1, Math.ceil(diffDays / 30));
-    return { monthlyRate: PROVIDER_MONTHLY_RATE, months, totalSpend: months * PROVIDER_MONTHLY_RATE };
+    const monthlyRate = await providerRateById(providerId);
+    return { monthlyRate, months, totalSpend: months * monthlyRate };
   };
 
   switch (toolName) {
@@ -5548,14 +5583,16 @@ async function executeAbelTool(toolName, toolInput, providerCtx) {
     }
     case 'get_revenue_estimate': {
       const countAll = await leadCountAll();
-      const estimatedRevenue = countAll * 8000;
+      const admits = await providerAdmittedCount(providerId);
+      const estimatedRevenue = admits * REVENUE_PER_ADMISSION;
+      const potentialRevenue = countAll * REVENUE_PER_ADMISSION;
       const firstNotif = await prisma.leadNotification.findFirst({
         where: { providerId }, orderBy: { createdAt: 'asc' }, select: { createdAt: true }
       });
       const sinceDate = firstNotif?.createdAt ? new Date(firstNotif.createdAt) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const spend = await spendSince(sinceDate);
       const net = estimatedRevenue - spend.totalSpend;
-      return `All-time leads: ${countAll}. Estimated revenue (at $8,000/admission): ~$${estimatedRevenue.toLocaleString()}. Estimated spend: ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}.`;
+      return `Leads sent to you all-time: ${countAll}. Confirmed admissions: ${admits}. Estimated revenue (at $${REVENUE_PER_ADMISSION.toLocaleString()}/admission): ~$${estimatedRevenue.toLocaleString()}. If every lead had converted: ~$${potentialRevenue.toLocaleString()}. Estimated spend: ~$${spend.totalSpend.toLocaleString()} ($${spend.monthlyRate}/month × ${spend.months} months). Estimated net: ~$${net.toLocaleString()}.`;
     }
     case 'get_account_info': {
       return JSON.stringify({
@@ -5945,10 +5982,11 @@ app.post('/api/ai/chat', async (req, res) => {
     const leadsGenerated = new Set(leadNotifications.map((n) => n.leadId)).size;
     return { impressions, emailsSent, leadsGenerated };
   };
-  const spendSince = async (sinceDate) => {
+  const spendSince = async (sinceDate, spendProviderId) => {
     const diffDays = Math.max(0, (Date.now() - sinceDate.getTime()) / (1000 * 60 * 60 * 24));
     const months = Math.max(1, Math.ceil(diffDays / 30));
-    return { monthlyRate: PROVIDER_MONTHLY_RATE, months, totalSpend: months * PROVIDER_MONTHLY_RATE };
+    const monthlyRate = await providerRateById(spendProviderId);
+    return { monthlyRate, months, totalSpend: months * monthlyRate };
   };
   const iso = (d) => d.toISOString().split('T')[0];
 
@@ -6189,10 +6227,10 @@ app.post('/api/ai/chat', async (req, res) => {
     if (lower.includes('spend') || lower.includes('paid') || lower.includes('paying')) {
       const explicitDate = parseDateLoose(text);
       const sinceDate = explicitDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const spend = await spendSince(sinceDate);
+      const spend = await spendSince(sinceDate, providerId);
       await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', providerId, { spendSince: iso(sinceDate), totalSpend: spend.totalSpend }, hashIp(req.ip || ''));
       return res.json({
-        reply: `Since ${iso(sinceDate)}, at $${PROVIDER_MONTHLY_RATE}/month, estimated spend is $${spend.totalSpend.toLocaleString()}.`,
+        reply: `Since ${iso(sinceDate)}, at $${spend.monthlyRate}/month, estimated spend is $${spend.totalSpend.toLocaleString()}.`,
         data: spend,
         navigateTo: navigation.providerHome
       });
@@ -6200,7 +6238,9 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (lower.includes('revenue') || lower.includes('profit') || lower.includes('roi')) {
       const countAll = await leadCountAll(providerId);
-      const estimateRevenue = countAll * 8000;
+      const admits = await providerAdmittedCount(providerId);
+      const estimateRevenue = admits * REVENUE_PER_ADMISSION;
+      const potentialRevenue = countAll * REVENUE_PER_ADMISSION;
       const firstNotif = await prisma.leadNotification.findFirst({
         where: { providerId },
         orderBy: { createdAt: 'asc' },
@@ -6209,13 +6249,14 @@ app.post('/api/ai/chat', async (req, res) => {
       const sinceDate = firstNotif?.createdAt ? new Date(firstNotif.createdAt) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const monthMatch = text.match(/(\d+)\s*month/);
       const overrideMonths = monthMatch ? Math.max(1, parseInt(monthMatch[1], 10)) : null;
+      const monthlyRate = await providerRateById(providerId);
       const spend = overrideMonths
-        ? { monthlyRate: PROVIDER_MONTHLY_RATE, months: overrideMonths, totalSpend: overrideMonths * PROVIDER_MONTHLY_RATE }
-        : await spendSince(sinceDate);
+        ? { monthlyRate, months: overrideMonths, totalSpend: overrideMonths * monthlyRate }
+        : await spendSince(sinceDate, providerId);
       const net = estimateRevenue - spend.totalSpend;
-      await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', providerId, { leads: countAll, estimateRevenue, spend: spend.totalSpend, net }, hashIp(req.ip || ''));
+      await logAdminAction('provider_user', 'PROVIDER_AI_REVENUE_ESTIMATE', providerId, { leads: countAll, admits, estimateRevenue, spend: spend.totalSpend, net }, hashIp(req.ip || ''));
       return res.json({
-        reply: `Estimated revenue: ~$${estimateRevenue.toLocaleString()}. Estimated spend (at $${PROVIDER_MONTHLY_RATE}/mo): ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}. Update conversions and months in your dashboard to refine this.`,
+        reply: `Leads sent to you: ${countAll}. Confirmed admissions: ${admits}. Estimated revenue (at $${REVENUE_PER_ADMISSION.toLocaleString()}/admission): ~$${estimateRevenue.toLocaleString()}. If every lead had converted: ~$${potentialRevenue.toLocaleString()}. Estimated spend (at $${spend.monthlyRate}/mo): ~$${spend.totalSpend.toLocaleString()}. Estimated net: ~$${net.toLocaleString()}. Mark your conversions in the dashboard to refine this.`,
         navigateTo: navigation.providerHome
       });
     }
