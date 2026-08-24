@@ -236,7 +236,7 @@
                 <th>Rank</th>
                 <th>Provider</th>
                 <th>Phone</th>
-                <th>Clients Generated</th>
+                <th>Leads Notified</th>
                 <th>Email</th>
               </tr>
             </thead>
@@ -296,7 +296,7 @@
 
       <div class="card">
         <h2>Weekly Funnel</h2>
-        <p class="note">Where people drop off between landing on the site and being admitted. Follows the date range above.</p>
+        <p class="note">Where people drop off between landing on the site and being admitted. Follows the date range above. &ldquo;Optional Details&rdquo; is the extra-details step after a lead is already captured, so a low number here is expected.</p>
         <div class="table-wrap">
           <table>
             <thead>
@@ -305,11 +305,10 @@
                 <th>Sessions</th>
                 <th>Pageviews</th>
                 <th>Form Starts</th>
-                <th>Form Completes</th>
+                <th>Optional Details</th>
                 <th>Leads</th>
                 <th>Admitted</th>
                 <th>Session &rarr; Lead %</th>
-                <th>Start &rarr; Complete %</th>
                 <th>Admit %</th>
               </tr>
             </thead>
@@ -327,7 +326,7 @@
               <tr>
                 <th>Lead ID</th>
                 <th>ZIP</th>
-                <th>Provider</th>
+                <th>Providers Notified</th>
                 <th>State</th>
                 <th>Age (days)</th>
               </tr>
@@ -509,7 +508,6 @@
       const cards = [
         ['Total Leads All Time', fmtNum((totals.leadsAllTime || 0) + (totals.dischargeReferralsAllTime || 0))],
         ['Confirmed Admits (All Time)', fmtNum(totals.confirmedAdmitsAllTime || 0)],
-        ['Clients Generated (All Time)', fmtNum(totals.leadsAllTime)],
         ['Clients In Range', fmtNum(totals.leadsInRange)],
         ['Discharge Referrals (All Time)', fmtNum(totals.dischargeReferralsAllTime || 0)],
         ['Discharge Referrals (In Range)', fmtNum(totals.dischargeReferralsInRange || 0)],
@@ -796,7 +794,7 @@
     function renderFunnel(weeks) {
       const list = Array.isArray(weeks) ? weeks.slice().reverse() : [];
       if (!list.length) {
-        funnelBody.innerHTML = '<tr><td colspan="10">No funnel data in selected range.</td></tr>';
+        funnelBody.innerHTML = '<tr><td colspan="9">No funnel data in selected range.</td></tr>';
         return;
       }
       funnelBody.innerHTML = list
@@ -810,7 +808,6 @@
             <td>${fmtNum(w.leads || 0)}</td>
             <td>${fmtNum(w.admits || 0)}</td>
             <td>${w.sessionToLeadPct || 0}%</td>
-            <td>${w.startToCompletePct || 0}%</td>
             <td>${w.admitRatePct || 0}%</td>
           </tr>
         `)
@@ -848,7 +845,7 @@
           <tr>
             <td>${row.leadId || '-'}</td>
             <td>${row.zip || '-'}</td>
-            <td>${row.providerName || 'Unknown provider'}</td>
+            <td>${fmtNum(row.providerCount || 1)}</td>
             <td>${row.providerState || '-'}</td>
             <td>${fmtNum(row.ageDays || 0)}</td>
           </tr>
@@ -1043,7 +1040,7 @@
         renderFunnel(data.weeks || []);
       } catch (err) {
         console.error('Funnel stats load failed', err);
-        funnelBody.innerHTML = '<tr><td colspan="10">Could not load funnel data.</td></tr>';
+        funnelBody.innerHTML = '<tr><td colspan="9">Could not load funnel data.</td></tr>';
       }
     }
 

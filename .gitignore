@@ -40,3 +40,4 @@ prisma/dev.db-journal
 
 # Logs (agent/script output — local only)
 *.log
+adminui/

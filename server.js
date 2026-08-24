@@ -3772,6 +3772,21 @@ app.get('/api/admin/main/analytics', async (req, res) => {
     }));
     staleNoUpdateLeads.sort((a, b) => b.ageDays - a.ageDays);
 
+    // LeadOutcome rows are per lead+provider, so collapse to one row per lead
+    // and keep how many providers were notified about it.
+    const staleNoUpdateByLead = [];
+    const staleSeen = new Map();
+    staleNoUpdateLeads.forEach((row) => {
+      const existing = staleSeen.get(row.leadId);
+      if (existing) {
+        existing.providerCount += 1;
+        return;
+      }
+      const entry = { ...row, providerCount: 1 };
+      staleSeen.set(row.leadId, entry);
+      staleNoUpdateByLead.push(entry);
+    });
+
     let uniqueViewersInRange = 0;
     let uniqueViewersAllTime = 0;
     let pageViewsInRange = 0;
@@ -3886,7 +3901,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
       await ensureLeadAdminStatusColumns();
       const [allLeadsForRates, allLeadsForTotal] = await Promise.all([
         prisma.$queryRawUnsafe(`
-          SELECT l.id, l.services, l."adminStatus", p.state AS "providerState"
+          SELECT l.id, l.services, l."adminStatus", l."adminProviderId", p.state AS "providerState"
           FROM "Lead" l
           LEFT JOIN "Provider" p ON p.id = l."adminProviderId"
         `),
@@ -3984,7 +3999,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         impressionsInRange: impressionsRange,
         avgNotificationsPerLead: leadsRange.length ? Number((notificationsRange / leadsRange.length).toFixed(2)) : 0,
         avgTimeToFirstContactHours,
-        noUpdateLeadsCount: staleNoUpdateLeads.length,
+        noUpdateLeadsCount: staleNoUpdateByLead.length,
         uniqueViewersInRange,
         uniqueViewersAllTime,
         pageViewsInRange,
@@ -4006,7 +4021,7 @@ app.get('/api/admin/main/analytics', async (req, res) => {
         conversionByProvider: adminConversionByProvider.length ? adminConversionByProvider : conversionByProvider,
         admitRateByCareType: adminAdmitRateByCareType,
         admitRateByGeography: adminAdmitRateByGeography,
-        noUpdateLeads: staleNoUpdateLeads,
+        noUpdateLeads: staleNoUpdateByLead,
         topPages,
         topReferrers,
         websiteAccessTimesEt,
