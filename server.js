@@ -4031,6 +4031,97 @@ app.get('/api/admin/main/verify', (req, res) => {
   res.json({ ok: true });
 });
 
+// Read-only weekly funnel aggregates (sessions -> pageviews -> form starts/completes -> leads -> admits).
+// Honors ?from=YYYY-MM-DD&to=YYYY-MM-DD; defaults to the last 90 days when omitted.
+app.get('/api/admin/funnel-stats', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    await ensureWebsiteEventsTable();
+    await ensureLeadAdminStatusColumns();
+
+    const fromRaw = String(req.query.from || '').trim();
+    const toRaw = String(req.query.to || '').trim();
+    const from = fromRaw ? new Date(`${fromRaw}T00:00:00.000Z`) : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const to = toRaw ? new Date(`${toRaw}T23:59:59.999Z`) : new Date();
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      return res.status(400).json({ error: 'Invalid date range' });
+    }
+
+    const [eventRows, leadRows] = await Promise.all([
+      prisma.$queryRaw`
+        SELECT
+          TO_CHAR(date_trunc('week', (created_at AT TIME ZONE 'America/New_York')), 'YYYY-MM-DD') AS week_start,
+          COUNT(DISTINCT session_id)::int AS sessions,
+          COUNT(*) FILTER (WHERE event_type = 'page_view')::int AS pageviews,
+          COUNT(*) FILTER (WHERE event_type = 'form_submit_initial')::int AS form_starts,
+          COUNT(*) FILTER (WHERE event_type = 'form_submit_details')::int AS form_completes
+        FROM website_events
+        WHERE created_at >= ${from} AND created_at <= ${to}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `,
+      prisma.$queryRaw`
+        SELECT
+          TO_CHAR(date_trunc('week', ("createdAt" AT TIME ZONE 'America/New_York')), 'YYYY-MM-DD') AS week_start,
+          COUNT(*)::int AS leads,
+          COUNT(*) FILTER (WHERE "adminStatus" = 'admitted')::int AS admits
+        FROM "Lead"
+        WHERE "createdAt" >= ${from} AND "createdAt" <= ${to}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `
+    ]);
+
+    const weekMap = new Map();
+    eventRows.forEach((r) => {
+      weekMap.set(r.week_start, {
+        weekStart: r.week_start,
+        sessions: Number(r.sessions || 0),
+        pageviews: Number(r.pageviews || 0),
+        formStarts: Number(r.form_starts || 0),
+        formCompletes: Number(r.form_completes || 0),
+        leads: 0,
+        admits: 0
+      });
+    });
+    leadRows.forEach((r) => {
+      const cur = weekMap.get(r.week_start) || {
+        weekStart: r.week_start,
+        sessions: 0,
+        pageviews: 0,
+        formStarts: 0,
+        formCompletes: 0,
+        leads: 0,
+        admits: 0
+      };
+      cur.leads = Number(r.leads || 0);
+      cur.admits = Number(r.admits || 0);
+      weekMap.set(r.week_start, cur);
+    });
+
+    const weeks = Array.from(weekMap.values())
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+      .map((w) => ({
+        ...w,
+        sessionToLeadPct: w.sessions ? Number((w.leads / w.sessions * 100).toFixed(2)) : 0,
+        startToCompletePct: w.formStarts ? Number((w.formCompletes / w.formStarts * 100).toFixed(2)) : 0,
+        admitRatePct: w.leads ? Number((w.admits / w.leads * 100).toFixed(2)) : 0
+      }));
+
+    res.json({
+      ok: true,
+      from: from.toISOString().slice(0, 10),
+      to: to.toISOString().slice(0, 10),
+      weeks
+    });
+  } catch (err) {
+    console.error('Admin funnel stats failed', err);
+    res.status(500).json({ error: 'Failed to load funnel stats' });
+  }
+});
+
 app.get('/api/admin/no-provider-leads', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });

@@ -1,5 +1,6 @@
 # Environment
 .env
+.env.bak
 
 # Google service account credentials (never commit)
 best-hospice-seo-*.json
@@ -36,3 +37,6 @@ prisma/dev.db-journal
 /Screenshot*
 /ScreenRecording_*
 /Y Combinator*
+
+# Logs (agent/script output — local only)
+*.log

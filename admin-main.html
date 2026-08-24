@@ -295,6 +295,30 @@
       </div>
 
       <div class="card">
+        <h2>Weekly Funnel</h2>
+        <p class="note">Where people drop off between landing on the site and being admitted. Follows the date range above.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Week of</th>
+                <th>Sessions</th>
+                <th>Pageviews</th>
+                <th>Form Starts</th>
+                <th>Form Completes</th>
+                <th>Leads</th>
+                <th>Admitted</th>
+                <th>Session &rarr; Lead %</th>
+                <th>Start &rarr; Complete %</th>
+                <th>Admit %</th>
+              </tr>
+            </thead>
+            <tbody id="funnel-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Leads with No Updates (7+ Days)</h2>
         <p class="note">These leads are still marked as New and are candidates for reminder automation.</p>
         <div class="table-wrap">
@@ -403,6 +427,7 @@
     const needDaysChartEl = document.getElementById('need-days-chart');
     const providerRankingBody = document.getElementById('provider-ranking-body');
     const providerConversionBody = document.getElementById('provider-conversion-body');
+    const funnelBody = document.getElementById('funnel-body');
     const caretypeAdmitBody = document.getElementById('caretype-admit-body');
     const geoAdmitBody = document.getElementById('geo-admit-body');
     const noUpdateBody = document.getElementById('no-update-body');
@@ -768,6 +793,30 @@
         .join('');
     }
 
+    function renderFunnel(weeks) {
+      const list = Array.isArray(weeks) ? weeks.slice().reverse() : [];
+      if (!list.length) {
+        funnelBody.innerHTML = '<tr><td colspan="10">No funnel data in selected range.</td></tr>';
+        return;
+      }
+      funnelBody.innerHTML = list
+        .map((w) => `
+          <tr>
+            <td>${w.weekStart || '-'}</td>
+            <td>${fmtNum(w.sessions || 0)}</td>
+            <td>${fmtNum(w.pageviews || 0)}</td>
+            <td>${fmtNum(w.formStarts || 0)}</td>
+            <td>${fmtNum(w.formCompletes || 0)}</td>
+            <td>${fmtNum(w.leads || 0)}</td>
+            <td>${fmtNum(w.admits || 0)}</td>
+            <td>${w.sessionToLeadPct || 0}%</td>
+            <td>${w.startToCompletePct || 0}%</td>
+            <td>${w.admitRatePct || 0}%</td>
+          </tr>
+        `)
+        .join('');
+    }
+
     function renderAdmitRates(rows, root, emptyText, labelKey) {
       const list = Array.isArray(rows) ? rows : [];
       if (!list.length) {
@@ -981,6 +1030,23 @@
       refreshLeadMapLayout();
     }
 
+    async function loadFunnelStats(from, to) {
+      try {
+        const qs = new URLSearchParams();
+        if (from) qs.set('from', from);
+        if (to) qs.set('to', to);
+        const res = await fetch(`/api/admin/funnel-stats?${qs.toString()}`, {
+          credentials: 'same-origin'
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderFunnel(data.weeks || []);
+      } catch (err) {
+        console.error('Funnel stats load failed', err);
+        funnelBody.innerHTML = '<tr><td colspan="10">Could not load funnel data.</td></tr>';
+      }
+    }
+
     async function loadAnalytics() {
       const from = fromInput.value;
       const to = toInput.value;
@@ -1044,6 +1110,7 @@
       }
       applyLeadSearch();
       renderHeat(data.heatPoints || []);
+      await loadFunnelStats(from, to);
     }
 
     function setDefaultDates() {
