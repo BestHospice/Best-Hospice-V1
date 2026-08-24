@@ -423,6 +423,26 @@ async function ensureLeadSessionColumn() {
   leadSessionColumnReady = true;
 }
 
+let providerStripeColumnsReady = false;
+async function ensureProviderStripeColumns() {
+  if (providerStripeColumnsReady) return;
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "stripeCustomerId" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "stripeSubscriptionId" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "currentPeriodEnd" TIMESTAMP`);
+  providerStripeColumnsReady = true;
+}
+
+// Stripe statuses that mean the provider is genuinely paying right now.
+const SUBSCRIPTION_ON_STATUSES = new Set(['active', 'trialing']);
+const SUBSCRIPTION_WARN_STATUSES = new Set(['past_due', 'incomplete']);
+const subscriptionBannerState = (status) => {
+  const value = String(status || '').trim().toLowerCase();
+  if (SUBSCRIPTION_ON_STATUSES.has(value)) return 'on';
+  if (SUBSCRIPTION_WARN_STATUSES.has(value)) return 'warn';
+  return 'off';
+};
+
 async function ensureLeadAdminStatusColumns() {
   if (leadAdminStatusColumnReady) return;
   await prisma.$executeRawUnsafe(`ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "adminStatus" TEXT`);
@@ -724,14 +744,96 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
   }
 
   try {
+    await ensureProviderStripeColumns();
+
+    const setSubscription = async (providerId, fields) => {
+      if (!providerId) return;
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Provider"
+         SET "stripeCustomerId" = COALESCE($1, "stripeCustomerId"),
+             "stripeSubscriptionId" = COALESCE($2, "stripeSubscriptionId"),
+             "subscriptionStatus" = COALESCE($3, "subscriptionStatus"),
+             "currentPeriodEnd" = COALESCE($4, "currentPeriodEnd")
+         WHERE "id" = $5`,
+        fields.customerId || null,
+        fields.subscriptionId || null,
+        fields.status || null,
+        fields.periodEnd ? new Date(fields.periodEnd * 1000) : null,
+        providerId
+      );
+    };
+
+    // Stripe only sends the provider id on the checkout session, so later
+    // subscription events are resolved back through the stored ids.
+    const providerIdForSubscription = async (subscription) => {
+      const fromMetadata = subscription?.metadata?.providerId;
+      if (fromMetadata) return fromMetadata;
+      const rows = await prisma.$queryRaw`
+        SELECT id FROM "Provider"
+        WHERE "stripeSubscriptionId" = ${String(subscription?.id || '')}
+           OR "stripeCustomerId" = ${String(subscription?.customer || '')}
+        LIMIT 1
+      `;
+      return rows?.[0]?.id || null;
+    };
+
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
       const providerId = session.metadata?.providerId;
       if (providerId) {
-        await prisma.provider.update({
-          where: { id: providerId },
-          data: { featured: true }
+        let status = 'active';
+        let periodEnd = null;
+        if (session.subscription && stripe) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(String(session.subscription));
+            status = sub.status || 'active';
+            periodEnd = sub.current_period_end || null;
+          } catch (subErr) {
+            console.error('Could not retrieve subscription after checkout', subErr?.message || subErr);
+          }
+        }
+        await setSubscription(providerId, {
+          customerId: session.customer ? String(session.customer) : null,
+          subscriptionId: session.subscription ? String(session.subscription) : null,
+          status,
+          periodEnd
         });
+        // Existing behaviour, unchanged: a completed checkout marks the listing featured.
+        await prisma.provider.update({ where: { id: providerId }, data: { featured: true } });
+      }
+    } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
+      const sub = event.data.object;
+      const providerId = await providerIdForSubscription(sub);
+      await setSubscription(providerId, {
+        customerId: sub.customer ? String(sub.customer) : null,
+        subscriptionId: sub.id ? String(sub.id) : null,
+        status: sub.status || null,
+        periodEnd: sub.current_period_end || null
+      });
+    } else if (event.type === 'customer.subscription.deleted') {
+      const sub = event.data.object;
+      const providerId = await providerIdForSubscription(sub);
+      if (providerId) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Provider" SET "subscriptionStatus" = 'canceled' WHERE "id" = $1`,
+          providerId
+        );
+      }
+    } else if (event.type === 'invoice.payment_failed' || event.type === 'invoice.paid') {
+      const invoice = event.data.object;
+      if (invoice.subscription && stripe) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(String(invoice.subscription));
+          const providerId = await providerIdForSubscription(sub);
+          await setSubscription(providerId, {
+            customerId: sub.customer ? String(sub.customer) : null,
+            subscriptionId: sub.id ? String(sub.id) : null,
+            status: sub.status || null,
+            periodEnd: sub.current_period_end || null
+          });
+        } catch (invErr) {
+          console.error('Could not sync subscription from invoice event', invErr?.message || invErr);
+        }
       }
     }
     res.json({ received: true });
@@ -5438,6 +5540,7 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
       return res.status(400).json({ error: 'No provider linked yet' });
     }
     const providerId = ctx.providerId;
+    await ensureProviderStripeColumns();
     const [totalNotifications, totalImpressions, notifications30d, impressions30d] = await Promise.all([
       prisma.leadNotification.count({ where: { providerId, status: 'sent' } }),
       prisma.providerImpression.count({ where: { providerId } }),
@@ -5452,6 +5555,14 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
         where: { providerId, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }
       })
     ]);
+    // The Stripe columns are added by raw SQL, so the typed client cannot see them.
+    const subRows = await prisma.$queryRaw`
+      SELECT "subscriptionStatus", "currentPeriodEnd", "stripeSubscriptionId"
+      FROM "Provider" WHERE "id" = ${providerId} LIMIT 1
+    `;
+    const subRow = subRows?.[0] || {};
+    const subscriptionStatus = subRow.subscriptionStatus || null;
+
     res.json({
       ok: true,
       provider: {
@@ -5461,6 +5572,12 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
         planTier: ctx.provider.planTier || 'verified',
         serviceRadiusKm: ctx.provider.serviceRadiusKm || 0,
         serviceZipCodes: ctx.provider.serviceZipCodes || null
+      },
+      subscription: {
+        status: subscriptionStatus,
+        state: subscriptionBannerState(subscriptionStatus),
+        currentPeriodEnd: subRow.currentPeriodEnd || null,
+        hasSubscription: Boolean(subRow.stripeSubscriptionId)
       },
       metrics: {
         totalNotifications,

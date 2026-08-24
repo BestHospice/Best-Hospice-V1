@@ -61,6 +61,15 @@
     .cov-input { padding: 9px 10px; border: 1px solid #d1d5db; border-radius: 10px; font: inherit; width: 100%; max-width: 520px; }
     .cov-hint { margin: 4px 0 0; color: #6b7280; font-size: 13px; }
     .dash-label { font-weight: 700; font-size: 14px; margin-bottom: 4px; display: block; }
+    .sub-banner { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; font-weight: 700; font-size: 14px; margin: 0 0 14px; border: 1px solid transparent; }
+    .sub-banner .sub-dot { width: 9px; height: 9px; border-radius: 999px; flex: 0 0 auto; }
+    .sub-banner .sub-detail { font-weight: 400; font-size: 13px; opacity: .85; }
+    .sub-banner.sub-on { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    .sub-banner.sub-on .sub-dot { background: #059669; }
+    .sub-banner.sub-warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .sub-banner.sub-warn .sub-dot { background: #d97706; }
+    .sub-banner.sub-off { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+    .sub-banner.sub-off .sub-dot { background: #dc2626; }
   </style></head>
 <body>
   <div class="dash-shell">
@@ -186,6 +195,11 @@
       <div style="border-top:1px solid #e5e7eb; padding-top:12px; display:flex; justify-content:flex-start;">
         <div style="width:100%;">
           <h3>Manage Billing</h3>
+          <div id="sub-banner" class="sub-banner sub-off" style="display:none;">
+            <span class="sub-dot"></span>
+            <span id="sub-banner-text">Subscription Off</span>
+            <span id="sub-banner-detail" class="sub-detail"></span>
+          </div>
         <div class="metrics" style="margin-top:8px;">
           <div class="metric-card"><h4>Monthly subscription</h4><div id="bill-monthly">$250</div></div>
           <div class="metric-card"><h4>Coverage settings</h4><div id="coverage-summary">Radius only</div></div>
@@ -365,6 +379,7 @@
           document.getElementById('coverage-summary').textContent = coverageText;
           applyCoverageForm(data.provider);
         }
+        renderSubscriptionBanner(data.subscription);
         if (data.provider && data.provider.planTier) {
           planMonthly = planToPrice(data.provider.planTier);
           document.getElementById('bill-monthly').textContent = `$${planMonthly}`;
@@ -597,6 +612,34 @@
         e.target.checked = !e.target.checked;
       }
     });
+
+    function renderSubscriptionBanner(sub) {
+      const banner = document.getElementById('sub-banner');
+      if (!banner) return;
+      const state = (sub && sub.state) || 'off';
+      const status = (sub && sub.status) || '';
+      banner.classList.remove('sub-on', 'sub-warn', 'sub-off');
+      banner.classList.add(`sub-${state}`);
+      banner.style.display = 'flex';
+
+      const label = document.getElementById('sub-banner-text');
+      const detail = document.getElementById('sub-banner-detail');
+      if (state === 'on') {
+        label.textContent = 'Subscription On';
+        const until = sub && sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd) : null;
+        detail.textContent = until && !isNaN(until.getTime())
+          ? `Renews ${until.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+          : '';
+      } else if (state === 'warn') {
+        label.textContent = 'Payment Issue';
+        detail.textContent = status ? `Stripe reports "${status}" — update your card in the billing portal.` : '';
+      } else {
+        label.textContent = 'Subscription Off';
+        detail.textContent = sub && sub.hasSubscription
+          ? `Stripe reports "${status || 'canceled'}".`
+          : 'No active subscription on file.';
+      }
+    }
 
     // ---- Coverage preferences ----
     // Radius is the default way to be notified; ZIP codes are opt-in.
