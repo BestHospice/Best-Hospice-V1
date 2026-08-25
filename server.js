@@ -1364,7 +1364,7 @@ app.get('/states/:state', async (req, res) => {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Hospice & Home Care Providers in ${rawSlug} | Best Hospice</title>
-  <meta name="description" content="Best Hospice and Home Health is expanding to ${rawSlug}. Find verified hospice, palliative care, and home care providers near you. 100% free for families." />
+  <meta name="description" content="Best Hospice and Home Health is expanding to ${rawSlug}. Find hospice, palliative care, and home care providers near you. 100% free for families." />
   <link rel="canonical" href="${CANONICAL_DOMAIN}/states/${stateSlug}" />
   <link rel="stylesheet" href="/styles-modern.css" />
   <link rel="stylesheet" href="/styles/main.css" />
@@ -1453,7 +1453,7 @@ app.get('/states/:state', async (req, res) => {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Hospice & Home Care Providers in ${stateName} | Best Hospice</title>
-  <meta name="description" content="Find verified hospice and home care providers across ${stateName}. Browse providers by city. 100% free for families." />
+  <meta name="description" content="Find hospice and home care providers across ${stateName}. Browse providers by city. Free for families." />
   <link rel="canonical" href="${CANONICAL_DOMAIN}/states/${slugify(stateName)}" />
   <link rel="stylesheet" href="/styles-modern.css" />
   <script src="/abel-chat.js" defer></script>
@@ -2266,6 +2266,42 @@ function cityDisplayName(slugCity, providers = []) {
     .join(' ');
 }
 
+// Location metadata must describe what the page actually contains. Every
+// location title previously claimed "Verified Providers" and every description
+// promised "Compare local options", regardless of how many providers were
+// listed - 138 of 177 pages could not keep that promise, and 6 listed none at
+// all.
+//
+// "Verified" is also dropped entirely. There is no provider verification field
+// or process in the data model; planTier defaults to the string "verified",
+// which is the name of the $250 subscription tier, not a credential. Claiming
+// it in a search snippet implies vetting that does not exist.
+function locationMetadata({ serviceName, placeLabel, providerCount, scope }) {
+  const n = Number(providerCount) || 0;
+  const service = String(serviceName || 'Care');
+  const lower = service.toLowerCase();
+  const place = String(placeLabel || '');
+  const across = scope === 'state' ? 'across' : 'in';
+
+  if (n === 0) {
+    // Nothing to compare or list. Offer only what the page really has.
+    return {
+      title: `${service} in ${place} | Medicare Coverage & Local Guidance`,
+      description: `Learn about ${lower} ${across} ${place}, including Medicare coverage, eligibility, and how to arrange care locally.`
+    };
+  }
+  if (n === 1) {
+    return {
+      title: `${service} in ${place} | Local Provider & Medicare Guidance`,
+      description: `Explore ${lower} ${across} ${place}, including a local provider, Medicare coverage, eligibility, and care guidance.`
+    };
+  }
+  return {
+    title: `${service} in ${place} | Compare ${n} Local Providers`,
+    description: `Compare ${n} ${lower} providers serving ${place}, learn how Medicare hospice coverage works, and understand local care options.`
+  };
+}
+
 function cityStateString(city, state) {
   const stateName = stateNameMap[(state || '').toLowerCase()] || (state || '').toUpperCase();
   return [city, stateName].filter(Boolean).join(', ');
@@ -2559,8 +2595,12 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
     ? `We currently list ${providerCount} ${providerCount === 1 ? 'provider' : 'providers'} in ${cityState}.`
     : `We are actively expanding coverage in ${cityState}.`;
   const localResources = `Local resources in ${cityState} often include hospital care coordinators, Medicare counseling, and caregiver support groups. Providers can guide you to the right local options.`;
-  const title = `${service.name} in ${cityState} | Verified Providers & Medicare Coverage`;
-  const description = `Find verified ${service.name.toLowerCase()} providers in ${cityState}. Compare local options, Medicare coverage, and costs. Free for families — no referral fees.`;
+  const cityMeta = locationMetadata({
+    serviceName: service.name, placeLabel: cityState,
+    providerCount: providers.length, scope: 'city'
+  });
+  const title = cityMeta.title;
+  const description = cityMeta.description;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${slugify(city)}-${(state || '').toLowerCase()}`;
   const breadcrumbItems = [
     { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
@@ -2687,8 +2727,12 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   const stateIntro = stateCode === 'az'
     ? `Arizona is home to over 1.8 million residents aged 65 and older, representing one of the fastest-growing senior populations in the United States. The Phoenix metro area alone accounts for more than 65% of the state's hospice utilization, with Tucson, Scottsdale, and Mesa also seeing significant demand. Arizona's warm climate attracts retirees year-round, making access to quality hospice, palliative, and home care a critical need for families across the state. Medicare covers the majority of hospice services in Arizona, and the state's ALTCS program provides additional support for qualifying low-income seniors.`
     : fillTemplate(service.direct, { cityState: stateName });
-  const title = `${service.name} in ${stateName} | Verified Providers & Medicare Coverage`;
-  const description = `Find verified ${service.name.toLowerCase()} providers across ${stateName}. Compare local options, Medicare coverage, and costs. Free for families — no referral fees.`;
+  const stateMeta = locationMetadata({
+    serviceName: service.name, placeLabel: stateName,
+    providerCount: providers.length, scope: 'state'
+  });
+  const title = stateMeta.title;
+  const description = stateMeta.description;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${stateCode}`;
   const breadcrumbItems = [
     { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
@@ -2752,10 +2796,12 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
 function renderHubPage({ serviceKey, states = [] }) {
   const service = serviceConfig[serviceKey];
   const longGuide = HUB_LONGFORM_CONTENT[serviceKey];
+  // "Verified" removed: there is no provider verification field or process in
+  // the data model, so the claim cannot be substantiated in a search snippet.
   const titleMap = {
-    'hospice-care': 'Find Verified Hospice Care Providers Near You | Best Hospice',
-    'palliative-care': 'Find Verified Palliative Care Providers | Best Hospice',
-    'home-care': 'Find Verified Home Care Providers Near You | Best Hospice'
+    'hospice-care': 'Hospice Care: Coverage, Eligibility & Finding Providers | Best Hospice',
+    'palliative-care': 'Palliative Care: What It Covers & How to Find Providers | Best Hospice',
+    'home-care': 'Home Care: Costs, Coverage & Finding Providers | Best Hospice'
   };
   const title = titleMap[serviceKey] || `${service.name}: Guide, Eligibility, Costs & Providers`;
   const description = `Comprehensive ${service.name.toLowerCase()} guide covering who needs it, Medicare coverage, costs, and how to choose providers near you.`;
