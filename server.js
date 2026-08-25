@@ -1559,8 +1559,45 @@ app.get('/reviews', (_req, res) => {
   res.sendFile(path.join(__dirname, 'reviews.html'));
 });
 
-app.get('/newsletter', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'newsletter', 'index.html'));
+app.get('/newsletter', async (_req, res) => {
+  // newsletter/index.html is written at send time and wiped on every deploy,
+  // so this route 404'd while still being listed in the sitemap. Build the
+  // archive from Postgres, and fall back to the subscribe page when there is
+  // nothing archived yet rather than returning a 404.
+  try {
+    await ensureNewsletterIssuesTable(prisma);
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT issue_number, slug, subject, preview, sent_at
+       FROM newsletter_issues ORDER BY issue_number DESC`
+    );
+    if (rows.length) {
+      const items = rows.map((r) => {
+        const when = new Date(r.sent_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        return `<li><a href="/newsletter/${escapeHtml(r.slug)}">Issue #${Number(r.issue_number)} &mdash; ${escapeHtml(r.subject || '')}</a>
+                <span class="issue-date">${escapeHtml(when)}</span>
+                ${r.preview ? `<p>${escapeHtml(r.preview)}</p>` : ''}</li>`;
+      }).join('\n');
+      return res.type('html').send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Best Hospice and Home Health Brief | Newsletter Archive</title>
+<meta name="description" content="Past issues of The Best Hospice and Home Health Brief, covering hospice, palliative and home health care news for families and providers." />
+<link rel="canonical" href="${CANONICAL_DOMAIN}/newsletter" />
+<link rel="stylesheet" href="/styles/main.css" />
+<style>.archive{max-width:760px;margin:40px auto;padding:0 16px}.archive li{margin:0 0 18px;list-style:none}
+.issue-date{color:#6b7280;font-size:13px;margin-left:8px}.archive p{color:#4b5563;margin:4px 0 0;font-size:14px}</style>
+</head><body><div class="archive">
+<h1>The Best Hospice and Home Health Brief</h1>
+<p>Past issues of our newsletter for families and providers.</p>
+<ul>${items}</ul>
+<p><a href="/newsletter.html">Subscribe to the newsletter</a></p>
+</div></body></html>`);
+    }
+  } catch (err) {
+    console.error('Newsletter archive index failed', err);
+  }
+  // No issues archived yet: send the subscribe page, which is real content.
+  return res.sendFile(path.join(__dirname, 'newsletter.html'));
 });
 app.get('/newsletter/:issueSlug', async (req, res) => {
   const issueSlug = String(req.params.issueSlug || '').trim().toLowerCase();
@@ -2247,7 +2284,8 @@ async function fetchAllProviders() {
       website: true,
       email: true,
       featured: true,
-      createdAt: true
+      createdAt: true,
+      updatedAt: true
     }
   });
   return providers.map(normalizeProviderCitySpelling);
@@ -7439,10 +7477,9 @@ app.get(['/hospice-az', '/hospice-az/'], (_req, res) => {
 
 app.get('/sitemap.xml', async (_req, res) => {
   const urls = await buildSitemapUrls();
-  const today = new Date().toISOString().split('T')[0];
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.8</priority></url>`).join('\n')}
+${urls.map((u) => `<url><loc>${u}</loc><priority>0.8</priority></url>`).join('\n')}
 </urlset>`;
   res.type('text/xml').send(body);
 });
@@ -7473,10 +7510,9 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
       })
     : [];
   const urls = [...pages, ...serviceHubs, ...guides, ...statePages, ...cityPages, ...blogPages, ...newsletterPages].map((p) => `${CANONICAL_DOMAIN}${p}`);
-  const today = new Date().toISOString().split('T')[0];
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.7</priority></url>`).join('\n')}
+${urls.map((u) => `<url><loc>${u}</loc><priority>0.7</priority></url>`).join('\n')}
 </urlset>`;
   res.type('text/xml').send(body);
 });
@@ -7502,21 +7538,28 @@ app.get('/sitemap-locations.xml', async (_req, res) => {
       urls.push(`${CANONICAL_DOMAIN}/${s}/${slugify(p.city)}-${state}`);
     });
   }
-  const today = new Date().toISOString().split('T')[0];
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.6</priority></url>`).join('\n')}
+${urls.map((u) => `<url><loc>${u}</loc><priority>0.6</priority></url>`).join('\n')}
 </urlset>`;
   res.type('text/xml').send(body);
 });
 
 app.get('/sitemap-providers.xml', async (_req, res) => {
   const providers = await fetchAllProviders();
-  const urls = providers.map((p) => `${CANONICAL_DOMAIN}/provider/${providerSlug(p)}`);
-  const today = new Date().toISOString().split('T')[0];
+  // Provider.updatedAt is a genuine content-modification timestamp, so this is
+  // the one sitemap where lastmod is honest. Elsewhere it is omitted rather
+  // than faked: regenerating a sitemap does not mean a page changed.
+  const entries = providers.map((p) => {
+    const url = `${CANONICAL_DOMAIN}/provider/${providerSlug(p)}`;
+    const stamp = p.updatedAt ? new Date(p.updatedAt) : null;
+    const lastmod = stamp && !Number.isNaN(stamp.getTime())
+      ? `<lastmod>${stamp.toISOString().split('T')[0]}</lastmod>` : '';
+    return `<url><loc>${url}</loc>${lastmod}<priority>0.5</priority></url>`;
+  });
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `<url><loc>${u}</loc><lastmod>${today}</lastmod><priority>0.5</priority></url>`).join('\n')}
+${entries.join('\n')}
 </urlset>`;
   res.type('text/xml').send(body);
 });
