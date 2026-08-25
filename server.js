@@ -750,17 +750,34 @@ function stateCandidatesFromSlug(stateSlug) {
 }
 
 // Stripe webhook needs raw body
+// Each Stripe webhook destination has its own signing secret. Pick up every
+// env var whose name starts with STRIPE_WEBHOOK_SECRET, whatever the suffix or
+// its casing, so adding a destination only means adding a variable.
+const stripeWebhookSecrets = () => Object.keys(process.env)
+  .filter((k) => k.toUpperCase().startsWith('STRIPE_WEBHOOK_SECRET'))
+  .sort()
+  .map((k) => String(process.env[k] || '').trim())
+  .filter((v) => v.startsWith('whsec_'));
+
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+  const secrets = stripeWebhookSecrets();
+  if (!stripe || !secrets.length) {
     return res.status(500).send('Stripe not configured');
   }
   const sig = req.headers['stripe-signature'];
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error('Stripe webhook signature verification failed', err);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+  let event = null;
+  let lastErr = null;
+  for (const secret of secrets) {
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, secret);
+      break;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (!event) {
+    console.error(`Stripe webhook signature verification failed against ${secrets.length} secret(s)`, lastErr);
+    return res.status(400).send(`Webhook Error: ${lastErr ? lastErr.message : 'signature mismatch'}`);
   }
 
   try {
