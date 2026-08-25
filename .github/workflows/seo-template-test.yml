@@ -1,0 +1,43 @@
+name: SEO template test
+
+# Catches the class of bug that put {stateName} and {cityState} into every
+# hospice-care location page in production. Runs on push so a regression is
+# loud rather than silent.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server.js'
+      - 'scripts/test-seo-templates.js'
+      - '.github/workflows/seo-template-test.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  static:
+    name: Static template check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check SEO templates
+        run: node scripts/test-seo-templates.js
+
+  live:
+    name: Live rendered-HTML check
+    runs-on: ubuntu-latest
+    # Runs after the deploy has had time to land. Informational: it reports on
+    # what is currently serving, so it must not gate the static check.
+    needs: static
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Wait for Render deploy
+        run: sleep 180
+      - name: Check rendered SEO pages
+        run: node scripts/test-seo-templates.js --live https://www.besthospice.com

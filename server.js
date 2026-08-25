@@ -2059,6 +2059,32 @@ function providerSlug(provider) {
   return `${slugify(provider.name || 'provider')}-${(provider.id || '').slice(0, 8)}`;
 }
 
+// serviceConfig fields can contain the same placeholder more than once
+// (hospice-care.localNotes has {stateName} twice, .direct has {cityState} twice).
+// String.replace with a string pattern only substitutes the first occurrence,
+// which is how {stateName} and {cityState} reached production. This replaces
+// every occurrence, and leaves an unknown placeholder intact so the SEO
+// template test fails loudly rather than shipping empty prose.
+function fillTemplate(text, vars) {
+  return String(text == null ? '' : text).replace(
+    /\{(stateName|cityState|city|state)\}/g,
+    (match, key) => (vars && vars[key] != null && String(vars[key]).length ? String(vars[key]) : match)
+  );
+}
+
+// Prefer the spelling stored on the provider record. Naive title-casing would
+// mangle McLean, LaGrange, Winston-Salem and St. Louis, so a slug is only
+// capitalised as a last resort when no provider supplies the real name.
+function cityDisplayName(slugCity, providers = []) {
+  const fromData = (providers || []).map((p) => p && p.city).find(Boolean);
+  if (fromData) return String(fromData).trim();
+  return String(slugCity || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 function cityStateString(city, state) {
   const stateName = stateNameMap[(state || '').toLowerCase()] || (state || '').toUpperCase();
   return [city, stateName].filter(Boolean).join(', ');
@@ -2393,7 +2419,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
       <div class="hero-inner">
         <div class="hero-chip"><span class="hero-chip-dot"></span>Verified Local Providers</div>
         <h1>${service.name} in ${cityState}: Providers, Cost & Eligibility</h1>
-        <p class="hero-sub">${service.direct.replace('{cityState}', cityState)}</p>
+        <p class="hero-sub">${fillTemplate(service.direct, { cityState })}</p>
         <div class="hero-btns">
           <a class="btn-primary" href="/search.html">Find matched providers now</a>
           <a class="btn-outline" href="/${serviceKey}/${(state || '').toLowerCase()}">Explore ${stateName}</a>
@@ -2421,7 +2447,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
           </section>
           <section class="content-section">
             <h2>Cost & Coverage</h2>
-            <p>${service.cost.replace('{stateName}', stateName)}</p>
+            <p>${fillTemplate(service.cost, { stateName })}</p>
           </section>
           <section class="content-section">
             <h2>When to Choose ${service.name}</h2>
@@ -2429,7 +2455,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
           </section>
           <section class="content-section">
             <h2>Local note for ${cityState}</h2>
-            <p>${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
+            <p>${service.localNotes ? fillTemplate(service.localNotes, { stateName }) : ''}</p>
           </section>
           <section class="content-section">
             <h2>Compare Hospice, Palliative, and Home Care</h2>
@@ -2478,7 +2504,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   const stateCode = (state || '').toLowerCase();
   const stateIntro = stateCode === 'az'
     ? `Arizona is home to over 1.8 million residents aged 65 and older, representing one of the fastest-growing senior populations in the United States. The Phoenix metro area alone accounts for more than 65% of the state's hospice utilization, with Tucson, Scottsdale, and Mesa also seeing significant demand. Arizona's warm climate attracts retirees year-round, making access to quality hospice, palliative, and home care a critical need for families across the state. Medicare covers the majority of hospice services in Arizona, and the state's ALTCS program provides additional support for qualifying low-income seniors.`
-    : service.direct.replace('{cityState}', stateName);
+    : fillTemplate(service.direct, { cityState: stateName });
   const title = `${service.name} in ${stateName} | Verified Providers & Medicare Coverage`;
   const description = `Find verified ${service.name.toLowerCase()} providers across ${stateName}. Compare local options, Medicare coverage, and costs. Free for families — no referral fees.`;
   const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${stateCode}`;
@@ -2517,7 +2543,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
       </section>
       <section class="content-section">
         <h2>Cost & Coverage</h2>
-        <p>${service.cost.replace('{stateName}', stateName)}</p>
+        <p>${fillTemplate(service.cost, { stateName })}</p>
       </section>
       <section class="content-section">
         <h2>When to Choose ${service.name}</h2>
@@ -2525,7 +2551,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
       </section>
       <section class="content-section">
         <h2>Local note for ${stateName}</h2>
-        <p>${service.localNotes ? service.localNotes.replace('{stateName}', stateName) : ''}</p>
+        <p>${service.localNotes ? fillTemplate(service.localNotes, { stateName }) : ''}</p>
       </section>
       <section class="content-section">
         <h2>Compare Hospice, Palliative, and Home Care</h2>
@@ -2566,7 +2592,7 @@ function renderHubPage({ serviceKey, states = [] }) {
       <div class="hero-inner">
         <div class="hero-chip"><span class="hero-chip-dot"></span>Care Guide</div>
         <h1>${service.name}</h1>
-        <p class="hero-sub">${service.direct.replace('{cityState}', 'your area')}</p>
+        <p class="hero-sub">${fillTemplate(service.direct, { cityState: 'your area' })}</p>
         <div class="hero-btns">
           <a class="btn-primary" href="/search.html">Find matched providers now</a>
           <a class="btn-outline" href="/cities.html">Browse cities</a>
@@ -2597,7 +2623,7 @@ function renderHubPage({ serviceKey, states = [] }) {
           </section>
           <section class="content-section">
             <h2>Cost & Coverage</h2>
-            <p>${service.cost.replace('{stateName}', 'your state')}</p>
+            <p>${fillTemplate(service.cost, { stateName: 'your state' })}</p>
           </section>
           <section class="content-section">
             <h2>When to Choose ${service.name}</h2>
@@ -2605,7 +2631,7 @@ function renderHubPage({ serviceKey, states = [] }) {
           </section>
           <section class="content-section">
             <h2>Local note</h2>
-            <p>${service.localNotes ? service.localNotes.replace('{stateName}', 'your state') : ''}</p>
+            <p>${service.localNotes ? fillTemplate(service.localNotes, { stateName: 'your state' }) : ''}</p>
           </section>
           ${(longGuide?.sections || [])
             .map(
@@ -7023,9 +7049,10 @@ async function buildSitemapUrls() {
 app.get('/:service(hospice-care|palliative-care|home-care)/:city-:state', async (req, res) => {
   try {
     const { service, city, state } = req.params;
-    const cityName = (city || '').replace(/-/g, ' ');
+    const slugCity = (city || '').replace(/-/g, ' ');
     const stateCode = (state || '').toLowerCase();
-    const providers = await providersByLocation(cityName, stateCode);
+    const providers = await providersByLocation(slugCity, stateCode);
+    const cityName = cityDisplayName(slugCity, providers);
     const html = renderCityPage({ serviceKey: service, city: cityName, state: stateCode, providers });
     res.send(html);
   } catch (err) {
