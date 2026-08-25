@@ -1364,6 +1364,16 @@ app.get('/states/:state.html', (req, res) => {
 });
 
 app.get('/states/:state', async (req, res) => {
+  // The dynamic /hospice-care/<code> page is the surviving state architecture,
+  // so this URL redirects rather than rendering a competing page. Search
+  // Console showed the static state pages holding almost no equity while the
+  // dynamic ones held it all. Falls through to the old rendering only when the
+  // state name cannot be resolved to a code, so nothing 404s.
+  const resolvedCode = stateCodeFromName(String(req.params.state || '').replace(/-/g, ' '));
+  if (resolvedCode) {
+    const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    return res.redirect(301, `/hospice-care/${resolvedCode}${qs}`);
+  }
   try {
     const stateSlug = req.params.state;
     const candidates = stateCandidatesFromSlug(stateSlug);
