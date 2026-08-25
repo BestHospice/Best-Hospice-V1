@@ -37,8 +37,25 @@ const ADMIN_TOKEN_ADD = getRequiredSecret('ADMIN_TOKEN_ADD');
 const ADMIN_TOKEN_REMOVE = getRequiredSecret('ADMIN_TOKEN_REMOVE');
 const ADMIN_TOKEN_DASH = getRequiredSecret('ADMIN_TOKEN_DASH');
 const ADMIN_TOKEN_AUDIT = String(process.env.ADMIN_TOKEN_AUDIT || '').trim() || ADMIN_TOKEN_DASH;
-const ADMIN_LOGIN_EMAIL = String(process.env.ADMIN_LOGIN_EMAIL || 'admin@besthospice.com').trim().toLowerCase();
-const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || '$2a$10$yUoJWY8ZQH3FDiRdN0V0e.g4HuYr/7OpuyGBIIcoqiPkCO9ezwk4K').trim();
+// Admin credentials must come from the environment. These previously fell back
+// to a default email and a bcrypt hash committed in this repo, so a missing env
+// var silently re-enabled a password anyone with repo access could extract.
+// A sentinel is used outside production rather than an empty string, so nothing
+// can ever match by comparing blank to blank.
+const ADMIN_CREDENTIAL_DISABLED = '__admin_credentials_not_configured__';
+const requireAdminCredential = (name) => {
+  const value = String(process.env[name] || '').trim();
+  if (value) return value;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`${name} must be configured in production`);
+  }
+  console.warn(`${name} is not configured; admin email/password login is disabled in this environment.`);
+  return ADMIN_CREDENTIAL_DISABLED;
+};
+const ADMIN_LOGIN_EMAIL = requireAdminCredential('ADMIN_LOGIN_EMAIL').toLowerCase();
+const ADMIN_PASSWORD_HASH = requireAdminCredential('ADMIN_PASSWORD_HASH');
+const ADMIN_CREDENTIALS_READY = ADMIN_LOGIN_EMAIL !== ADMIN_CREDENTIAL_DISABLED
+  && ADMIN_PASSWORD_HASH !== ADMIN_CREDENTIAL_DISABLED;
 const ADMIN_SESSION_COOKIE = 'bh_admin_session_v2';
 const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-menu.html',
@@ -81,6 +98,7 @@ function getAdminSession(req) {
   try {
     const payload = jwt.verify(token, ADMIN_SESSION_SECRET);
     if (payload?.type !== 'admin_session') return null;
+    if (!ADMIN_CREDENTIALS_READY) return null;
     if (String(payload.email || '').trim().toLowerCase() !== ADMIN_LOGIN_EMAIL) return null;
     return payload;
   } catch (_err) {
@@ -996,6 +1014,9 @@ async function handleAdminLogin(req, res, { redirectOnSuccess = false } = {}) {
     }
     if (!email || !password) {
       return fail(400, 'Email and password are required');
+    }
+    if (!ADMIN_CREDENTIALS_READY) {
+      return res.status(500).json({ error: 'Admin login is not configured on this server.' });
     }
     if (email !== ADMIN_LOGIN_EMAIL) {
       await recordAdminFailedLogin(req);
