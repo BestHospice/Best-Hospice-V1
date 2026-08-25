@@ -197,6 +197,47 @@
     .provider-chip { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; }
     .provider-chip .p-name { font-weight: 700; font-size: 14px; }
     .provider-chip .p-email { font-size: 13px; color: #4b5563; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .form-group label { font-size: 13px; font-weight: 600; color: #374151; }
+    .form-group input, .form-group textarea { padding: 9px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-family: inherit; font-size: 14px; color: #111; outline: none; transition: border-color .15s; }
+    .form-group input:focus, .form-group textarea:focus { border-color: #0f766e; }
+    .form-group textarea { min-height: 90px; resize: vertical; }
+    .quote-cell { max-width: 340px; font-style: italic; color: #374151; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 100px; font-size: 11.5px; font-weight: 600; }
+    .badge-active { background: #d1fae5; color: #065f46; }
+    .badge-inactive { background: #f3f4f6; color: #6b7280; }
+    .badge-new { background: #eff6ff; color: #2563eb; }
+    .badge-contacted { background: #fffbeb; color: #d97706; }
+    .badge-matched { background: #f0fdf4; color: #15803d; }
+    .badge-closed { background: #f1f5f9; color: #64748b; }
+    .btn-toggle { background: #f0fdf4; color: #15803d; }
+    .btn-toggle:hover { background: #dcfce7; }
+    .btn-toggle.inactive { background: #fafafa; color: #6b7280; }
+    .filters-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+    .filters-row select, .filters-row input[type="text"] { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 13px; background: #fff; }
+    .filters-row input[type="text"] { width: 220px; }
+    /* a global select rule stretches these to 100%, so pin them back */
+    .filters-row select { width: auto; min-width: 150px; }
+    .result-count { font-size: 13px; color: #6b7280; margin-left: auto; }
+    #dr-table th { cursor: pointer; user-select: none; white-space: nowrap; }
+    #dr-table tbody tr:hover td { background: #f8fafc; cursor: pointer; }
+    .urgency { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+    .urgency-immediate { background: #fef2f2; color: #dc2626; }
+    .urgency-withinweek { background: #fffbeb; color: #d97706; }
+    .urgency-planningahead { background: #f1f5f9; color: #64748b; }
+    .detail-panel { display: none; }
+    .detail-panel.open { display: table-row; }
+    .detail-inner { padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; background: #f8fafc; border-top: 1px solid #e5e7eb; }
+    .detail-group label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; display: block; margin-bottom: 3px; }
+    .detail-group p { font-size: 13px; color: #1e293b; }
+    .detail-actions { display: flex; flex-direction: column; gap: 8px; }
+    .status-select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 13px; background: #fff; width: 150px; }
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 10px; border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280; }
+    .page-btns { display: flex; gap: 4px; }
+    .page-btn { padding: 3px 9px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; }
+    .page-btn:hover { border-color: #0f766e; color: #0f766e; }
+    .page-btn.active { background: #0f766e; color: #fff; border-color: #0f766e; }
+    .empty-state { padding: 40px; text-align: center; color: #6b7280; }
   </style>
   <script src="/admin-auth.js" defer></script>
 </head>
@@ -736,6 +777,103 @@
           </table>
         </div>
         <p id="terr-empty" class="note" style="display:none;">No uncovered territory requests yet. They will appear here when someone in a new area submits the questionnaire.</p>
+      </div>
+
+      <div class="card">
+        <h2>Testimonials</h2>
+        <p class="note">Manage testimonials shown in the rotating banner on the home page.</p>
+        <div class="form-group">
+          <label for="tst-quote">Quote *</label>
+          <textarea id="tst-quote" placeholder="Type the testimonial here..."></textarea>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div class="form-group">
+            <label for="tst-author-name">Author Name *</label>
+            <input type="text" id="tst-author-name" placeholder="e.g. Sarah M.">
+          </div>
+          <div class="form-group">
+            <label for="tst-author-title">Author Title / Location (optional)</label>
+            <input type="text" id="tst-author-title" placeholder="e.g. Family member, Phoenix AZ">
+          </div>
+        </div>
+        <div class="form-group" style="max-width:160px;">
+          <label for="tst-order">Display Order</label>
+          <input type="number" id="tst-order" value="0" min="0">
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="button" id="tst-add">Add Testimonial</button>
+          <span id="tst-msg" style="font-size:13px; display:none;"></span>
+        </div>
+        <div class="table-wrap" style="margin-top:14px;">
+          <table id="tst-table">
+            <thead>
+              <tr><th style="width:40%;">Quote</th><th>Author</th><th>Order</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="tst-body">
+              <tr><td colspan="5" style="color:#6b7280;text-align:center;padding:24px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Discharge Planner Referrals</h2>
+        <p class="note">Patient referrals submitted by hospital discharge planners via /discharge-planners.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <button class="button" id="dr-export" type="button">Export CSV</button>
+          <button class="button" id="dr-refresh" type="button">Refresh</button>
+        </div>
+        <div class="stat-row hir-stats" id="dr-stat-row" style="display:none;">
+          <div class="stat-box"><div class="val" id="dr-stat-total">&mdash;</div><div class="lbl">Total Referrals</div></div>
+          <div class="stat-box"><div class="val" id="dr-stat-new">&mdash;</div><div class="lbl">New (Uncontacted)</div></div>
+          <div class="stat-box"><div class="val" id="dr-stat-matched">&mdash;</div><div class="lbl">Matched to Provider</div></div>
+          <div class="stat-box"><div class="val" id="dr-stat-planners">&mdash;</div><div class="lbl">Unique Planners</div></div>
+        </div>
+        <div class="filters-row">
+          <input type="text" id="dr-search" placeholder="Search patient, planner, facility...">
+          <select id="dr-status">
+            <option value="">All Statuses</option>
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="matched">Matched</option>
+            <option value="closed">Closed</option>
+          </select>
+          <select id="dr-care">
+            <option value="">All Care Types</option>
+            <option value="hospice">Hospice</option>
+            <option value="home_health">Home Health</option>
+            <option value="palliative">Palliative</option>
+          </select>
+          <select id="dr-urgency">
+            <option value="">All Urgency</option>
+            <option value="immediate">Immediate</option>
+            <option value="within_week">Within Week</option>
+            <option value="planning_ahead">Planning Ahead</option>
+          </select>
+          <span class="result-count" id="dr-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="dr-table">
+            <thead>
+              <tr>
+                <th data-sort="submitted_at">Date</th>
+                <th data-sort="patient_last">Patient</th>
+                <th data-sort="planner_name">Planner</th>
+                <th data-sort="facility">Facility</th>
+                <th data-sort="patient_zip">ZIP</th>
+                <th data-sort="care_type">Care Type</th>
+                <th data-sort="urgency">Urgency</th>
+                <th data-sort="status">Status</th>
+              </tr>
+            </thead>
+            <tbody id="dr-body"></tbody>
+          </table>
+          <div id="dr-empty" class="empty-state" style="display:none;"><p>No referrals match your filters.</p></div>
+          <div class="pagination">
+            <span id="dr-page-info"></span>
+            <div class="page-btns" id="dr-page-btns"></div>
+          </div>
+        </div>
       </div>
 
       <div class="card">
@@ -2411,6 +2549,362 @@
       };
     })();
 
+    // from admin-testimonials.html
+    (function () {
+      let testimonials = [];
+      const tbody = document.getElementById('tst-body');
+      const msg = document.getElementById('tst-msg');
+      const addBtn = document.getElementById('tst-add');
+
+      const esc = (str) => String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+      function authHeaders() {
+        const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken') || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['x-admin-token'] = token;
+        return headers;
+      }
+
+      function setMsg(text, colour) {
+        msg.style.display = 'inline';
+        msg.style.color = colour;
+        msg.textContent = text;
+      }
+
+      function renderTable() {
+        if (!testimonials.length) {
+          tbody.innerHTML = '<tr><td colspan="5" style="color:#6b7280;text-align:center;padding:24px;">No testimonials yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = testimonials.map((t) => `
+          <tr>
+            <td class="quote-cell">"${esc(t.quote)}"</td>
+            <td>
+              <div style="font-weight:600;">${esc(t.author_name)}</div>
+              ${t.author_title ? `<div style="font-size:12px;color:#6b7280;">${esc(t.author_title)}</div>` : ''}
+            </td>
+            <td>${t.display_order}</td>
+            <td><span class="badge ${t.active ? 'badge-active' : 'badge-inactive'}">${t.active ? 'Active' : 'Inactive'}</span></td>
+            <td style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn-sm btn-toggle ${t.active ? '' : 'inactive'}" data-tst-action="toggle" data-id="${esc(t.id)}" data-next="${t.active ? '0' : '1'}">${t.active ? 'Deactivate' : 'Activate'}</button>
+              <button class="btn-sm btn-del" data-tst-action="delete" data-id="${esc(t.id)}">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      async function load() {
+        try {
+          const res = await fetch('/api/admin/testimonials', { headers: authHeaders(), credentials: 'same-origin' });
+          if (!res.ok) return;
+          testimonials = await res.json();
+          renderTable();
+        } catch (err) {
+          tbody.innerHTML = '<tr><td colspan="5" style="color:#dc2626;text-align:center;padding:24px;">Could not load testimonials.</td></tr>';
+        }
+      }
+
+      // One delegated listener, so rebuilt rows never need re-wiring
+      // and no function has to be exposed globally.
+      tbody.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-tst-action]');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        if (btn.dataset.tstAction === 'delete') {
+          if (!confirm('Delete this testimonial? This cannot be undone.')) return;
+          await fetch(`/api/admin/testimonials/${id}`, { method: 'DELETE', headers: authHeaders(), credentials: 'same-origin' });
+          await load();
+          return;
+        }
+        const t = testimonials.find((x) => String(x.id) === String(id));
+        if (!t) return;
+        await fetch(`/api/admin/testimonials/${id}`, {
+          method: 'PATCH',
+          headers: authHeaders(),
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            quote: t.quote,
+            author_name: t.author_name,
+            author_title: t.author_title,
+            active: btn.dataset.next === '1',
+            display_order: t.display_order
+          })
+        });
+        await load();
+      });
+
+      addBtn.addEventListener('click', async () => {
+        const quote = document.getElementById('tst-quote').value.trim();
+        const author_name = document.getElementById('tst-author-name').value.trim();
+        const author_title = document.getElementById('tst-author-title').value.trim();
+        const display_order = Number(document.getElementById('tst-order').value) || 0;
+        if (!quote || !author_name) { setMsg('Quote and author name are required.', '#dc2626'); return; }
+        addBtn.disabled = true;
+        addBtn.textContent = 'Saving...';
+        try {
+          const res = await fetch('/api/admin/testimonials', {
+            method: 'POST',
+            headers: authHeaders(),
+            credentials: 'same-origin',
+            body: JSON.stringify({ quote, author_name, author_title, display_order })
+          });
+          if (res.ok) {
+            setMsg('Testimonial added!', '#15803d');
+            document.getElementById('tst-quote').value = '';
+            document.getElementById('tst-author-name').value = '';
+            document.getElementById('tst-author-title').value = '';
+            document.getElementById('tst-order').value = '0';
+            await load();
+          } else {
+            setMsg('Failed to add. Try again.', '#dc2626');
+          }
+        } catch (err) {
+          setMsg('Failed to add. Try again.', '#dc2626');
+        }
+        addBtn.disabled = false;
+        addBtn.textContent = 'Add Testimonial';
+      });
+
+      window.__adminPanelInit['Testimonials'] = load;
+    })();
+
+    // from admin-discharge-leads.html
+    (function () {
+      let leads = [];
+      let sortCol = 'submitted_at';
+      let sortDir = 'desc';
+      let currentPage = 1;
+      const PER_PAGE = 10;
+
+      const tbody = document.getElementById('dr-body');
+      const searchEl = document.getElementById('dr-search');
+      const statusEl = document.getElementById('dr-status');
+      const careEl = document.getElementById('dr-care');
+      const urgencyEl = document.getElementById('dr-urgency');
+
+      const fmtCare = (t) => ({ hospice: 'Hospice', home_health: 'Home Health', palliative: 'Palliative', unsure: 'Unsure' }[t] || t || '—');
+      const fmtUrgency = (u) => ({ immediate: 'Immediate', within_week: 'This Week', planning_ahead: 'Planning Ahead' }[u] || u || '—');
+      const fmtInsurance = (i) => ({ medicare: 'Medicare', medicaid: 'Medicaid/AHCCCS', altcs: 'ALTCS', private_insurance: 'Private Insurance', private_pay: 'Private Pay', unknown: 'Unknown' }[i] || i || '—');
+      const cap = (x) => (x ? x.charAt(0).toUpperCase() + x.slice(1) : '');
+
+      function renderStats() {
+        document.getElementById('dr-stat-total').textContent = leads.length;
+        document.getElementById('dr-stat-new').textContent = leads.filter((l) => l.status === 'new').length;
+        document.getElementById('dr-stat-matched').textContent = leads.filter((l) => l.status === 'matched').length;
+        document.getElementById('dr-stat-planners').textContent = new Set(leads.map((l) => l.planner_email)).size;
+        document.getElementById('dr-stat-row').style.display = leads.length ? 'flex' : 'none';
+      }
+
+      function getFiltered() {
+        const search = (searchEl.value || '').toLowerCase();
+        const status = statusEl.value;
+        const care = careEl.value;
+        const urgency = urgencyEl.value;
+        return leads.filter((l) => {
+          const matchSearch = !search
+            || `${l.patient_first || ''} ${l.patient_last || ''}`.toLowerCase().includes(search)
+            || (l.planner_name || '').toLowerCase().includes(search)
+            || (l.facility || '').toLowerCase().includes(search)
+            || (l.patient_zip || '').includes(search);
+          return matchSearch
+            && (!status || l.status === status)
+            && (!care || l.care_type === care)
+            && (!urgency || l.urgency === urgency);
+        }).sort((a, b) => {
+          let va = a[sortCol] || '';
+          let vb = b[sortCol] || '';
+          if (sortCol === 'submitted_at') { va = new Date(va); vb = new Date(vb); }
+          if (va < vb) return sortDir === 'asc' ? -1 : 1;
+          if (va > vb) return sortDir === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      function renderPagination(total, pages) {
+        document.getElementById('dr-page-info').textContent = total
+          ? `Showing ${Math.min((currentPage - 1) * PER_PAGE + 1, total)}–${Math.min(currentPage * PER_PAGE, total)} of ${total}`
+          : '';
+        const btns = document.getElementById('dr-page-btns');
+        btns.innerHTML = '';
+        if (pages <= 1) return;
+        for (let i = 1; i <= pages; i += 1) {
+          const btn = document.createElement('button');
+          btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+          btn.textContent = i;
+          btn.addEventListener('click', () => { currentPage = i; renderTable(); });
+          btns.appendChild(btn);
+        }
+      }
+
+      async function updateStatus(id, status) {
+        const lead = leads.find((l) => l.id === id);
+        if (!lead) return;
+        lead.status = status;
+        try {
+          await fetch(`/api/admin/discharge-referrals/${id}/status`, {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+          });
+        } catch (err) { /* keep the optimistic update */ }
+        renderStats();
+        renderTable();
+      }
+
+      async function deleteLead(id) {
+        if (!confirm('Delete this referral? This cannot be undone.')) return;
+        try {
+          const res = await fetch(`/api/admin/discharge-referrals/${encodeURIComponent(id)}`, {
+            method: 'DELETE', credentials: 'same-origin'
+          });
+          if (!res.ok) { alert('Delete failed.'); return; }
+          leads = leads.filter((l) => l.id !== id);
+          renderStats();
+          renderTable();
+        } catch (err) {
+          alert('Delete failed.');
+        }
+      }
+
+      function toggleDetail(id) {
+        const row = document.getElementById(`dr-detail-${id}`);
+        if (!row) return;
+        const isOpen = row.classList.contains('open');
+        tbody.querySelectorAll('.detail-panel.open').forEach((r) => r.classList.remove('open'));
+        if (!isOpen) row.classList.add('open');
+      }
+
+      function renderTable() {
+        const filtered = getFiltered();
+        const total = filtered.length;
+        const pages = Math.ceil(total / PER_PAGE) || 1;
+        if (currentPage > pages) currentPage = 1;
+        const start = (currentPage - 1) * PER_PAGE;
+
+        document.getElementById('dr-count').textContent = `${total} referral${total !== 1 ? 's' : ''}`;
+        document.getElementById('dr-empty').style.display = total === 0 ? 'block' : 'none';
+        tbody.innerHTML = '';
+
+        filtered.slice(start, start + PER_PAGE).forEach((lead) => {
+          const date = lead.submitted_at ? new Date(lead.submitted_at) : null;
+          const dateStr = date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="white-space:nowrap;">${dateStr}</td>
+            <td><strong>${lead.patient_last || ''}, ${lead.patient_first || ''}</strong></td>
+            <td>
+              <div>${lead.planner_name || '—'}</div>
+              <div style="font-size:12px;color:#6b7280;">${lead.planner_title || ''}</div>
+            </td>
+            <td style="font-size:13px;">${lead.facility || '—'}</td>
+            <td><strong>${lead.patient_zip || '—'}</strong></td>
+            <td>${fmtCare(lead.care_type)}</td>
+            <td><span class="urgency urgency-${(lead.urgency || '').replace(/_/g, '')}">${fmtUrgency(lead.urgency)}</span></td>
+            <td><span class="badge badge-${lead.status || 'new'}">${cap(lead.status || 'new')}</span></td>`;
+          tr.addEventListener('click', () => toggleDetail(lead.id));
+          tbody.appendChild(tr);
+
+          const detailTr = document.createElement('tr');
+          detailTr.className = 'detail-panel';
+          detailTr.id = `dr-detail-${lead.id}`;
+          detailTr.innerHTML = `
+            <td colspan="8">
+              <div class="detail-inner">
+                <div class="detail-group">
+                  <label>Planner Contact</label>
+                  <p>${lead.planner_name || '—'}</p>
+                  <p style="font-size:12px;color:#6b7280;">${lead.planner_email || ''}</p>
+                  <p style="font-size:12px;color:#6b7280;">${lead.planner_phone || ''}</p>
+                </div>
+                <div class="detail-group">
+                  <label>Insurance</label>
+                  <p>${fmtInsurance(lead.insurance)}</p>
+                  <label style="margin-top:10px;">ZIP Code</label>
+                  <p>${lead.patient_zip || '—'}</p>
+                </div>
+                <div class="detail-group">
+                  <label>Notes</label>
+                  <p style="font-size:13px;line-height:1.5;">${lead.notes || '—'}</p>
+                </div>
+                <div class="detail-actions">
+                  <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280;display:block;margin-bottom:4px;">Update Status</label>
+                  <select class="status-select" data-dr-status>
+                    <option value="new" ${lead.status === 'new' ? 'selected' : ''}>New</option>
+                    <option value="contacted" ${lead.status === 'contacted' ? 'selected' : ''}>Contacted</option>
+                    <option value="matched" ${lead.status === 'matched' ? 'selected' : ''}>Matched</option>
+                    <option value="closed" ${lead.status === 'closed' ? 'selected' : ''}>Closed</option>
+                  </select>
+                  <button class="btn-sm" data-dr-email type="button">Email Planner</button>
+                  <button class="btn-sm btn-del" data-dr-delete type="button">Delete</button>
+                </div>
+              </div>
+            </td>`;
+          // Listeners attached directly, so the original inline handlers
+          // do not need to be globals.
+          detailTr.querySelector('[data-dr-status]').addEventListener('change', (e) => updateStatus(lead.id, e.target.value));
+          detailTr.querySelector('[data-dr-email]').addEventListener('click', () => {
+            if (lead.planner_email) window.location.href = `mailto:${lead.planner_email}`;
+          });
+          detailTr.querySelector('[data-dr-delete]').addEventListener('click', () => deleteLead(lead.id));
+          detailTr.addEventListener('click', (e) => e.stopPropagation());
+          tbody.appendChild(detailTr);
+        });
+
+        renderPagination(total, pages);
+      }
+
+      function exportCSV() {
+        const filtered = getFiltered();
+        const headers = ['Date', 'Patient', 'Planner', 'Facility', 'ZIP', 'Care Type', 'Urgency', 'Insurance', 'Status', 'Notes'];
+        const rows = filtered.map((l) => [
+          l.submitted_at ? new Date(l.submitted_at).toLocaleDateString() : '',
+          `${l.patient_last || ''}, ${l.patient_first || ''}`,
+          l.planner_name || '',
+          l.facility || '',
+          l.patient_zip || '',
+          fmtCare(l.care_type),
+          fmtUrgency(l.urgency),
+          fmtInsurance(l.insurance),
+          cap(l.status || ''),
+          `"${(l.notes || '').replace(/"/g, '""')}"`
+        ]);
+        const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
+        const a = document.createElement('a');
+        a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+        a.download = `discharge-referrals-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+      }
+
+      async function load() {
+        try {
+          const res = await fetch('/api/admin/discharge-referrals', { credentials: 'same-origin' });
+          if (res.ok) leads = await res.json();
+        } catch (err) { /* leave leads as-is */ }
+        renderStats();
+        renderTable();
+      }
+
+      [searchEl].forEach((el) => el.addEventListener('input', () => { currentPage = 1; renderTable(); }));
+      [statusEl, careEl, urgencyEl].forEach((el) => el.addEventListener('change', () => { currentPage = 1; renderTable(); }));
+      document.getElementById('dr-export').addEventListener('click', exportCSV);
+      document.getElementById('dr-refresh').addEventListener('click', load);
+      document.querySelectorAll('#dr-table th[data-sort]').forEach((th) => {
+        th.addEventListener('click', () => {
+          const col = th.dataset.sort;
+          if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+          else { sortCol = col; sortDir = 'asc'; }
+          currentPage = 1;
+          renderTable();
+        });
+      });
+
+      window.__adminPanelInit['Discharge'] = load;
+    })();
+
     // from admin-audit.html
     (function () {
       const auditBody = document.getElementById('audit-body');
@@ -2460,6 +2954,8 @@
         { label: 'Newsletter',    start: 'Newsletter Subscribers' },
         { label: 'Hiring',        start: 'Hiring Prospects' },
         { label: 'Territory',     start: 'New Territory Outreach' },
+        { label: 'Testimonials',  start: 'Testimonials' },
+        { label: 'Discharge',     start: 'Discharge Planner Referrals' },
         { label: 'Audit Log',     start: 'Audit Log' }
       ];
 
