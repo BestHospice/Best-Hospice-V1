@@ -4563,17 +4563,31 @@ app.get('/api/admin/no-provider-leads', async (req, res) => {
 // GET /api/admin/providers/active-emails?minLeads=3 — emails of providers with >= minLeads leads sent
 app.get('/api/admin/providers/active-emails', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
-  const minLeads = Math.max(1, parseInt(req.query.minLeads || '3', 10));
+  const requested = parseInt(req.query.minLeads || '3', 10);
+  const minLeads = Number.isFinite(requested) && requested >= 0 ? requested : 3;
   try {
-    const rows = await prisma.$queryRawUnsafe(`
-      SELECT p.id, p.name, p.email, p."secondaryContactEmail", COUNT(DISTINCT ln."leadId")::int AS lead_count
-      FROM "Provider" p
-      JOIN "LeadNotification" ln ON ln."providerId" = p.id AND ln.status = 'sent'
-      GROUP BY p.id, p.name, p.email, p."secondaryContactEmail"
-      HAVING COUNT(DISTINCT ln."leadId") >= $1
-      ORDER BY lead_count DESC, p.name ASC
-    `, minLeads);
-    res.json({ providers: rows });
+    // minLeads=0 means every provider, including those never sent a lead, which
+    // an inner join would silently drop.
+    const rows = minLeads === 0
+      ? await prisma.$queryRawUnsafe(`
+          SELECT p.id, p.name, p.email, p."secondaryContactEmail",
+                 COUNT(DISTINCT ln."leadId")::int AS lead_count
+          FROM "Provider" p
+          LEFT JOIN "LeadNotification" ln
+            ON ln."providerId" = p.id AND ln.status = 'sent'
+          GROUP BY p.id, p.name, p.email, p."secondaryContactEmail"
+          ORDER BY lead_count DESC, p.name ASC
+        `)
+      : await prisma.$queryRawUnsafe(`
+          SELECT p.id, p.name, p.email, p."secondaryContactEmail",
+                 COUNT(DISTINCT ln."leadId")::int AS lead_count
+          FROM "Provider" p
+          JOIN "LeadNotification" ln ON ln."providerId" = p.id AND ln.status = 'sent'
+          GROUP BY p.id, p.name, p.email, p."secondaryContactEmail"
+          HAVING COUNT(DISTINCT ln."leadId") >= $1
+          ORDER BY lead_count DESC, p.name ASC
+        `, minLeads);
+    res.json({ providers: rows, minLeads });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

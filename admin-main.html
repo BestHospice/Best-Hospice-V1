@@ -570,8 +570,9 @@
         <p class="note">Providers you've sent at least this many leads to — useful for feedback outreach to providers who are actively receiving referrals.</p>
         <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
           <label style="font-size:13px; color:#374151; font-weight:600;">Min leads sent:
-            <input id="min-leads-input" type="number" value="3" min="1" style="width:60px; margin-left:6px; padding:4px 8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;" />
+            <input id="min-leads-input" type="number" value="3" min="0" style="width:60px; margin-left:6px; padding:4px 8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;" />
           </label>
+          <span style="font-size:12px; color:#64748b;">0 = every provider, including those never sent a lead</span>
           <button class="button" id="load-provider-emails-btn" style="padding:6px 14px; font-size:13px;">Load</button>
           <span id="provider-email-count" style="font-size:13px; color:#64748b;"></span>
           <button class="button" id="copy-provider-emails-btn" style="padding:6px 14px; font-size:13px; display:none;">Copy All</button>
@@ -1816,14 +1817,27 @@
         const res = await fetch(`/api/admin/providers/active-emails?minLeads=${minLeads}`, { credentials: 'same-origin' });
         if (!res.ok) { box.placeholder = 'Could not load.'; return; }
         const { providers } = await res.json();
+        // Deduplicate case-insensitively: multiple locations of the same company
+        // often share a billing inbox, and nobody wants the same mail twice.
+        const seen = new Set();
         const emails = [];
+        const addEmail = (raw) => {
+          const value = String(raw || '').trim();
+          if (!value || value === 'Not provided') return;
+          const key = value.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          emails.push(value);
+        };
         providers.forEach(p => {
-          if (p.email && p.email !== 'Not provided') emails.push(p.email.trim());
-          if (p.secondaryContactEmail && p.secondaryContactEmail !== p.email) emails.push(p.secondaryContactEmail.trim());
+          addEmail(p.email);
+          addEmail(p.secondaryContactEmail);
         });
         box.value = emails.join(', ');
         box.placeholder = '';
-        countEl.textContent = `${providers.length} provider${providers.length !== 1 ? 's' : ''}, ${emails.length} email address${emails.length !== 1 ? 'es' : ''}`;
+        const dupes = providers.reduce((n, p) => n + (p.email ? 1 : 0) + (p.secondaryContactEmail ? 1 : 0), 0) - emails.length;
+        countEl.textContent = `${providers.length} provider${providers.length !== 1 ? 's' : ''}, ${emails.length} unique email${emails.length !== 1 ? 's' : ''}`
+          + (dupes > 0 ? ` (${dupes} duplicate${dupes !== 1 ? 's' : ''} removed)` : '');
         copyBtn.style.display = providers.length ? '' : 'none';
         tbody.innerHTML = providers.map(p => `<tr>
           <td style="font-weight:600;">${p.name}</td>
