@@ -874,6 +874,22 @@ const stateNameMap = {
   ut: 'Utah', vt: 'Vermont', va: 'Virginia', wa: 'Washington', wv: 'West Virginia', wi: 'Wisconsin', wy: 'Wyoming'
 };
 
+// Reverse of stateNameMap. Internal links must point at the surviving dynamic
+// location URLs directly rather than routing users through a 301.
+const STATE_CODE_BY_NAME = Object.entries(stateNameMap)
+  .reduce((acc, [code, name]) => { acc[String(name).toLowerCase()] = code; return acc; }, {});
+function stateCodeFromName(name) {
+  return STATE_CODE_BY_NAME[String(name || '').trim().toLowerCase()] || '';
+}
+// Canonical location URL for a city, falling back to the state hub when the
+// state cannot be resolved, so we never emit a broken link.
+function cityPageUrl(city, stateName, serviceKey = 'hospice-care') {
+  const code = stateCodeFromName(stateName);
+  if (!code) return `/${serviceKey}`;
+  return `/${serviceKey}/${slugify(city)}-${code}`;
+}
+
+
 const EASTERN_HOUR_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York',
   hour: '2-digit',
@@ -1237,14 +1253,14 @@ app.get('/cities.html', async (_req, res) => {
             .map((stateName) => {
               const cityLinks = Array.from(grouped[key].get(stateName))
                 .sort((a, b) => a.localeCompare(b))
-                .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}">${city}, ${stateName}</a></li>`)
+                .map((city) => `<li><a href="${cityPageUrl(city, stateName)}">${city}, ${stateName}</a></li>`)
                 .join('');
               return `
                 <h3 class="mt-sm">${stateName}</h3>
                 <ul class="link-list">
                   ${Array.from(grouped[key].get(stateName))
                     .sort((a, b) => a.localeCompare(b))
-                    .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}">${city}, ${stateName}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
+                    .map((city) => `<li><a href="${cityPageUrl(city, stateName)}">${city}, ${stateName}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>`)
                     .join('')}
                 </ul>`;
             })
@@ -1338,9 +1354,13 @@ app.get('/cities.html', async (_req, res) => {
   }
 });
 
+// One hop, not two. This previously redirected to /states/:state, which then
+// redirected again to the dynamic page, and Google was seeing a chain.
 app.get('/states/:state.html', (req, res) => {
-  const { state } = req.params;
-  return res.redirect(301, `/states/${state}`);
+  const code = stateCodeFromName(String(req.params.state || '').replace(/-/g, ' '));
+  const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+  if (code) return res.redirect(301, `/hospice-care/${code}${qs}`);
+  return res.redirect(301, `/states/${req.params.state}${qs}`);
 });
 
 app.get('/states/:state', async (req, res) => {
@@ -1444,7 +1464,7 @@ app.get('/states/:state', async (req, res) => {
 
     const cityListHtml = Array.from(cityMap.keys())
       .sort((a, b) => a.localeCompare(b))
-      .map((city) => `<li><a href="/cities/${slugify(city)}-${slugify(stateName)}">${city}, ${stateName}</a></li>`)
+      .map((city) => `<li><a href="${cityPageUrl(city, stateName)}">${city}, ${stateName}</a></li>`)
       .join('');
 
     const html = `<!DOCTYPE html>
@@ -1504,9 +1524,13 @@ app.get('/states/:state', async (req, res) => {
   }
 });
 
+// One hop, not two, for the same reason as the state variant.
 app.get('/cities/:city-:state.html', (req, res) => {
   const { city, state } = req.params;
-  return res.redirect(301, `/cities/${city}-${state}`);
+  const code = stateCodeFromName(String(state || '').replace(/-/g, ' '));
+  const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+  if (code) return res.redirect(301, `/hospice-care/${slugify(city)}-${code}${qs}`);
+  return res.redirect(301, `/cities/${city}-${state}${qs}`);
 });
 
 app.get('/cities/:city-:state', async (req, res) => {
@@ -7303,14 +7327,14 @@ async function buildSitemapUrls() {
     if (!seenStates.has(state)) {
       seenStates.add(state);
       SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${state}`));
-      if (stateLabel) urls.add(`${CANONICAL_DOMAIN}/states/${slugify(stateLabel)}`);
+      // /states/* and /cities/* now 301 to their dynamic equivalents, so they
+      // must not be submitted: a sitemap should only contain canonical URLs.
     }
     if (!city) continue;
     const cityKey = `${city.toLowerCase()}-${state}`;
     if (seenCities.has(cityKey)) continue;
     seenCities.add(cityKey);
     SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${slugify(city)}-${state}`));
-    if (stateLabel) urls.add(`${CANONICAL_DOMAIN}/cities/${slugify(city)}-${slugify(stateLabel)}`);
   }
 
   providers.forEach((p) => {
