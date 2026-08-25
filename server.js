@@ -7189,6 +7189,15 @@ app.get(['/phoenix', '/phoenix/', '/phoenix.html', '/ads-landing.html'], (_req, 
   res.sendFile(path.join(__dirname, 'phoenix.html'));
 });
 
+// Google Ads keyword final URLs point at these extensionless paths and were returning 404
+app.get(['/home-care-az', '/home-care-az/'], (_req, res) => {
+  res.sendFile(path.join(__dirname, 'home-care-az.html'));
+});
+
+app.get(['/hospice-az', '/hospice-az/'], (_req, res) => {
+  res.sendFile(path.join(__dirname, 'hospice-az.html'));
+});
+
 app.get('/sitemap.xml', async (_req, res) => {
   const urls = await buildSitemapUrls();
   const today = new Date().toISOString().split('T')[0];
