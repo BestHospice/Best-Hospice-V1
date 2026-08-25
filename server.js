@@ -447,6 +447,13 @@ async function ensureProviderStripeColumns() {
 }
 
 // Stripe statuses that mean the provider is genuinely paying right now.
+const subscriptionPeriodEnd = (subscription) => {
+  if (!subscription) return null;
+  if (Number.isFinite(subscription.current_period_end)) return subscription.current_period_end;
+  const item = subscription.items?.data?.[0];
+  return Number.isFinite(item?.current_period_end) ? item.current_period_end : null;
+};
+
 const SUBSCRIPTION_ON_STATUSES = new Set(['active', 'trialing']);
 const SUBSCRIPTION_WARN_STATUSES = new Set(['past_due', 'incomplete']);
 const subscriptionBannerState = (status) => {
@@ -800,7 +807,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));
             status = sub.status || 'active';
-            periodEnd = sub.current_period_end || null;
+            periodEnd = subscriptionPeriodEnd(sub);
           } catch (subErr) {
             console.error('Could not retrieve subscription after checkout', subErr?.message || subErr);
           }
@@ -826,7 +833,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         customerId: sub.customer ? String(sub.customer) : null,
         subscriptionId: sub.id ? String(sub.id) : null,
         status: sub.status || null,
-        periodEnd: sub.current_period_end || null
+        periodEnd: subscriptionPeriodEnd(sub)
       });
     } else if (event.type === 'customer.subscription.deleted') {
       const sub = event.data.object;
@@ -847,7 +854,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
             customerId: sub.customer ? String(sub.customer) : null,
             subscriptionId: sub.id ? String(sub.id) : null,
             status: sub.status || null,
-            periodEnd: sub.current_period_end || null
+            periodEnd: subscriptionPeriodEnd(sub)
           });
         } catch (invErr) {
           console.error('Could not sync subscription from invoice event', invErr?.message || invErr);
