@@ -337,6 +337,9 @@ async function ensureTestimonialsTable() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Testimonial" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'approved'`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Testimonial" ADD COLUMN IF NOT EXISTS "provider_id" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Testimonial" ADD COLUMN IF NOT EXISTS "reviewed_at" TIMESTAMPTZ`);
 }
 
 async function ensureWaitlistTable() {
@@ -7041,12 +7044,108 @@ app.get('/api/admin/youtube/resolve-channel', async (req, res) => {
   }
 });
 
+// GET /api/provider/testimonial — the signed-in provider's own latest submission
+app.get('/api/provider/testimonial', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    await ensureTestimonialsTable();
+    const rows = await prisma.$queryRaw`
+      SELECT id, quote, author_name, author_title, status, created_at, reviewed_at
+      FROM "Testimonial"
+      WHERE provider_id = ${ctx.providerId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    res.json({ ok: true, testimonial: rows?.[0] || null });
+  } catch (err) {
+    console.error('Provider testimonial fetch failed', err);
+    res.status(500).json({ error: 'Could not load your testimonial.' });
+  }
+});
+
+// POST /api/provider/testimonial — submit for admin approval
+app.post('/api/provider/testimonial', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    await ensureTestimonialsTable();
+
+    const quote = String(req.body?.quote || '').trim();
+    const authorName = String(req.body?.author_name || '').trim();
+    if (!quote || !authorName) {
+      return res.status(400).json({ error: 'Please include your testimonial and your name.' });
+    }
+    if (quote.length > 600) {
+      return res.status(400).json({ error: 'Please keep your testimonial under 600 characters.' });
+    }
+
+    // One in-flight submission per provider; resubmitting replaces it.
+    const pending = await prisma.$queryRaw`
+      SELECT id FROM "Testimonial"
+      WHERE provider_id = ${ctx.providerId} AND status = 'pending'
+      LIMIT 1
+    `;
+    if (pending?.length) {
+      return res.status(409).json({ error: 'You already have a testimonial awaiting review.' });
+    }
+
+    // author_title is set from the listing, not user input, so a provider
+    // cannot attribute a quote to somebody else.
+    const id = uuid();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "Testimonial" (id, quote, author_name, author_title, active, display_order, status, provider_id)
+       VALUES ($1,$2,$3,$4,false,0,'pending',$5)`,
+      id, quote, authorName, ctx.provider?.name || '', ctx.providerId
+    );
+
+    await logAdminAction(
+      'provider_user', 'PROVIDER_TESTIMONIAL_SUBMIT', ctx.providerId,
+      { testimonialId: id }, hashIp(req.ip || '')
+    );
+
+    res.json({ ok: true, id, status: 'pending' });
+  } catch (err) {
+    console.error('Provider testimonial submit failed', err);
+    res.status(500).json({ error: 'Could not submit your testimonial.' });
+  }
+});
+
+// PATCH /api/admin/testimonials/:id/status — approve or deny a submission
+app.patch('/api/admin/testimonials/:id/status', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const status = String(req.body?.status || '').trim().toLowerCase();
+  if (!['approved', 'denied', 'pending'].includes(status)) {
+    return res.status(400).json({ error: 'status must be approved, denied, or pending' });
+  }
+  try {
+    await ensureTestimonialsTable();
+    // Approving publishes it; anything else takes it off the banner.
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Testimonial" SET status = $1, active = $2, reviewed_at = NOW() WHERE id = $3`,
+      status, status === 'approved', req.params.id
+    );
+    await logAdminAction(
+      'admin', 'TESTIMONIAL_REVIEW', req.params.id,
+      { status }, hashIp(req.ip || '')
+    );
+    res.json({ ok: true, status });
+  } catch (err) {
+    console.error('Testimonial review failed', err);
+    res.status(500).json({ error: 'Could not update testimonial status.' });
+  }
+});
+
 // GET /api/testimonials — public, active testimonials for home page
 app.get('/api/testimonials', async (req, res) => {
   try {
     await ensureTestimonialsTable();
     const rows = await prisma.$queryRawUnsafe(
-      `SELECT id, quote, author_name, author_title FROM "Testimonial" WHERE active = true ORDER BY display_order ASC, created_at ASC`
+      `SELECT id, quote, author_name, author_title FROM "Testimonial"
+       WHERE active = true AND status = 'approved'
+       ORDER BY display_order ASC, created_at ASC`
     );
     res.json(rows);
   } catch (err) {

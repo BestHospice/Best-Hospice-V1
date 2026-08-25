@@ -70,6 +70,12 @@
     .sub-banner.sub-warn .sub-dot { background: #d97706; }
     .sub-banner.sub-off { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
     .sub-banner.sub-off .sub-dot { background: #dc2626; }
+    .tm-banner { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; font-weight: 700; font-size: 14px; margin: 0 0 14px; border: 1px solid transparent; }
+    .tm-banner .tm-dot { width: 9px; height: 9px; border-radius: 999px; flex: 0 0 auto; background: currentColor; }
+    .tm-banner.tm-pending { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .tm-banner.tm-approved { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    .tm-banner.tm-denied { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+    .tm-quote { border-left: 3px solid #0f766e; padding: 8px 14px; color: #374151; font-style: italic; background: #f8fafc; border-radius: 0 8px 8px 0; }
   </style></head>
 <body>
   <div class="dash-shell">
@@ -244,6 +250,38 @@
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px;">
           <button class="dash-btn" id="cov-save">Save coverage</button>
           <span id="cov-status" style="font-size:14px;"></span>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #e5e7eb; padding-top:12px;">
+        <h3>Your Testimonial</h3>
+        <p style="color:#4b5563; font-size:14px; margin:0 0 12px;">Share your experience with Best Hospice and Home Health. Submissions are reviewed before they appear on our home page.</p>
+
+        <div id="tm-state" class="tm-banner" style="display:none;">
+          <span class="tm-dot"></span>
+          <span id="tm-state-text"></span>
+        </div>
+
+        <div id="tm-current" style="display:none; margin-bottom:14px;">
+          <div class="tm-quote" id="tm-current-quote"></div>
+          <p class="cov-hint" id="tm-current-meta"></p>
+        </div>
+
+        <div id="tm-form">
+          <div class="cov-field" style="margin-top:0;">
+            <label class="dash-label" for="tm-quote">Your testimonial</label>
+            <textarea id="tm-quote" class="cov-input" rows="4" maxlength="600" placeholder="What has working with Best Hospice and Home Health been like?"></textarea>
+            <p class="cov-hint"><span id="tm-count">0</span>/600 characters</p>
+          </div>
+          <div class="cov-field">
+            <label class="dash-label" for="tm-author">Your name</label>
+            <input id="tm-author" class="cov-input" style="max-width:320px;" type="text" placeholder="e.g. Keri E." />
+            <p class="cov-hint">Your listing name is attached automatically, so you do not need to add it.</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+            <button class="dash-btn" id="tm-submit">Submit for review</button>
+            <span id="tm-msg" style="font-size:14px;"></span>
+          </div>
         </div>
       </div>
 
@@ -641,6 +679,96 @@
       }
     }
 
+    // ---- Testimonial submission ----
+    (function () {
+      const banner = document.getElementById('tm-state');
+      const bannerText = document.getElementById('tm-state-text');
+      const currentWrap = document.getElementById('tm-current');
+      const currentQuote = document.getElementById('tm-current-quote');
+      const currentMeta = document.getElementById('tm-current-meta');
+      const formWrap = document.getElementById('tm-form');
+      const quoteEl = document.getElementById('tm-quote');
+      const authorEl = document.getElementById('tm-author');
+      const countEl = document.getElementById('tm-count');
+      const submitBtn = document.getElementById('tm-submit');
+      const msgEl = document.getElementById('tm-msg');
+
+      const STATE_TEXT = {
+        pending: 'Submitted, pending admin approval',
+        approved: 'Approved',
+        denied: 'Sent back for edits — contact admin@besthospice.com to see why'
+      };
+
+      quoteEl.addEventListener('input', () => {
+        countEl.textContent = String(quoteEl.value.length);
+      });
+
+      function render(testimonial) {
+        msgEl.textContent = '';
+        if (!testimonial) {
+          banner.style.display = 'none';
+          currentWrap.style.display = 'none';
+          formWrap.style.display = 'block';
+          return;
+        }
+        const status = String(testimonial.status || 'pending').toLowerCase();
+        banner.className = 'tm-banner tm-' + status;
+        banner.style.display = 'flex';
+        bannerText.textContent = STATE_TEXT[status] || status;
+
+        currentQuote.textContent = '"' + (testimonial.quote || '') + '"';
+        const submitted = testimonial.created_at ? new Date(testimonial.created_at) : null;
+        currentMeta.textContent = submitted && !Number.isNaN(submitted.getTime())
+          ? `${testimonial.author_name || ''} · submitted ${submitted.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+          : (testimonial.author_name || '');
+        currentWrap.style.display = 'block';
+
+        // Only a denied submission can be replaced; pending and approved are locked.
+        formWrap.style.display = status === 'denied' ? 'block' : 'none';
+        if (status === 'denied') {
+          quoteEl.value = testimonial.quote || '';
+          authorEl.value = testimonial.author_name || '';
+          countEl.textContent = String(quoteEl.value.length);
+          submitBtn.textContent = 'Resubmit for review';
+        }
+      }
+
+      submitBtn.addEventListener('click', async () => {
+        const quote = quoteEl.value.trim();
+        const author = authorEl.value.trim();
+        if (!quote || !author) {
+          msgEl.style.color = '#dc2626';
+          msgEl.textContent = 'Please add your testimonial and your name.';
+          return;
+        }
+        submitBtn.disabled = true;
+        msgEl.style.color = '#4b5563';
+        msgEl.textContent = 'Submitting...';
+        try {
+          await callApi('/api/provider/testimonial', 'POST', { quote, author_name: author });
+          await load();
+          msgEl.style.color = '#0f766e';
+          msgEl.textContent = 'Thank you — sent for review.';
+        } catch (err) {
+          msgEl.style.color = '#dc2626';
+          msgEl.textContent = err.message || 'Could not submit your testimonial.';
+        }
+        submitBtn.disabled = false;
+      });
+
+      async function load() {
+        try {
+          const data = await callApi('/api/provider/testimonial');
+          render(data && data.testimonial);
+        } catch (err) {
+          render(null);
+        }
+      }
+
+      window.__providerPanelInit = window.__providerPanelInit || {};
+      window.__providerPanelInit['Testimonial'] = load;
+    })();
+
     // ---- Coverage preferences ----
     // Radius is the default way to be notified; ZIP codes are opt-in.
     const DEFAULT_RADIUS_MILES = 60;
@@ -711,8 +839,8 @@
       const card = document.querySelector('.dash-card');
       if (!card || card.dataset.paneled) return;
 
-      const LABELS = ['Leads', 'Performance', 'Billing', 'Coverage', 'Job Seekers'];
-      const HEADS = ['Lead Analytics', 'Return on Investment', 'Manage Billing', 'Coverage', 'Job Seekers'];
+      const LABELS = ['Leads', 'Performance', 'Billing', 'Coverage', 'Testimonial', 'Job Seekers'];
+      const HEADS = ['Lead Analytics', 'Return on Investment', 'Manage Billing', 'Coverage', 'Your Testimonial', 'Job Seekers'];
 
       const blocks = Array.from(card.children);
       const targets = [];
@@ -793,6 +921,7 @@
       });
 
       let current = -1;
+      const initialised = {};
       function show(i) {
         if (i < 0 || i >= panels.length || i === current) return;
         const dir = current === -1 || i > current ? 1 : -1;
@@ -806,6 +935,11 @@
         prev.disabled = i === 0;
         next.disabled = i === panels.length - 1;
         current = i;
+        const initFn = window.__providerPanelInit && window.__providerPanelInit[LABELS[i]];
+        if (initFn && !initialised[LABELS[i]]) {
+          initialised[LABELS[i]] = true;
+          try { initFn(); } catch (err) { console.error('Panel init failed: ' + LABELS[i], err); }
+        }
         try { localStorage.setItem('bhProviderPanel', String(i)); } catch (_) {}
         if (window.innerWidth <= 860) nav.classList.add('collapsed');
       }

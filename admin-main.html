@@ -807,10 +807,10 @@
         <div class="table-wrap" style="margin-top:14px;">
           <table id="tst-table">
             <thead>
-              <tr><th style="width:40%;">Quote</th><th>Author</th><th>Order</th><th>Status</th><th>Actions</th></tr>
+              <tr><th style="width:36%;">Quote</th><th>Author</th><th>Order</th><th>Review</th><th>Live</th><th>Actions</th></tr>
             </thead>
             <tbody id="tst-body">
-              <tr><td colspan="5" style="color:#6b7280;text-align:center;padding:24px;">Loading...</td></tr>
+              <tr><td colspan="6" style="color:#6b7280;text-align:center;padding:24px;">Loading...</td></tr>
             </tbody>
           </table>
         </div>
@@ -2573,26 +2573,46 @@
         msg.textContent = text;
       }
 
+      const REVIEW_BADGE = {
+        pending: '<span class="badge badge-contacted">Pending</span>',
+        approved: '<span class="badge badge-matched">Approved</span>',
+        denied: '<span class="badge badge-inactive">Denied</span>'
+      };
+
       function renderTable() {
         if (!testimonials.length) {
-          tbody.innerHTML = '<tr><td colspan="5" style="color:#6b7280;text-align:center;padding:24px;">No testimonials yet.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" style="color:#6b7280;text-align:center;padding:24px;">No testimonials yet.</td></tr>';
           return;
         }
-        tbody.innerHTML = testimonials.map((t) => `
-          <tr>
-            <td class="quote-cell">"${esc(t.quote)}"</td>
-            <td>
-              <div style="font-weight:600;">${esc(t.author_name)}</div>
-              ${t.author_title ? `<div style="font-size:12px;color:#6b7280;">${esc(t.author_title)}</div>` : ''}
-            </td>
-            <td>${t.display_order}</td>
-            <td><span class="badge ${t.active ? 'badge-active' : 'badge-inactive'}">${t.active ? 'Active' : 'Inactive'}</span></td>
-            <td style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button class="btn-sm btn-toggle ${t.active ? '' : 'inactive'}" data-tst-action="toggle" data-id="${esc(t.id)}" data-next="${t.active ? '0' : '1'}">${t.active ? 'Deactivate' : 'Activate'}</button>
-              <button class="btn-sm btn-del" data-tst-action="delete" data-id="${esc(t.id)}">Delete</button>
-            </td>
-          </tr>
-        `).join('');
+        // Anything awaiting review sorts to the top.
+        const ordered = [...testimonials].sort((a, b) => {
+          const ap = String(a.status || 'approved') === 'pending' ? 0 : 1;
+          const bp = String(b.status || 'approved') === 'pending' ? 0 : 1;
+          return ap - bp;
+        });
+        tbody.innerHTML = ordered.map((t) => {
+          const status = String(t.status || 'approved').toLowerCase();
+          const fromProvider = Boolean(t.provider_id);
+          const actions = status === 'pending'
+            ? `<button class="btn-sm btn-toggle" data-tst-action="review" data-id="${esc(t.id)}" data-status="approved">Approve</button>
+               <button class="btn-sm btn-del" data-tst-action="review" data-id="${esc(t.id)}" data-status="denied">Deny</button>`
+            : `<button class="btn-sm btn-toggle ${t.active ? '' : 'inactive'}" data-tst-action="toggle" data-id="${esc(t.id)}" data-next="${t.active ? '0' : '1'}">${t.active ? 'Deactivate' : 'Activate'}</button>
+               <button class="btn-sm btn-del" data-tst-action="delete" data-id="${esc(t.id)}">Delete</button>`;
+          return `
+            <tr>
+              <td class="quote-cell">"${esc(t.quote)}"</td>
+              <td>
+                <div style="font-weight:600;">${esc(t.author_name)}</div>
+                ${t.author_title ? `<div style="font-size:12px;color:#6b7280;">${esc(t.author_title)}</div>` : ''}
+                ${fromProvider ? '<div style="font-size:11px;color:#0f766e;font-weight:700;">provider submission</div>' : ''}
+              </td>
+              <td>${t.display_order}</td>
+              <td>${REVIEW_BADGE[status] || esc(status)}</td>
+              <td><span class="badge ${t.active ? 'badge-active' : 'badge-inactive'}">${t.active ? 'Live' : 'Hidden'}</span></td>
+              <td style="display:flex;gap:6px;flex-wrap:wrap;">${actions}</td>
+            </tr>
+          `;
+        }).join('');
       }
 
       async function load() {
@@ -2612,6 +2632,18 @@
         const btn = e.target.closest('[data-tst-action]');
         if (!btn) return;
         const id = btn.dataset.id;
+        if (btn.dataset.tstAction === 'review') {
+          const next = btn.dataset.status;
+          if (next === 'denied' && !confirm('Send this testimonial back for edits? The provider will be told to contact admin@besthospice.com.')) return;
+          await fetch(`/api/admin/testimonials/${id}/status`, {
+            method: 'PATCH',
+            headers: authHeaders(),
+            credentials: 'same-origin',
+            body: JSON.stringify({ status: next })
+          });
+          await load();
+          return;
+        }
         if (btn.dataset.tstAction === 'delete') {
           if (!confirm('Delete this testimonial? This cannot be undone.')) return;
           await fetch(`/api/admin/testimonials/${id}`, { method: 'DELETE', headers: authHeaders(), credentials: 'same-origin' });
