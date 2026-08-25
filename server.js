@@ -7351,9 +7351,11 @@ async function buildSitemapUrls() {
     urls.add(`${CANONICAL_DOMAIN}/provider/${providerSlug(p)}`);
   });
 
+  // cities/ and states/ are deliberately absent: those URLs now 301 to the
+  // dynamic location pages, and a sitemap must only contain canonical URLs.
+  // The files remain on disk purely so the redirect handlers have something to
+  // resolve against.
   const fsGroups = [
-    { dir: path.join(__dirname, 'cities'), prefix: '/cities/' },
-    { dir: path.join(__dirname, 'states'), prefix: '/states/' },
     { dir: path.join(__dirname, 'blog'), prefix: '/blog/' }
   ];
   for (const group of fsGroups) {
