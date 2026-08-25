@@ -211,7 +211,9 @@
           <div class="metric-card"><h4>Coverage settings</h4><div id="coverage-summary">Radius only</div></div>
         </div>
           <div style="margin-top:10px;">
-            <button class="dash-btn" id="billing">Open Billing Portal</button>
+            <button class="dash-btn" id="billing-manage" style="display:none;">Manage or Cancel Subscription</button>
+            <button class="dash-btn secondary" id="billing">View plans &amp; subscribe</button>
+            <span id="billing-msg" style="font-size:13px; margin-left:8px;"></span>
           </div>
           <details class="notice">
             <summary>Privacy &amp; Billing Notice</summary>
@@ -541,6 +543,48 @@
     document.getElementById('billing').addEventListener('click', () => {
       window.location.href = 'provider-billing.html';
     });
+
+    document.getElementById('billing-manage').addEventListener('click', async () => {
+      const btn = document.getElementById('billing-manage');
+      const msg = document.getElementById('billing-msg');
+      btn.disabled = true;
+      msg.style.color = '#4b5563';
+      msg.textContent = 'Opening Stripe...';
+      try {
+        const data = await callApi('/api/provider/billing-portal', 'POST', {});
+        if (data && data.url) {
+          window.location.href = data.url;
+          return;
+        }
+        throw new Error('No portal URL returned.');
+      } catch (err) {
+        msg.style.color = '#dc2626';
+        msg.textContent = err.message || 'Could not open the billing portal.';
+        btn.disabled = false;
+      }
+    });
+
+    // Coming back from Stripe: read the live subscription before rendering, so a
+    // cancellation shows immediately instead of waiting on the webhook.
+    (async function syncAfterPortal() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('billing') !== 'updated') return;
+      try {
+        await callApi('/api/provider/subscription/refresh', 'POST', {});
+      } catch (err) {
+        console.error('Subscription refresh failed', err);
+      }
+      try {
+        await loadMetrics();
+      } catch (err) { /* loadMetrics reports its own errors */ }
+      const msg = document.getElementById('billing-msg');
+      if (msg) {
+        msg.style.color = '#0f766e';
+        msg.textContent = 'Billing updated.';
+      }
+      // Drop the marker so a refresh does not re-run this.
+      window.history.replaceState({}, '', window.location.pathname);
+    })();
     document.getElementById('calc-converted').addEventListener('click', () => {
       const num = Math.max(0, parseInt(document.getElementById('converted-leads').value || '0', 10));
       const months = Math.max(1, parseInt(document.getElementById('roi-months').value || '1', 10));
@@ -662,6 +706,14 @@
 
       const label = document.getElementById('sub-banner-text');
       const detail = document.getElementById('sub-banner-detail');
+      const manageBtn = document.getElementById('billing-manage');
+      const subscribeBtn = document.getElementById('billing');
+      if (manageBtn && subscribeBtn) {
+        const hasSub = Boolean(sub && sub.hasSubscription);
+        manageBtn.style.display = hasSub ? 'inline-block' : 'none';
+        subscribeBtn.style.display = hasSub ? 'none' : 'inline-block';
+      }
+
       if (state === 'on') {
         label.textContent = 'Subscription On';
         const until = sub && sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd) : null;

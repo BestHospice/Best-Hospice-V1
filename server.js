@@ -7201,6 +7201,90 @@ app.get('/api/admin/youtube/resolve-channel', async (req, res) => {
   }
 });
 
+// POST /api/provider/billing-portal — Stripe's hosted portal, where a provider
+// can cancel, change card, or download invoices themselves.
+app.post('/api/provider/billing-portal', requireProviderAuth, async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: 'Billing is not configured yet.' });
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    await ensureProviderStripeColumns();
+
+    const rows = await prisma.$queryRaw`
+      SELECT "stripeCustomerId" FROM "Provider" WHERE "id" = ${ctx.providerId} LIMIT 1
+    `;
+    const customerId = rows?.[0]?.stripeCustomerId || null;
+    if (!customerId) {
+      return res.status(400).json({ error: 'No subscription on file yet. Subscribe first, or contact admin@besthospice.com.' });
+    }
+
+    const returnUrl = `${CANONICAL_DOMAIN}/provider-dashboard-home.html?billing=updated`;
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl
+    });
+
+    await logAdminAction(
+      'provider_user', 'PROVIDER_BILLING_PORTAL_OPEN', ctx.providerId,
+      {}, hashIp(req.ip || '')
+    );
+    res.json({ ok: true, url: session.url });
+  } catch (err) {
+    console.error('Billing portal session failed', err);
+    // The portal has to be enabled once in the Stripe dashboard before this works.
+    res.status(500).json({ error: 'Could not open the billing portal. If this persists, contact admin@besthospice.com.' });
+  }
+});
+
+// POST /api/provider/subscription/refresh — read the live subscription from
+// Stripe and store it, so the dashboard is correct the moment a provider
+// returns from the portal rather than waiting on the webhook.
+app.post('/api/provider/subscription/refresh', requireProviderAuth, async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: 'Billing is not configured yet.' });
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    await ensureProviderStripeColumns();
+
+    const rows = await prisma.$queryRaw`
+      SELECT "stripeCustomerId", "stripeSubscriptionId"
+      FROM "Provider" WHERE "id" = ${ctx.providerId} LIMIT 1
+    `;
+    const customerId = rows?.[0]?.stripeCustomerId || null;
+    if (!customerId) return res.json({ ok: true, status: null, state: 'off' });
+
+    // Ask Stripe for whatever this customer currently has, in any state.
+    const subs = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 10 });
+    const live = (subs?.data || []).find((x) => SUBSCRIPTION_ON_STATUSES.has(String(x.status)))
+      || (subs?.data || [])[0]
+      || null;
+
+    const status = live ? String(live.status) : 'canceled';
+    const periodEnd = subscriptionPeriodEnd(live);
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Provider"
+       SET "subscriptionStatus" = $1,
+           "stripeSubscriptionId" = COALESCE($2, "stripeSubscriptionId"),
+           "currentPeriodEnd" = $3
+       WHERE "id" = $4`,
+      status,
+      live?.id || null,
+      periodEnd ? new Date(periodEnd * 1000) : null,
+      ctx.providerId
+    );
+
+    res.json({
+      ok: true,
+      status,
+      state: subscriptionBannerState(status),
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null
+    });
+  } catch (err) {
+    console.error('Subscription refresh failed', err);
+    res.status(500).json({ error: 'Could not refresh subscription status.' });
+  }
+});
+
 // GET /api/provider/testimonial — the signed-in provider's own latest submission
 app.get('/api/provider/testimonial', requireProviderAuth, async (req, res) => {
   try {
