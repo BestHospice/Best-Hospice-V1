@@ -42,3 +42,6 @@ prisma/dev.db-journal
 *.log
 adminui/
 providerui/
+
+# SEO audit output contains Search Console query data; repo is public
+reports/

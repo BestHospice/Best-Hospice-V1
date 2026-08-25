@@ -27,6 +27,9 @@ const http = require('http');
 const SERVER = path.join(__dirname, '..', 'server.js');
 const PLACEHOLDER = /\{(stateName|cityState|city|state)\}/g;
 // Any template syntax that must never appear in rendered SEO output.
+// schema.org SearchAction legitimately contains {search_term_string} in its
+// target template, so it must not be reported as a leak.
+const ALLOWED_TOKENS = new Set(['{search_term_string}']);
 const LEAK_PATTERNS = [
   { name: '{var}', rx: /\{[a-zA-Z][a-zA-Z0-9_]{2,24}\}/g },
   { name: '${var}', rx: /\$\{[a-zA-Z][a-zA-Z0-9_.]{2,30}\}/g },
@@ -148,7 +151,7 @@ async function liveCheck(base) {
     const found = [];
     for (const [where, text] of Object.entries(surfaces)) {
       for (const { name, rx } of LEAK_PATTERNS) {
-        const hits = [...new Set(text.match(rx) || [])];
+        const hits = [...new Set(text.match(rx) || [])].filter((h) => !ALLOWED_TOKENS.has(h));
         if (hits.length) found.push(`${where}:${hits.join(',')}`);
       }
     }
