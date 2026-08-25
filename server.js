@@ -7574,15 +7574,14 @@ app.get('/sitemap-pages.xml', async (_req, res) => {
   const blogDir = path.join(__dirname, 'blog');
   const stateDir = path.join(__dirname, 'states');
   const newsletterDir = path.join(__dirname, 'newsletter');
-  const cityPages = fs.existsSync(cityDir)
-    ? fs.readdirSync(cityDir).filter((name) => name.endsWith('.html')).map((name) => `/cities/${name}`)
-    : [];
+  // cities/ and states/ files are redirect fodder only: those URLs 301 to the
+  // dynamic location pages, so submitting them would put non-canonical URLs in
+  // the sitemap. Third and final place this list was being built.
+  const cityPages = [];
   const blogPages = fs.existsSync(blogDir)
     ? fs.readdirSync(blogDir).filter((name) => name.endsWith('.html')).map((name) => `/blog/${name}`)
     : [];
-  const statePages = fs.existsSync(stateDir)
-    ? fs.readdirSync(stateDir).filter((name) => name.endsWith('.html')).map((name) => `/states/${name}`)
-    : [];
+  const statePages = [];
   const newsletterPages = fs.existsSync(newsletterDir)
     ? fs.readdirSync(newsletterDir)
       .filter((name) => name.endsWith('.html'))
