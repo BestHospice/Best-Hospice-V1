@@ -251,6 +251,8 @@ const providerAdmittedCount = async (providerId) => {
 const PLAN_NOTIFY_DELAY_MS = { priority: 0, featured: 60 * 1000, verified: 120 * 1000 };
 // Mirrors getPlanRank in search-results.js so listing order matches everywhere.
 const PLAN_RANK = { priority: 3, featured: 2, verified: 1 };
+// One step down per cancellation; verified is the floor.
+const PROVIDER_TIER_DEMOTION = { priority: 'featured', featured: 'verified', verified: 'verified' };
 const planRank = (planTier) => PLAN_RANK[normalizePlanTier(planTier)] || 1;
 const byPlanThenName = (a, b) => {
   const rank = planRank(b.planTier) - planRank(a.planTier);
@@ -443,8 +445,50 @@ async function ensureProviderStripeColumns() {
   await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "stripeSubscriptionId" TEXT`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "currentPeriodEnd" TIMESTAMP`);
+  // billingMode defaults to 'free' so every provider that already exists is
+  // grandfathered and can never be gated by accident.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "billingMode" TEXT NOT NULL DEFAULT 'free'`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "graceEndsAt" TIMESTAMP`);
   providerStripeColumnsReady = true;
 }
+
+const PROVIDER_GRACE_DAYS = 10;
+// Master switch. Until this is explicitly turned on, no provider is ever
+// denied leads for non-payment, whatever their billing state says.
+const BILLING_ENFORCEMENT = String(process.env.BILLING_ENFORCEMENT || '').trim().toLowerCase() === 'true';
+
+const daysUntil = (date) => {
+  if (!date) return null;
+  const ms = new Date(date).getTime() - Date.now();
+  return Math.ceil(ms / (24 * 60 * 60 * 1000));
+};
+
+// One place that decides what a provider's billing situation actually is.
+const providerBillingState = (row) => {
+  const mode = String(row?.billingMode || 'free').toLowerCase();
+  if (mode === 'free') return { state: 'free', label: 'Free Version', daysLeft: null, leadsAllowed: true };
+
+  if (SUBSCRIPTION_ON_STATUSES.has(String(row?.subscriptionStatus || '').toLowerCase())) {
+    return { state: 'paying', label: 'Paying Customer', daysLeft: null, leadsAllowed: true };
+  }
+
+  const left = daysUntil(row?.graceEndsAt);
+  if (left !== null && left > 0) {
+    return {
+      state: 'grace',
+      label: `New — will pay in ${left} day${left === 1 ? '' : 's'}`,
+      daysLeft: left,
+      leadsAllowed: true
+    };
+  }
+
+  return {
+    state: 'unpaid',
+    label: BILLING_ENFORCEMENT ? 'Unpaid — No Leads' : 'Unpaid (enforcement off)',
+    daysLeft: left,
+    leadsAllowed: !BILLING_ENFORCEMENT
+  };
+};
 
 // Stripe statuses that mean the provider is genuinely paying right now.
 const subscriptionPeriodEnd = (subscription) => {
@@ -859,6 +903,21 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         await prisma.$executeRawUnsafe(
           `UPDATE "Provider" SET "subscriptionStatus" = 'canceled' WHERE "id" = $1`,
           providerId
+        );
+        // Cancelling drops the listing one tier, so ranking follows payment.
+        const current = await prisma.provider.findUnique({
+          where: { id: providerId },
+          select: { planTier: true }
+        });
+        const demoted = PROVIDER_TIER_DEMOTION[normalizePlanTier(current?.planTier)] || 'verified';
+        await prisma.provider.update({
+          where: { id: providerId },
+          data: { planTier: demoted, featured: demoted !== 'verified' }
+        });
+        await logAdminAction(
+          'system', 'PROVIDER_TIER_DEMOTED', providerId,
+          { from: normalizePlanTier(current?.planTier), to: demoted, reason: 'subscription canceled' },
+          hashIp(req.ip || '')
         );
       }
     } else if (event.type === 'invoice.payment_failed' || event.type === 'invoice.paid') {
@@ -4224,6 +4283,39 @@ app.get('/api/admin/main/verify', (req, res) => {
 
 // Read-only weekly funnel aggregates (sessions -> pageviews -> form starts/completes -> leads -> admits).
 // Honors ?from=YYYY-MM-DD&to=YYYY-MM-DD; defaults to the last 90 days when omitted.
+// PATCH /api/admin/provider-billing-mode/:id — comp a provider, or start their
+// paid-trial countdown. Does not touch Stripe; this is our own bookkeeping.
+app.patch('/api/admin/provider-billing-mode/:id', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  const mode = String(req.body?.mode || '').trim().toLowerCase();
+  if (!['free', 'standard'].includes(mode)) {
+    return res.status(400).json({ error: 'mode must be free or standard' });
+  }
+  try {
+    await ensureProviderStripeColumns();
+    // Starting a standard plan restarts the grace clock from today unless a
+    // specific number of days is supplied.
+    let graceEnds = null;
+    if (mode === 'standard') {
+      const days = Number(req.body?.graceDays);
+      const useDays = Number.isFinite(days) && days >= 0 ? days : PROVIDER_GRACE_DAYS;
+      graceEnds = new Date(Date.now() + useDays * 24 * 60 * 60 * 1000);
+    }
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Provider" SET "billingMode" = $1, "graceEndsAt" = $2 WHERE "id" = $3`,
+      mode, graceEnds, req.params.id
+    );
+    await logAdminAction(
+      'admin', 'PROVIDER_BILLING_MODE', req.params.id,
+      { mode, graceEndsAt: graceEnds }, hashIp(req.ip || '')
+    );
+    res.json({ ok: true, mode, graceEndsAt: graceEnds });
+  } catch (err) {
+    console.error('Provider billing mode update failed', err);
+    res.status(500).json({ error: 'Could not update billing mode.' });
+  }
+});
+
 // Read-only subscription roster for admin: who is actually paying.
 app.get('/api/admin/main/subscriptions', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) {
@@ -4233,7 +4325,8 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
     await ensureProviderStripeColumns();
     const rows = await prisma.$queryRaw`
       SELECT id, name, email, "planTier", "subscriptionStatus",
-             "currentPeriodEnd", "stripeCustomerId", "stripeSubscriptionId"
+             "currentPeriodEnd", "stripeCustomerId", "stripeSubscriptionId",
+             "billingMode", "graceEndsAt"
       FROM "Provider"
       ORDER BY name ASC
     `;
@@ -4241,6 +4334,7 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
     const providers = rows.map((r) => {
       const state = subscriptionBannerState(r.subscriptionStatus);
       const tier = normalizePlanTier(r.planTier);
+      const billing = providerBillingState(r);
       return {
         id: r.id,
         name: r.name,
@@ -4251,7 +4345,13 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
         state,
         currentPeriodEnd: r.currentPeriodEnd || null,
         hasStripeCustomer: Boolean(r.stripeCustomerId),
-        hasSubscription: Boolean(r.stripeSubscriptionId)
+        hasSubscription: Boolean(r.stripeSubscriptionId),
+        billingMode: String(r.billingMode || 'free').toLowerCase(),
+        graceEndsAt: r.graceEndsAt || null,
+        billingState: billing.state,
+        billingLabel: billing.label,
+        daysLeft: billing.daysLeft,
+        leadsAllowed: billing.leadsAllowed
       };
     });
 
@@ -4266,6 +4366,10 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
         paying: paying.length,
         atRisk: atRisk.length,
         off: off.length,
+        freeVersion: providers.filter((p) => p.billingState === 'free').length,
+        inGrace: providers.filter((p) => p.billingState === 'grace').length,
+        unpaid: providers.filter((p) => p.billingState === 'unpaid').length,
+        enforcementOn: BILLING_ENFORCEMENT,
         // Committed monthly revenue from providers Stripe reports as paying.
         monthlyRecurring: paying.reduce((sum, p) => sum + p.monthlyRate, 0)
       },
