@@ -723,13 +723,20 @@
           <button class="button" id="nl-send" type="button">Generate &amp; Send Now</button>
           <span id="nl-status" class="note"></span>
         </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+          <input id="nl-filter" class="dash-input-text" style="flex:1; min-width:220px;" type="text" placeholder="Filter by name or email..." />
+          <button class="button" id="nl-select-filtered" type="button">Select all shown</button>
+          <button class="button" id="nl-select-none" type="button">Clear selection</button>
+          <button class="danger-btn" id="nl-delete-selected" type="button" disabled>Delete selected</button>
+          <span id="nl-selected-count" class="note"></span>
+        </div>
         <div id="nl-result" class="card" style="display:none; margin-bottom:12px; border-left:4px solid #0f766e; box-shadow:none;">
           <p id="nl-msg" class="note" style="margin:0;"></p>
         </div>
         <div class="table-wrap">
           <table id="nl-table">
             <thead>
-              <tr><th>Name</th><th>Email</th><th>Date Subscribed</th><th></th></tr>
+              <tr><th style="width:34px;"><input type="checkbox" id="nl-check-all" style="width:auto;" /></th><th>Name</th><th>Email</th><th>Date Subscribed</th><th></th></tr>
             </thead>
             <tbody id="nl-body"></tbody>
           </table>
@@ -2282,30 +2289,107 @@
           });
           const data = await res.json();
           if (!data.ok) { alert(data.error || 'Could not delete subscriber.'); return; }
-          tr.remove();
-          const remaining = bodyEl.querySelectorAll('tr').length;
-          setCount(remaining);
-          if (remaining === 0) {
-            tableEl.classList.add('hidden');
-            emptyEl.classList.remove('hidden');
-          }
+          await load();
         } catch (err) {
           alert('Could not delete subscriber.');
         }
+      }
+
+      let allSubs = [];
+
+      function selectedIds() {
+        return Array.from(bodyEl.querySelectorAll('input[data-sub-id]:checked')).map((c) => c.dataset.subId);
+      }
+
+      function refreshSelectionUi() {
+        const n = selectedIds().length;
+        document.getElementById('nl-delete-selected').disabled = n === 0;
+        document.getElementById('nl-selected-count').textContent = n ? `${n} selected` : '';
       }
 
       function renderRow(sub) {
         const tr = document.createElement('tr');
         tr.dataset.id = sub.id;
         tr.innerHTML = `
+          <td><input type="checkbox" data-sub-id="${sub.id}" style="width:auto;" /></td>
           <td>${sub.name || '—'}</td>
           <td>${sub.email || '—'}</td>
           <td>${formatDate(sub.created_at)}</td>
           <td><button class="btn-delete">Delete</button></td>
         `;
         tr.querySelector('.btn-delete').addEventListener('click', () => deleteSubscriber(sub.id, tr));
+        tr.querySelector('input[data-sub-id]').addEventListener('change', refreshSelectionUi);
         return tr;
       }
+
+      function renderList() {
+        const term = (document.getElementById('nl-filter').value || '').toLowerCase().trim();
+        const list = term
+          ? allSubs.filter((x) => `${x.name || ''} ${x.email || ''}`.toLowerCase().includes(term))
+          : allSubs;
+        bodyEl.innerHTML = '';
+        list.forEach((sub) => bodyEl.appendChild(renderRow(sub)));
+        setCount(allSubs.length);
+        tableEl.classList.toggle('hidden', !allSubs.length);
+        emptyEl.classList.toggle('hidden', Boolean(allSubs.length));
+        document.getElementById('nl-check-all').checked = false;
+        refreshSelectionUi();
+      }
+
+      document.getElementById('nl-filter').addEventListener('input', renderList);
+
+      document.getElementById('nl-check-all').addEventListener('change', (e) => {
+        bodyEl.querySelectorAll('input[data-sub-id]').forEach((c) => { c.checked = e.target.checked; });
+        refreshSelectionUi();
+      });
+
+      document.getElementById('nl-select-filtered').addEventListener('click', () => {
+        bodyEl.querySelectorAll('input[data-sub-id]').forEach((c) => { c.checked = true; });
+        refreshSelectionUi();
+      });
+
+      document.getElementById('nl-select-none').addEventListener('click', () => {
+        bodyEl.querySelectorAll('input[data-sub-id]').forEach((c) => { c.checked = false; });
+        document.getElementById('nl-check-all').checked = false;
+        refreshSelectionUi();
+      });
+
+      document.getElementById('nl-delete-selected').addEventListener('click', async () => {
+        const ids = selectedIds();
+        if (!ids.length) return;
+        if (!confirm(`Delete ${ids.length} subscriber${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+        const btn = document.getElementById('nl-delete-selected');
+        btn.disabled = true;
+        try {
+          let res = await fetch('/api/admin/newsletter/subscribers/bulk-delete', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+          });
+          let data = await res.json().catch(() => ({}));
+          // Wiping the entire list needs the typed phrase.
+          if (!res.ok && data.requiresConfirmation) {
+            const typed = prompt(`This deletes ALL ${data.total} subscribers. Type DELETE ALL SUBSCRIBERS to confirm.`);
+            if (typed === null) { btn.disabled = false; return; }
+            res = await fetch('/api/admin/newsletter/subscribers/bulk-delete', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids, confirmation: String(typed).trim() })
+            });
+            data = await res.json().catch(() => ({}));
+          }
+          if (!res.ok) throw new Error(data.error || 'Delete failed');
+          statusEl.style.color = '#0f766e';
+          statusEl.textContent = `Deleted ${data.deleted} subscriber${data.deleted === 1 ? '' : 's'}.`;
+          await load();
+        } catch (err) {
+          statusEl.style.color = '#dc2626';
+          statusEl.textContent = err.message || 'Could not delete subscribers.';
+        }
+        btn.disabled = false;
+      });
 
       sendBtn.addEventListener('click', async () => {
         if (!confirm('Generate and send a newsletter issue to all subscribers now?')) return;
@@ -2335,26 +2419,21 @@
         sendBtn.textContent = 'Generate & Send Now';
       });
 
-      window.__adminPanelInit['Newsletter'] = function () {
-        fetch('/api/admin/newsletter/subscribers', { credentials: 'same-origin' })
-          .then((res) => { if (!res.ok) throw new Error('Failed to load subscribers'); return res.json(); })
-          .then((data) => {
-            const subs = data.subscribers || [];
-            setCount(subs.length);
-            statusEl.textContent = '';
-            if (!subs.length) {
-              tableEl.classList.add('hidden');
-              emptyEl.classList.remove('hidden');
-              return;
-            }
-            bodyEl.innerHTML = '';
-            subs.forEach((sub) => bodyEl.appendChild(renderRow(sub)));
-          })
-          .catch((err) => {
-            statusEl.textContent = err?.message || 'Could not load subscribers.';
-            countEl.textContent = '';
-          });
-      };
+      async function load() {
+        try {
+          const res = await fetch('/api/admin/newsletter/subscribers', { credentials: 'same-origin' });
+          if (!res.ok) throw new Error('Failed to load subscribers');
+          const data = await res.json();
+          allSubs = data.subscribers || [];
+          renderList();
+        } catch (err) {
+          statusEl.style.color = '#dc2626';
+          statusEl.textContent = err?.message || 'Could not load subscribers.';
+          countEl.textContent = '';
+        }
+      }
+
+      window.__adminPanelInit['Newsletter'] = load;
     })();
 
     // from admin-hiring.html

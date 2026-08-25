@@ -3593,6 +3593,58 @@ app.delete('/api/admin/newsletter/subscribers/:id', async (req, res) => {
   }
 });
 
+// POST /api/admin/newsletter/subscribers/bulk-delete — remove many at once.
+// A POST rather than DELETE so the id list travels in a body that every proxy
+// and fetch implementation handles predictably.
+app.post('/api/admin/newsletter/subscribers/bulk-delete', async (req, res) => {
+  if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const ids = Array.isArray(req.body?.ids)
+    ? req.body.ids.map((x) => String(x || '').trim()).filter(Boolean)
+    : [];
+  const confirmation = String(req.body?.confirmation || '').trim();
+
+  if (!ids.length) return res.status(400).json({ error: 'No subscriber ids supplied' });
+  if (ids.length > 5000) return res.status(400).json({ error: 'Too many ids in one request' });
+
+  // Deleting the whole list is easy to do by accident, so require the phrase.
+  try {
+    await ensureNewsletterSubscribersTable();
+    const totalRows = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS n FROM newsletter_subscribers`);
+    const total = Number(totalRows?.[0]?.n || 0);
+    if (total > 0 && ids.length >= total && confirmation !== 'DELETE ALL SUBSCRIBERS') {
+      return res.status(400).json({
+        error: 'That would delete every subscriber. Type DELETE ALL SUBSCRIBERS to confirm.',
+        requiresConfirmation: true,
+        total
+      });
+    }
+
+    const found = await prisma.$queryRawUnsafe(
+      `SELECT id, email FROM newsletter_subscribers WHERE id = ANY($1::text[])`, ids
+    );
+    if (!found.length) return res.status(404).json({ error: 'None of those subscribers exist' });
+
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM newsletter_subscribers WHERE id = ANY($1::text[])`, ids
+    );
+
+    await logAdminAction(
+      getAdminSession(req)?.email || 'admin_token',
+      'NEWSLETTER_SUBSCRIBER_BULK_DELETE',
+      `${found.length} subscribers`,
+      { deleted: found.length, requested: ids.length, emails: found.slice(0, 50).map((r) => r.email) },
+      hashIp(req.ip || '')
+    );
+
+    res.json({ ok: true, deleted: found.length, requested: ids.length });
+  } catch (err) {
+    console.error('Bulk subscriber delete failed', err);
+    res.status(500).json({ error: 'Could not delete subscribers' });
+  }
+});
+
 app.post('/api/admin/newsletter/send-now', async (req, res) => {
   if (!hasAdminAccess(req, ['add', 'remove', 'dash', 'audit', 'main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
