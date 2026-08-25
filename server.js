@@ -7219,9 +7219,14 @@ app.post('/api/provider/billing-portal', requireProviderAuth, async (req, res) =
     }
 
     const returnUrl = `${CANONICAL_DOMAIN}/provider-dashboard-home.html?billing=updated`;
+    // Without a configuration Stripe uses whichever portal config is marked
+    // Default. Set STRIPE_PORTAL_CONFIGURATION to a bpc_... id to pin a
+    // specific one instead.
+    const portalConfig = String(process.env.STRIPE_PORTAL_CONFIGURATION || '').trim();
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: returnUrl
+      return_url: returnUrl,
+      ...(portalConfig.startsWith('bpc_') ? { configuration: portalConfig } : {})
     });
 
     await logAdminAction(
