@@ -1006,17 +1006,10 @@
         if (e.key === 'ArrowLeft') { e.preventDefault(); show(current - 1); }
       });
 
-      let touchX = 0;
-      let touchY = 0;
-      main.addEventListener('touchstart', (e) => {
-        touchX = e.changedTouches[0].clientX;
-        touchY = e.changedTouches[0].clientY;
-      }, { passive: true });
-      main.addEventListener('touchend', (e) => {
-        const dx = e.changedTouches[0].clientX - touchX;
-        const dy = e.changedTouches[0].clientY - touchY;
-        if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) show(current + (dx < 0 ? 1 : -1));
-      }, { passive: true });
+      // Deliberately no swipe-to-change-panel gesture. The lead table scrolls
+      // horizontally on a phone, so dragging it sideways was changing section
+      // instead of scrolling. Sections change via the sidebar, the arrow
+      // buttons, or the left/right arrow keys only.
 
       let start = 0;
       try {
