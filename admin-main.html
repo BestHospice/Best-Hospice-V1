@@ -178,6 +178,25 @@
     .toggle-label { font-size: 12px; color: #6b7280; min-width: 30px; }
     .btn-delete { border: 1px solid #ef4444; color: #b91c1c; background: #fff5f5; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
     .btn-delete:hover { background: #ffe4e6; }
+    .admin-map { height: 380px; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    .stat-box { background: #fff; border-radius: 10px; padding: 14px 18px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(15,23,42,0.06); min-width: 140px; }
+    .stat-box .val { font-size: 1.9rem; font-weight: 700; line-height: 1; }
+    .stat-box .lbl { font-size: 13px; color: #6b7280; margin-top: 4px; }
+    .hir-stats .val { color: #0f766e; }
+    .terr-stats .val { color: #b45309; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; font-family: inherit; }
+    .btn-view { background: #eff6ff; color: #1d4ed8; }
+    .btn-view:hover { background: #dbeafe; }
+    .btn-del { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; font-family: inherit; background: #fef2f2; color: #dc2626; }
+    .btn-del:hover { background: #fee2e2; }
+    #view-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; align-items: center; justify-content: center; }
+    #view-modal.open { display: flex; }
+    #view-inner { background: #fff; border-radius: 16px; padding: 28px; max-width: 540px; width: 92%; max-height: 80vh; overflow-y: auto; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.22); }
+    #view-close { position: absolute; top: 14px; right: 16px; background: none; border: none; font-size: 22px; cursor: pointer; color: #374151; }
+    .provider-chip { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; }
+    .provider-chip .p-name { font-weight: 700; font-size: 14px; }
+    .provider-chip .p-email { font-size: 13px; color: #4b5563; }
   </style>
   <script src="/admin-auth.js" defer></script>
 </head>
@@ -673,6 +692,53 @@
       </div>
 
       <div class="card">
+        <h2>Hiring Prospects</h2>
+        <p class="note">Caregiver job seekers who submitted via the Find Work flow. Providers with Actively Hiring enabled are notified automatically.</p>
+        <div class="stat-row hir-stats" id="hir-stat-row" style="display:none;">
+          <div class="stat-box"><div class="val" id="hir-stat-total">&mdash;</div><div class="lbl">Total Applicants</div></div>
+          <div class="stat-box"><div class="val" id="hir-stat-zips">&mdash;</div><div class="lbl">Unique ZIPs</div></div>
+          <div class="stat-box"><div class="val" id="hir-stat-notified">&mdash;</div><div class="lbl">Provider Notifications Sent</div></div>
+        </div>
+        <div id="hiring-map" class="admin-map"></div>
+        <p class="note" style="margin:14px 0 6px;">Each row is a caregiver who submitted the Find Work questionnaire. Click <strong>View</strong> to see which providers were notified.</p>
+        <div id="hir-loading" class="note">Loading&hellip; (geocoding ZIPs for the heat map &mdash; may take a moment)</div>
+        <div class="table-wrap" id="hir-table-wrap" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Date &amp; Time</th><th>Name</th><th>Email</th><th>Phone</th><th>ZIP</th>
+                <th>Role</th><th>Availability</th><th>Timeline</th><th>Experience</th>
+                <th>Licensed</th><th>Open to Multiple</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="hir-body"></tbody>
+          </table>
+        </div>
+        <p id="hir-empty" class="note" style="display:none;">No job seeker submissions yet. They will appear here when caregivers submit via the Find Work flow.</p>
+      </div>
+
+      <div class="card">
+        <h2>New Territory Outreach</h2>
+        <p class="note">Questionnaire submissions from ZIPs with no providers available &mdash; unserved or underserved areas. Use for provider recruitment.</p>
+        <div class="stat-row terr-stats" id="terr-stat-row" style="display:none;">
+          <div class="stat-box"><div class="val" id="terr-stat-total">&mdash;</div><div class="lbl">Total Requests</div></div>
+          <div class="stat-box"><div class="val" id="terr-stat-zips">&mdash;</div><div class="lbl">Unique ZIPs</div></div>
+        </div>
+        <div id="territory-map" class="admin-map"></div>
+        <p class="note" style="margin:14px 0 6px;">Each row is a person who submitted the questionnaire but had no providers to match with.</p>
+        <div id="terr-loading" class="note">Loading&hellip;</div>
+        <div class="table-wrap" id="terr-table-wrap" style="display:none;">
+          <table>
+            <thead>
+              <tr><th>Date &amp; Time</th><th>ZIP</th><th>Email</th><th>Phone</th><th>Care Timeline</th><th></th></tr>
+            </thead>
+            <tbody id="terr-body"></tbody>
+          </table>
+        </div>
+        <p id="terr-empty" class="note" style="display:none;">No uncovered territory requests yet. They will appear here when someone in a new area submits the questionnaire.</p>
+      </div>
+
+      <div class="card">
         <h2>Audit Log</h2>
         <p class="note">Every recorded admin and provider action, newest first.</p>
         <div class="table-wrap">
@@ -692,6 +758,16 @@
       </div>
 
     </section>
+  </div>
+
+  <div id="view-modal" role="dialog" aria-modal="true">
+    <div id="view-inner">
+      <button id="view-close" aria-label="Close" type="button">&times;</button>
+      <h2 style="margin:0 0 6px; font-size:18px;">Notified Providers</h2>
+      <p class="note" style="margin:0 0 14px;" id="view-subtitle"></p>
+      <div id="view-providers"></div>
+      <p id="view-none" class="note" style="display:none;">No providers were notified for this submission (none matched the ZIP at time of submission).</p>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -2090,6 +2166,251 @@
       };
     })();
 
+    // from admin-hiring.html
+    (function () {
+      let hiringMap = null;
+      let mapLayers = [];
+      let allLeads = [];
+      let providersMap = {};
+
+      const loadingEl = document.getElementById('hir-loading');
+      const tableWrap = document.getElementById('hir-table-wrap');
+      const emptyEl = document.getElementById('hir-empty');
+      const tbody = document.getElementById('hir-body');
+      const modal = document.getElementById('view-modal');
+
+      function initMap() {
+        if (hiringMap) return;
+        hiringMap = L.map('hiring-map', { zoomAnimation: false }).setView([39.5, -98.35], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 18,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(hiringMap);
+      }
+
+      function renderMap(points) {
+        initMap();
+        mapLayers.forEach((l) => hiringMap.removeLayer(l));
+        mapLayers = [];
+        if (!points.length) return;
+        const bounds = [];
+        points.forEach((pt) => {
+          const radius = Math.max(10, Math.min(50, 10 + (pt.count * 4)));
+          const circle = L.circleMarker([pt.lat, pt.lon], {
+            radius, stroke: true, color: '#0f766e', weight: 2,
+            fillColor: '#34d399', fillOpacity: 0.72
+          }).bindPopup(`<strong>ZIP ${pt.zip}</strong><br>Applicants: ${pt.count}`);
+          circle.addTo(hiringMap);
+          mapLayers.push(circle);
+          bounds.push([pt.lat, pt.lon]);
+        });
+        if (bounds.length) hiringMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
+        setTimeout(() => hiringMap.invalidateSize(), 150);
+      }
+
+      const fmtDateTime = (iso) => (iso
+        ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+        : '—');
+
+      function openViewModal(lead) {
+        const subtitle = document.getElementById('view-subtitle');
+        const container = document.getElementById('view-providers');
+        const none = document.getElementById('view-none');
+        subtitle.textContent = `${lead.name || 'Candidate'} — ${lead.role || 'Unknown role'} — ZIP ${lead.zip || '—'}`;
+        container.innerHTML = '';
+        none.style.display = 'none';
+        const ids = String(lead.notifiedProviderIds || '').split(',').map((x) => x.trim()).filter(Boolean);
+        if (!ids.length) {
+          none.style.display = 'block';
+        } else {
+          ids.forEach((id) => {
+            const pr = providersMap[id];
+            const chip = document.createElement('div');
+            chip.className = 'provider-chip';
+            chip.innerHTML = `<span class="p-name">${pr ? pr.name : 'Unknown Provider'}</span>
+              <span class="p-email">${pr ? `<a href="mailto:${pr.email}">${pr.email}</a>` : id}</span>`;
+            container.appendChild(chip);
+          });
+        }
+        modal.classList.add('open');
+      }
+
+      function updateStats() {
+        const uniqueZips = new Set(allLeads.map((r) => r.zip).filter(Boolean));
+        const totalNotified = allLeads.reduce((sum, l) => sum
+          + String(l.notifiedProviderIds || '').split(',').map((x) => x.trim()).filter(Boolean).length, 0);
+        document.getElementById('hir-stat-total').textContent = allLeads.length.toLocaleString();
+        document.getElementById('hir-stat-zips').textContent = uniqueZips.size.toLocaleString();
+        document.getElementById('hir-stat-notified').textContent = totalNotified.toLocaleString();
+        document.getElementById('hir-stat-row').style.display = allLeads.length ? 'flex' : 'none';
+      }
+
+      async function deleteLead(id, rowEl) {
+        if (!confirm('Delete this job seeker lead? This cannot be undone.')) return;
+        try {
+          const res = await fetch(`/api/admin/hiring/leads/${encodeURIComponent(id)}`, {
+            method: 'DELETE', credentials: 'same-origin'
+          });
+          if (!res.ok) { alert('Delete failed.'); return; }
+          rowEl.remove();
+          allLeads = allLeads.filter((l) => l.id !== id);
+          updateStats();
+        } catch (err) {
+          alert('Delete failed: ' + err.message);
+        }
+      }
+
+      function renderTable() {
+        tbody.innerHTML = '';
+        allLeads.forEach((r) => {
+          const tr = document.createElement('tr');
+          tr.dataset.id = r.id;
+          const notifiedCount = String(r.notifiedProviderIds || '').split(',').map((x) => x.trim()).filter(Boolean).length;
+          tr.innerHTML = `
+            <td style="white-space:nowrap;">${fmtDateTime(r.createdAt)}</td>
+            <td>${r.name || '—'}</td>
+            <td style="font-size:13px;">${r.email ? `<a href="mailto:${r.email}">${r.email}</a>` : '—'}</td>
+            <td style="white-space:nowrap;">${r.phone || '—'}</td>
+            <td><strong>${r.zip || '—'}</strong></td>
+            <td>${r.role || '—'}</td>
+            <td>${r.availability || '—'}</td>
+            <td>${r.timeline || '—'}</td>
+            <td>${r.experience || '—'}</td>
+            <td>${r.licensed || '—'}</td>
+            <td>${r.openToMultiple || '—'}</td>
+            <td style="white-space:nowrap; display:flex; gap:6px;">
+              <button class="btn-sm btn-view" type="button" data-action="view">View (${notifiedCount})</button>
+              <button class="btn-sm btn-del" type="button" data-action="delete">Delete</button>
+            </td>`;
+          tr.querySelector('[data-action="view"]').addEventListener('click', () => openViewModal(r));
+          tr.querySelector('[data-action="delete"]').addEventListener('click', () => deleteLead(r.id, tr));
+          tbody.appendChild(tr);
+        });
+      }
+
+      document.getElementById('view-close').addEventListener('click', () => modal.classList.remove('open'));
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
+
+      window.__adminPanelInit['Hiring'] = async function () {
+        try {
+          const res = await fetch('/api/admin/hiring/leads', { credentials: 'same-origin' });
+          if (!res.ok) throw new Error('Failed to load data');
+          const data = await res.json();
+          allLeads = data.leads || [];
+          providersMap = data.providers || {};
+          loadingEl.style.display = 'none';
+          renderMap(data.heatPoints || []);
+          if (!allLeads.length) { emptyEl.style.display = 'block'; initMap(); return; }
+          updateStats();
+          renderTable();
+          tableWrap.style.display = 'block';
+        } catch (err) {
+          loadingEl.textContent = 'Could not load data. ' + (err.message || '');
+        }
+      };
+    })();
+
+    // from admin-territory.html
+    (function () {
+      let territoryMap = null;
+      let mapLayers = [];
+      let allRequests = [];
+
+      const loadingEl = document.getElementById('terr-loading');
+      const tableWrap = document.getElementById('terr-table-wrap');
+      const emptyEl = document.getElementById('terr-empty');
+      const tbody = document.getElementById('terr-body');
+      const statRow = document.getElementById('terr-stat-row');
+
+      function initMap() {
+        if (territoryMap) return;
+        territoryMap = L.map('territory-map', { zoomAnimation: false }).setView([39.5, -98.35], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 18,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(territoryMap);
+      }
+
+      function renderMap(points) {
+        initMap();
+        mapLayers.forEach((l) => territoryMap.removeLayer(l));
+        mapLayers = [];
+        if (!points.length) return;
+        const bounds = [];
+        points.forEach((pt) => {
+          const radius = Math.max(10, Math.min(50, 10 + (pt.count * 4)));
+          const circle = L.circleMarker([pt.lat, pt.lon], {
+            radius, stroke: true, color: '#b45309', weight: 2,
+            fillColor: '#f59e0b', fillOpacity: 0.72
+          }).bindPopup(`<strong>ZIP ${pt.zip}</strong><br>Requests: ${pt.count}`);
+          circle.addTo(territoryMap);
+          mapLayers.push(circle);
+          bounds.push([pt.lat, pt.lon]);
+        });
+        if (bounds.length) territoryMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
+        setTimeout(() => territoryMap.invalidateSize(), 150);
+      }
+
+      const fmtDateTime = (iso) => (iso
+        ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+        : '—');
+
+      function refreshStats() {
+        document.getElementById('terr-stat-total').textContent = allRequests.length.toLocaleString();
+        document.getElementById('terr-stat-zips').textContent =
+          new Set(allRequests.map((r) => r.zip).filter(Boolean)).size.toLocaleString();
+      }
+
+      function renderTable(requests) {
+        if (!requests.length) {
+          tableWrap.style.display = 'none';
+          emptyEl.style.display = 'block';
+          return;
+        }
+        emptyEl.style.display = 'none';
+        tbody.innerHTML = requests.map((r) => {
+          const email = r.contactEmail && r.contactEmail !== 'Not provided'
+            ? `<a href="mailto:${r.contactEmail}">${r.contactEmail}</a>` : '—';
+          const phone = r.contactPhone && r.contactPhone !== 'Not provided' ? r.contactPhone : '—';
+          const timeline = r.timeline && r.timeline !== 'Not specified' ? r.timeline : '—';
+          return `<tr>
+            <td style="white-space:nowrap;">${fmtDateTime(r.createdAt)}</td>
+            <td><strong>${r.zip || '—'}</strong></td>
+            <td style="font-size:13px;">${email}</td>
+            <td style="white-space:nowrap;">${phone}</td>
+            <td>${timeline}</td>
+            <td><button class="btn-del" onclick="terrDeleteLead('${r.id}')">Delete</button></td>
+          </tr>`;
+        }).join('');
+        tableWrap.style.display = 'block';
+      }
+
+      // Rows use an inline onclick, so this has to be globally reachable.
+      window.terrDeleteLead = async function (id) {
+        if (!confirm('Delete this lead? This cannot be undone.')) return;
+        const res = await fetch(`/api/admin/territory/leads/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+        if (!res.ok) { alert('Could not delete. Please try again.'); return; }
+        allRequests = allRequests.filter((r) => r.id !== id);
+        renderTable(allRequests);
+        refreshStats();
+      };
+
+      window.__adminPanelInit['Territory'] = async function () {
+        try {
+          const res = await fetch('/api/admin/territory/leads', { credentials: 'same-origin' });
+          if (!res.ok) throw new Error('Failed to load data');
+          const data = await res.json();
+          allRequests = data.requests || [];
+          renderMap(data.heatPoints || []);
+          loadingEl.style.display = 'none';
+          if (allRequests.length) { refreshStats(); statRow.style.display = 'flex'; }
+          renderTable(allRequests);
+        } catch (err) {
+          loadingEl.textContent = 'Could not load data. ' + (err.message || '');
+        }
+      };
+    })();
+
     // from admin-audit.html
     (function () {
       const auditBody = document.getElementById('audit-body');
@@ -2137,6 +2458,8 @@
         { label: 'Add Provider',  start: 'Add Provider' },
         { label: 'Notifications', start: 'Provider Notifications' },
         { label: 'Newsletter',    start: 'Newsletter Subscribers' },
+        { label: 'Hiring',        start: 'Hiring Prospects' },
+        { label: 'Territory',     start: 'New Territory Outreach' },
         { label: 'Audit Log',     start: 'Audit Log' }
       ];
 
