@@ -3101,7 +3101,54 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     );
     const disabledClientSet = new Set(disabledClientLeads.map((r) => r.id));
     const toList = rawToList.filter((p) => !disabledClientSet.has(p.id));
-    if (!toList.length) return res.status(400).json({ error: 'No providers to notify' });
+
+    // Every nearby provider is switched off, lapsed, or not receiving leads.
+    // Route the family into New Territory Outreach rather than failing on them:
+    // they get a real response and it becomes a recruitment signal.
+    if (!toList.length) {
+      if (notifyMode === 'details') {
+        return res.json({ ok: true, waitlisted: true, notified: 0 });
+      }
+      const wlZip = String(zip || '').trim();
+      const wlEmail = String(answers?.contactEmail || '').trim() || 'Not provided';
+      const wlPhone = String(answers?.contactPhone || '').trim() || 'Not provided';
+      const wlTimeline = String(answers?.timeline || '').trim() || 'Not specified';
+      try {
+        await ensureWaitlistTable();
+        await prisma.waitlistRequest.create({
+          data: {
+            id: uuid(),
+            zip: wlZip,
+            contactEmail: wlEmail,
+            contactPhone: wlPhone,
+            timeline: wlTimeline
+          }
+        });
+      } catch (wlErr) {
+        console.error('Waitlist save failed for uncovered notify', wlErr);
+      }
+      try {
+        await sendGenericEmail(
+          'contact@besthospice.com',
+          `Coverage request for ZIP ${wlZip} (no available providers)`,
+          `<div style="font-family: Arial, Helvetica, sans-serif; line-height:1.6; color:#222;">
+             <p>A client at zipcode ${wlZip} requested care, but every matching provider is currently switched off, lapsed, or not receiving leads.</p>
+             <p><strong>Client Email:</strong> ${wlEmail}<br />
+             <strong>Client Phone:</strong> ${wlPhone}<br />
+             <strong>When Care Is Needed:</strong> ${wlTimeline}</p>
+             <p>This has been added to New Territory Outreach.</p>
+           </div>`
+        );
+      } catch (mailErr) {
+        console.error('Coverage-gap email failed', mailErr);
+      }
+      await logAdminAction(
+        'system', 'NOTIFY_NO_AVAILABLE_PROVIDERS', wlZip,
+        { matched: rawToList.length, excluded: rawToList.length },
+        hashIp(req.ip || '')
+      );
+      return res.json({ ok: true, waitlisted: true, notified: 0 });
+    }
 
     // Deduplicate: block exact same email + phone + timeline within 24 hours
     if (notifyMode === 'initial') {
