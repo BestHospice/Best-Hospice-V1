@@ -3521,6 +3521,28 @@ app.get('/api/newsletter/issues', (req, res) => {
   }
 });
 
+// Disposable-mailbox domains. The newsletter form already has a honeypot, but
+// the bots reaching this list skip it, so block throwaway domains outright.
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  'mailinator.com', 'tempmail.io', 'tempmail.com', 'temp-mail.org', 'guerrillamail.com',
+  'guerrillamail.net', 'guerrillamail.org', 'sharklasers.com', 'grr.la', 'spam4.me',
+  '10minutemail.com', '10minutemail.net', 'yopmail.com', 'yopmail.fr', 'throwawaymail.com',
+  'trashmail.com', 'trashmail.de', 'dispostable.com', 'maildrop.cc', 'mailnesia.com',
+  'getnada.com', 'nada.email', 'inboxbear.com', 'fakeinbox.com', 'mytemp.email',
+  'emailondeck.com', 'moakt.com', 'mohmal.com', 'tempinbox.com', 'discard.email',
+  'mailcatch.com', 'spambog.com', 'anonbox.net', 'e4ward.com', 'jetable.org',
+  'mailexpire.com', 'spamgourmet.com', 'incognitomail.com', 'tempr.email', 'burnermail.io'
+]);
+
+const isDisposableEmail = (email) => {
+  const domain = String(email || '').split('@')[1] || '';
+  if (!domain) return false;
+  const lower = domain.toLowerCase();
+  if (DISPOSABLE_EMAIL_DOMAINS.has(lower)) return true;
+  // Also catch subdomains of a blocked domain, e.g. mail.mailinator.com
+  return Array.from(DISPOSABLE_EMAIL_DOMAINS).some((d) => lower.endsWith('.' + d));
+};
+
 app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
   if (req.body?.website) return res.json({ ok: true, message: 'Subscribed successfully.' });
   try {
@@ -3529,6 +3551,12 @@ app.post('/api/newsletter/subscribe', rateLimit, async (req, res) => {
     if (!name) return res.status(400).json({ error: 'Name is required' });
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Valid email is required' });
+    }
+    // Answer as though it worked, the same way the honeypot does, so a bot gets
+    // no signal about why it failed.
+    if (isDisposableEmail(email)) {
+      console.warn(`Newsletter signup blocked (disposable domain): ${email}`);
+      return res.json({ ok: true, message: 'Subscribed successfully.' });
     }
     await ensureNewsletterSubscribersTable();
     await prisma.$executeRawUnsafe(
