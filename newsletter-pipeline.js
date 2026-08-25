@@ -39,28 +39,93 @@ function pipelineLog(action, status, detail) {
   console.log(line.trim());
 }
 
+// Shown once, on the issue numbered 1 after the numbering fix. Issue numbers
+// used to reset on every deploy because they lived in a file on an ephemeral
+// filesystem, so several issues went out labelled #1.
+const FIRST_ISSUE_NOTE = 'A quick note before we begin: if you are thinking "didn\u2019t I already get issue #1?" \u2014 you did, possibly more than once. Our issue numbers were being reset every time we updated the site, so the counter kept starting over. That is fixed, and this is genuinely the last #1 you will ever get from us. Thank you for bearing with the arithmetic.';
+
+function buildIntroNoteEmail(note) {
+  if (!note) return '';
+  return `<tr><td style="padding:0 0 8px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td
+      style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;">
+      <p style="margin:0;font-size:14px;line-height:1.7;color:#92400e;
+        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${note}</p>
+    </td></tr></table>
+  </td></tr>`;
+}
+
+function buildIntroNoteWeb(note) {
+  if (!note) return '';
+  return `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;
+    padding:14px 18px;margin:0 0 20px;">
+    <p style="margin:0;font-size:14px;line-height:1.7;color:#92400e;">${note}</p>
+  </div>`;
+}
+
 // ---------------------------------------------------------------------------
 // Schedule helpers
 // ---------------------------------------------------------------------------
 
-function loadSchedule() {
-  try {
-    if (fs.existsSync(SCHEDULE_PATH)) {
-      return JSON.parse(fs.readFileSync(SCHEDULE_PATH, 'utf8'));
-    }
-  } catch (e) {
-    console.error('schedule.json read failed:', e.message);
-  }
-  return { last_sent: null, last_issue: 0, issues: [] };
+// Issue history lives in Postgres. It used to live in newsletter/schedule.json,
+// but Render's filesystem is ephemeral, so every deploy reset last_issue to 0
+// and last_sent to null. That is why every issue was numbered #1 and why the
+// fortnightly gate kept re-arming.
+async function ensureNewsletterIssuesTable(prisma) {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS newsletter_issues (
+      id TEXT PRIMARY KEY,
+      issue_number INT NOT NULL,
+      slug TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      preview TEXT,
+      web_html TEXT,
+      sent_count INT NOT NULL DEFAULT 0,
+      failed_count INT NOT NULL DEFAULT 0,
+      sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_newsletter_issues_slug ON newsletter_issues(slug)`
+  );
 }
 
-function saveSchedule(data) {
-  if (!fs.existsSync(NEWSLETTER_DIR)) fs.mkdirSync(NEWSLETTER_DIR, { recursive: true });
-  fs.writeFileSync(SCHEDULE_PATH, JSON.stringify(data, null, 2));
+async function loadSchedule(prisma) {
+  await ensureNewsletterIssuesTable(prisma);
+  const rows = await prisma.$queryRawUnsafe(`
+    SELECT issue_number, slug, subject, preview, sent_at
+    FROM newsletter_issues
+    ORDER BY issue_number DESC
+  `);
+  const last = rows[0] || null;
+  return {
+    last_sent: last ? new Date(last.sent_at).toISOString().slice(0, 10) : null,
+    last_issue: last ? Number(last.issue_number) : 0,
+    issues: rows.map((r) => ({
+      issue: Number(r.issue_number),
+      slug: r.slug,
+      subject: r.subject,
+      preview: r.preview,
+      date: new Date(r.sent_at).toISOString().slice(0, 10)
+    }))
+  };
 }
 
-function shouldRunToday() {
-  const schedule = loadSchedule();
+async function recordIssue(prisma, issue) {
+  await ensureNewsletterIssuesTable(prisma);
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO newsletter_issues
+       (id, issue_number, slug, subject, preview, web_html, sent_count, failed_count, sent_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+     ON CONFLICT (slug) DO NOTHING`,
+    issue.id, issue.issueNumber, issue.slug, issue.subject,
+    issue.preview || null, issue.webHtml || null,
+    issue.sent || 0, issue.failed || 0
+  );
+}
+
+async function shouldRunToday(prisma) {
+  const schedule = await loadSchedule(prisma);
   if (!schedule.last_sent) return true;
   const daysDiff = (Date.now() - new Date(schedule.last_sent).getTime()) / (1000 * 60 * 60 * 24);
   return daysDiff >= 14;
@@ -271,7 +336,7 @@ function buildEmailSection(s) {
     </td></tr>`;
 }
 
-function buildEmailHtml(content, issueNumber, sendDate, subscriberEmail) {
+function buildEmailHtml(content, issueNumber, sendDate, subscriberEmail, introNote = '') {
   const token = generateUnsubscribeToken(subscriberEmail);
   const unsubUrl = `${CANONICAL_DOMAIN}/newsletter/unsubscribe?email=${encodeURIComponent(subscriberEmail)}&token=${encodeURIComponent(token)}`;
   const monthName = sendDate.toLocaleString('en-US', { month: 'long' }).toLowerCase();
@@ -300,6 +365,7 @@ function buildEmailHtml(content, issueNumber, sendDate, subscriberEmail) {
       </td></tr>
       <tr><td style="background:#f6f7fb;padding:16px 0 4px;">
         <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          ${buildIntroNoteEmail(introNote)}
           ${buildEmailSection(content.whatsHappening)}
           ${buildEmailSection(content.watchFor)}
           ${buildEmailSection(content.moneyAndBenefits)}
@@ -352,7 +418,7 @@ function buildWebSection(s) {
   </div>`;
 }
 
-function buildWebHtml(content, issueNumber, slug, sendDate) {
+function buildWebHtml(content, issueNumber, slug, sendDate, introNote = '') {
   const formattedDate = sendDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const schemaDate = sendDate.toISOString().slice(0, 10);
 
@@ -397,7 +463,8 @@ function buildWebHtml(content, issueNumber, slug, sendDate) {
       <h1 style="margin:0 0 8px;color:#fff;font-size:clamp(1.3rem,3vw,1.9rem);letter-spacing:-0.02em;">${content.subject}</h1>
       <p style="margin:0;color:rgba(255,255,255,0.84);font-size:15px;">${content.preview}</p>
     </div>
-    ${buildWebSection(content.whatsHappening)}
+    ${buildIntroNoteWeb(introNote)}
+        ${buildWebSection(content.whatsHappening)}
     ${buildWebSection(content.watchFor)}
     ${buildWebSection(content.moneyAndBenefits)}
     ${buildWebSection(content.fromTheTeam)}
@@ -492,16 +559,18 @@ function regenerateIndex(schedule) {
 async function runNewsletterPipeline(prisma, { force = false } = {}) {
   pipelineLog('pipeline', 'start', force ? 'manual trigger' : 'scheduled run');
 
-  if (!force && !shouldRunToday()) {
+  if (!force && !(await shouldRunToday(prisma))) {
     pipelineLog('pipeline', 'skipped', 'Fewer than 14 days since last send');
     return { skipped: true };
   }
 
-  const schedule = loadSchedule();
+  const schedule = await loadSchedule(prisma);
   const issueNumber = (schedule.last_issue || 0) + 1;
   const sendDate = new Date();
   const monthName = sendDate.toLocaleString('en-US', { month: 'long' }).toLowerCase();
   const slug = `issue-${issueNumber}-${monthName}-${sendDate.getFullYear()}`;
+  // Only the genuine first issue carries the note about the numbering reset.
+  const introNote = issueNumber === 1 ? FIRST_ISSUE_NOTE : '';
 
   // Step 1: Fetch RSS feeds
   pipelineLog('fetch_feeds', 'start', `Fetching ${RSS_FEEDS.length} feeds`);
@@ -553,7 +622,7 @@ async function runNewsletterPipeline(prisma, { force = false } = {}) {
     pipelineLog('send', 'start', `Sending to ${subscribers.length} subscribers`);
     for (const sub of subscribers) {
       try {
-        const html = buildEmailHtml(content, issueNumber, sendDate, sub.email);
+        const html = buildEmailHtml(content, issueNumber, sendDate, sub.email, introNote);
         await sgMail.send({
           to: sub.email,
           from: { email: fromEmail, name: 'Best Hospice and Home Health Brief' },
@@ -571,18 +640,20 @@ async function runNewsletterPipeline(prisma, { force = false } = {}) {
     pipelineLog('send', 'success', `Sent: ${sent}, Failed: ${failed}`);
   }
 
-  // Step 5: Save web archive
+  // Step 5: build the archive page. Written to disk as a convenience and stored
+  // in Postgres as the durable copy, since the filesystem resets on deploy.
+  const webHtml = buildWebHtml(content, issueNumber, slug, sendDate, introNote);
   pipelineLog('save_archive', 'start', `Saving newsletter/${slug}.html`);
   try {
     if (!fs.existsSync(NEWSLETTER_DIR)) fs.mkdirSync(NEWSLETTER_DIR, { recursive: true });
-    const webHtml = buildWebHtml(content, issueNumber, slug, sendDate);
     fs.writeFileSync(path.join(NEWSLETTER_DIR, `${slug}.html`), webHtml);
     pipelineLog('save_archive', 'success', `${slug}.html saved`);
   } catch (err) {
     pipelineLog('save_archive', 'failed', err.message);
   }
 
-  // Step 6: Update schedule.json and regenerate index
+  // Step 6: record the issue in Postgres so numbering and the fortnightly gate
+  // survive a deploy, and so the archive page can be served from the database.
   schedule.last_sent = sendDate.toISOString().slice(0, 10);
   schedule.last_issue = issueNumber;
   if (!Array.isArray(schedule.issues)) schedule.issues = [];
@@ -593,12 +664,31 @@ async function runNewsletterPipeline(prisma, { force = false } = {}) {
     preview: content.preview,
     date: schedule.last_sent,
   });
-  saveSchedule(schedule);
-  regenerateIndex(schedule);
-  pipelineLog('index', 'success', 'newsletter/index.html regenerated');
+  try {
+    await recordIssue(prisma, {
+      id: `nli_${issueNumber}_${Date.now()}`,
+      issueNumber,
+      slug,
+      subject: content.subject,
+      preview: content.preview,
+      webHtml,
+      sent,
+      failed
+    });
+    pipelineLog('record', 'success', `Issue #${issueNumber} recorded in newsletter_issues`);
+  } catch (err) {
+    pipelineLog('record', 'failed', err.message);
+  }
+  // The on-disk index is a convenience only; it does not survive a deploy.
+  try {
+    regenerateIndex(schedule);
+    pipelineLog('index', 'success', 'newsletter/index.html regenerated');
+  } catch (err) {
+    pipelineLog('index', 'failed', err.message);
+  }
 
   pipelineLog('pipeline', 'success', `Issue #${issueNumber} complete. Sent: ${sent}, Failed: ${failed}`);
   return { issueNumber, slug, subject: content.subject, subscriberCount: subscribers.length, sent, failed };
 }
 
-module.exports = { runNewsletterPipeline, generateUnsubscribeToken, verifyUnsubscribeToken, shouldRunToday };
+module.exports = { runNewsletterPipeline, generateUnsubscribeToken, verifyUnsubscribeToken, shouldRunToday, loadSchedule, ensureNewsletterIssuesTable };

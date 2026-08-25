@@ -12,7 +12,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Anthropic = require('@anthropic-ai/sdk');
 const cron = require('node-cron');
-const { runNewsletterPipeline, verifyUnsubscribeToken } = require('./newsletter-pipeline');
+const { runNewsletterPipeline, verifyUnsubscribeToken, loadSchedule: loadNewsletterSchedule, ensureNewsletterIssuesTable } = require('./newsletter-pipeline');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -1418,9 +1418,24 @@ app.get('/reviews', (_req, res) => {
 app.get('/newsletter', (_req, res) => {
   res.sendFile(path.join(__dirname, 'newsletter', 'index.html'));
 });
-app.get('/newsletter/:issueSlug', (req, res) => {
+app.get('/newsletter/:issueSlug', async (req, res) => {
   const issueSlug = String(req.params.issueSlug || '').trim().toLowerCase();
   if (!/^[a-z0-9-]+$/.test(issueSlug)) return res.status(404).send('Not found');
+  // Postgres is the durable copy; the on-disk file is wiped on every deploy,
+  // which is why every "view in browser" link used to 404.
+  try {
+    await ensureNewsletterIssuesTable(prisma);
+    const rows = await prisma.$queryRaw`
+      SELECT web_html FROM newsletter_issues WHERE slug = ${issueSlug} LIMIT 1
+    `;
+    const html = rows?.[0]?.web_html;
+    if (html) {
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      return res.send(html);
+    }
+  } catch (err) {
+    console.error('Newsletter archive lookup failed', err);
+  }
   const pagePath = path.join(__dirname, 'newsletter', `${issueSlug}.html`);
   if (!fs.existsSync(pagePath)) return res.status(404).send('Not found');
   return res.sendFile(pagePath);
@@ -3510,13 +3525,12 @@ app.post('/api/analytics/event', async (req, res) => {
   }
 });
 
-app.get('/api/newsletter/issues', (req, res) => {
+app.get('/api/newsletter/issues', async (req, res) => {
   try {
-    const schedulePath = path.join(__dirname, 'newsletter', 'schedule.json');
-    if (!fs.existsSync(schedulePath)) return res.json({ issues: [] });
-    const schedule = JSON.parse(fs.readFileSync(schedulePath, 'utf8'));
+    const schedule = await loadNewsletterSchedule(prisma);
     res.json({ issues: schedule.issues || [] });
   } catch (err) {
+    console.error('Newsletter issues list failed', err);
     res.json({ issues: [] });
   }
 });
