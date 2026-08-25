@@ -448,49 +448,32 @@ async function ensureProviderStripeColumns() {
   // billingMode defaults to 'free' so every provider that already exists is
   // grandfathered and can never be gated by accident.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "billingMode" TEXT NOT NULL DEFAULT 'free'`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "graceEndsAt" TIMESTAMP`);
   providerStripeColumnsReady = true;
 }
 
-const PROVIDER_GRACE_DAYS = 10;
-// Master switch. Until this is explicitly turned on, no provider is ever
-// denied leads for non-payment, whatever their billing state says.
-const BILLING_ENFORCEMENT = String(process.env.BILLING_ENFORCEMENT || '').trim().toLowerCase() === 'true';
-
-const daysUntil = (date) => {
-  if (!date) return null;
-  const ms = new Date(date).getTime() - Date.now();
-  return Math.ceil(ms / (24 * 60 * 60 * 1000));
-};
-
-// One place that decides what a provider's billing situation actually is.
+// A provider is one of three things, and nothing is time-based:
+//   free     - comped, receives leads, never billed
+//   billed   - expected to pay; Stripe decides whether they are current
+//   off      - switched off by hand, receives nothing
+// billingMode defaults to 'free', so every provider that already exists keeps
+// receiving leads and only an explicit change can ever stop that.
 const providerBillingState = (row) => {
   const mode = String(row?.billingMode || 'free').toLowerCase();
-  if (mode === 'free') return { state: 'free', label: 'Free Version', daysLeft: null, leadsAllowed: true };
 
+  if (mode === 'off') {
+    return { state: 'off', label: 'Off — No Leads', leadsAllowed: false };
+  }
+  if (mode === 'free') {
+    return { state: 'free', label: 'Free Version', leadsAllowed: true };
+  }
   if (SUBSCRIPTION_ON_STATUSES.has(String(row?.subscriptionStatus || '').toLowerCase())) {
-    return { state: 'paying', label: 'Paying Customer', daysLeft: null, leadsAllowed: true };
+    return { state: 'paying', label: 'Paying Customer', leadsAllowed: true };
   }
-
-  const left = daysUntil(row?.graceEndsAt);
-  if (left !== null && left > 0) {
-    return {
-      state: 'grace',
-      label: `New — will pay in ${left} day${left === 1 ? '' : 's'}`,
-      daysLeft: left,
-      leadsAllowed: true
-    };
-  }
-
-  return {
-    state: 'unpaid',
-    label: BILLING_ENFORCEMENT ? 'Unpaid — No Leads' : 'Unpaid (enforcement off)',
-    daysLeft: left,
-    leadsAllowed: !BILLING_ENFORCEMENT
-  };
+  // Billed but Stripe does not show them current.
+  return { state: 'off', label: 'Not Paying — No Leads', leadsAllowed: false };
 };
 
-// Stripe statuses that mean the provider is genuinely paying right now.
+// Newer Stripe API versions moved current_period_end onto the subscription items.
 const subscriptionPeriodEnd = (subscription) => {
   if (!subscription) return null;
   if (Number.isFinite(subscription.current_period_end)) return subscription.current_period_end;
@@ -498,6 +481,7 @@ const subscriptionPeriodEnd = (subscription) => {
   return Number.isFinite(item?.current_period_end) ? item.current_period_end : null;
 };
 
+// Stripe statuses that mean the provider is genuinely paying right now.
 const SUBSCRIPTION_ON_STATUSES = new Set(['active', 'trialing']);
 const SUBSCRIPTION_WARN_STATUSES = new Set(['past_due', 'incomplete']);
 const subscriptionBannerState = (status) => {
@@ -3105,8 +3089,15 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     const rawToList = providers.filter((p) => !!p.id);
     if (!rawToList.length) return res.status(400).json({ error: 'No providers to notify' });
     await ensureJobLeadTable();
+    await ensureProviderStripeColumns();
+    // Excluded if notifications are switched off, if billing is switched off, or
+    // if they are billed but Stripe does not show them current. Providers on the
+    // default 'free' mode are never excluded here.
     const disabledClientLeads = await prisma.$queryRawUnsafe(
-      `SELECT id FROM "Provider" WHERE "receiveClientLeads" = false`
+      `SELECT id FROM "Provider"
+       WHERE "receiveClientLeads" = false
+          OR "billingMode" = 'off'
+          OR ("billingMode" = 'billed' AND COALESCE("subscriptionStatus", '') NOT IN ('active', 'trialing'))`
     );
     const disabledClientSet = new Set(disabledClientLeads.map((r) => r.id));
     const toList = rawToList.filter((p) => !disabledClientSet.has(p.id));
@@ -4288,28 +4279,20 @@ app.get('/api/admin/main/verify', (req, res) => {
 app.patch('/api/admin/provider-billing-mode/:id', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
   const mode = String(req.body?.mode || '').trim().toLowerCase();
-  if (!['free', 'standard'].includes(mode)) {
-    return res.status(400).json({ error: 'mode must be free or standard' });
+  if (!['free', 'billed', 'off'].includes(mode)) {
+    return res.status(400).json({ error: 'mode must be free, billed, or off' });
   }
   try {
     await ensureProviderStripeColumns();
-    // Starting a standard plan restarts the grace clock from today unless a
-    // specific number of days is supplied.
-    let graceEnds = null;
-    if (mode === 'standard') {
-      const days = Number(req.body?.graceDays);
-      const useDays = Number.isFinite(days) && days >= 0 ? days : PROVIDER_GRACE_DAYS;
-      graceEnds = new Date(Date.now() + useDays * 24 * 60 * 60 * 1000);
-    }
     await prisma.$executeRawUnsafe(
-      `UPDATE "Provider" SET "billingMode" = $1, "graceEndsAt" = $2 WHERE "id" = $3`,
-      mode, graceEnds, req.params.id
+      `UPDATE "Provider" SET "billingMode" = $1 WHERE "id" = $2`,
+      mode, req.params.id
     );
     await logAdminAction(
       'admin', 'PROVIDER_BILLING_MODE', req.params.id,
-      { mode, graceEndsAt: graceEnds }, hashIp(req.ip || '')
+      { mode }, hashIp(req.ip || '')
     );
-    res.json({ ok: true, mode, graceEndsAt: graceEnds });
+    res.json({ ok: true, mode });
   } catch (err) {
     console.error('Provider billing mode update failed', err);
     res.status(500).json({ error: 'Could not update billing mode.' });
@@ -4326,7 +4309,7 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
     const rows = await prisma.$queryRaw`
       SELECT id, name, email, "planTier", "subscriptionStatus",
              "currentPeriodEnd", "stripeCustomerId", "stripeSubscriptionId",
-             "billingMode", "graceEndsAt"
+             "billingMode", "receiveClientLeads"
       FROM "Provider"
       ORDER BY name ASC
     `;
@@ -4347,11 +4330,12 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
         hasStripeCustomer: Boolean(r.stripeCustomerId),
         hasSubscription: Boolean(r.stripeSubscriptionId),
         billingMode: String(r.billingMode || 'free').toLowerCase(),
-        graceEndsAt: r.graceEndsAt || null,
         billingState: billing.state,
         billingLabel: billing.label,
-        daysLeft: billing.daysLeft,
-        leadsAllowed: billing.leadsAllowed
+        // Notifications can be switched off independently of billing, so the
+        // marker has to account for both or it would lie.
+        notificationsOn: r.receiveClientLeads !== false,
+        leadsAllowed: billing.leadsAllowed && r.receiveClientLeads !== false
       };
     });
 
@@ -4367,9 +4351,7 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
         atRisk: atRisk.length,
         off: off.length,
         freeVersion: providers.filter((p) => p.billingState === 'free').length,
-        inGrace: providers.filter((p) => p.billingState === 'grace').length,
-        unpaid: providers.filter((p) => p.billingState === 'unpaid').length,
-        enforcementOn: BILLING_ENFORCEMENT,
+        switchedOff: providers.filter((p) => p.billingState === 'off').length,
         // Committed monthly revenue from providers Stripe reports as paying.
         monthlyRecurring: paying.reduce((sum, p) => sum + p.monthlyRate, 0)
       },

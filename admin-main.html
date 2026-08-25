@@ -429,7 +429,7 @@
       <div class="card">
         <h2>Provider Subscriptions</h2>
         <p class="note">Who is actually being charged, straight from the Stripe status we record on each provider.</p>
-        <p id="sub-enforcement" class="note enforce-off"></p>
+        <p class="note">Free receives leads and is never billed. Billed receives leads only while Stripe shows them current. Off receives nothing.</p>
         <div class="stats-grid" id="sub-stats-grid" style="margin-bottom:12px;"></div>
         <div class="lead-tools">
           <input id="sub-search" type="text" placeholder="Filter by provider name or email...">
@@ -1566,12 +1566,12 @@
             : '-';
           const detail = p.status && p.state !== 'on' ? ` (${p.status})` : '';
           const noLeads = p.leadsAllowed === false
-            ? ' <span style="font-size:11px;color:#991b1b;font-weight:700;">NO LEADS</span>'
+            ? ` <span style="font-size:11px;color:#991b1b;font-weight:700;">NO LEADS</span>${p.notificationsOn === false ? ' <span style="font-size:11px;color:#6b7280;font-weight:400;">(notifications off)</span>' : ''}`
             : '';
-          const controls = p.billingMode === 'free'
-            ? `<button class="btn-sm btn-toggle" data-bill-mode="standard" data-id="${p.id}">Start 10-day trial</button>`
-            : `<button class="btn-sm btn-toggle" data-bill-mode="free" data-id="${p.id}">Free Version</button>
-               <button class="btn-sm" data-bill-mode="standard" data-id="${p.id}">Restart trial</button>`;
+          const btn = (mode, label) => (p.billingMode === mode
+            ? ''
+            : `<button class="btn-sm ${mode === 'off' ? 'btn-del' : 'btn-toggle'}" data-bill-mode="${mode}" data-id="${p.id}">${label}</button>`);
+          const controls = btn('free', 'Free') + btn('billed', 'Billed') + btn('off', 'Off');
           return `
             <tr>
               <td>
@@ -1601,17 +1601,9 @@
           ['Paying Providers', fmtNum(t.paying || 0)],
           ['Monthly Recurring', `$${fmtNum(t.monthlyRecurring || 0)}`],
           ['Free Version', fmtNum(t.freeVersion || 0)],
-          ['In Trial', fmtNum(t.inGrace || 0)],
-          ['Unpaid', fmtNum(t.unpaid || 0)],
+          ['Switched Off', fmtNum(t.switchedOff || 0)],
           ['Total Providers', fmtNum(t.providers || 0)]
         ];
-        const enforceEl = document.getElementById('sub-enforcement');
-        if (enforceEl) {
-          enforceEl.textContent = t.enforcementOn
-            ? 'Lead enforcement is ON — unpaid providers receive no leads.'
-            : 'Lead enforcement is OFF — unpaid providers still receive leads. Set BILLING_ENFORCEMENT=true to turn it on.';
-          enforceEl.className = t.enforcementOn ? 'note enforce-on' : 'note enforce-off';
-        }
         document.getElementById('sub-stats-grid').innerHTML = cards
           .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`)
           .join('');
@@ -1627,7 +1619,8 @@
       if (!btn) return;
       const mode = btn.dataset.billMode;
       const id = btn.dataset.id;
-      if (mode === 'free' && !confirm('Mark this provider as Free Version? They will never be asked to pay.')) return;
+      if (mode === 'off' && !confirm('Switch this provider off? They will stop receiving leads immediately.')) return;
+      if (mode === 'billed' && !confirm('Mark this provider as Billed? They will only receive leads while Stripe shows them current.')) return;
       btn.disabled = true;
       try {
         const res = await fetch(`/api/admin/provider-billing-mode/${id}`, {
