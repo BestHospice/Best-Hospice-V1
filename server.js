@@ -509,6 +509,149 @@ const subscriptionBannerState = (status) => {
   return 'off';
 };
 
+let leadAttributionColumnsReady = false;
+// Attribution columns are added with raw SQL rather than a Prisma migration
+// because the deploy pipeline only runs `prisma generate`, never
+// `migrate deploy` - adding fields to schema.prisma alone would not create
+// them. This matches how sessionId and adminStatus are handled.
+async function ensureLeadAttributionColumns() {
+  if (leadAttributionColumnsReady) return;
+  const cols = [
+    ['gclid', 'TEXT'], ['fbclid', 'TEXT'],
+    ['firstChannel', 'TEXT'], ['firstSource', 'TEXT'], ['firstMedium', 'TEXT'],
+    ['firstCampaign', 'TEXT'], ['firstTerm', 'TEXT'], ['firstContent', 'TEXT'],
+    ['firstLandingPage', 'TEXT'], ['firstReferrer', 'TEXT'], ['firstTouchAt', 'TIMESTAMPTZ'],
+    ['lastChannel', 'TEXT'], ['lastSource', 'TEXT'], ['lastMedium', 'TEXT'],
+    ['lastCampaign', 'TEXT'], ['lastTerm', 'TEXT'], ['lastContent', 'TEXT'],
+    ['lastLandingPage', 'TEXT'], ['lastReferrer', 'TEXT'], ['lastTouchAt', 'TIMESTAMPTZ']
+  ];
+  for (const [name, type] of cols) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "${name}" ${type}`);
+  }
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_lead_first_channel ON "Lead"("firstChannel")`);
+  leadAttributionColumnsReady = true;
+}
+
+const SEARCH_ENGINE_HOSTS = [
+  { rx: /(^|\.)google\./i, source: 'google' },
+  { rx: /(^|\.)bing\.com$/i, source: 'bing' },
+  { rx: /(^|\.)duckduckgo\.com$/i, source: 'duckduckgo' },
+  { rx: /(^|\.)search\.yahoo\./i, source: 'yahoo' },
+  { rx: /(^|\.)ecosia\.org$/i, source: 'ecosia' },
+  { rx: /(^|\.)brave\.com$/i, source: 'brave' }
+];
+const SOCIAL_HOSTS = [
+  { rx: /(^|\.)(facebook|fb)\.com$/i, source: 'facebook' },
+  { rx: /(^|\.)instagram\.com$/i, source: 'instagram' },
+  { rx: /(^|\.)linkedin\.com$/i, source: 'linkedin' },
+  { rx: /(^|\.)(x|twitter)\.com$/i, source: 'twitter' },
+  { rx: /(^|\.)tiktok\.com$/i, source: 'tiktok' }
+];
+const PAID_MEDIA = /^(cpc|ppc|paidsearch|paid_search|paid-social|paidsocial|display|cpm|cpv|banner|retargeting)$/i;
+
+const hostOf = (url) => {
+  try { return new URL(String(url)).hostname.toLowerCase(); } catch (_) { return ''; }
+};
+
+// Classify one touch into a channel. Never guesses: anything that cannot be
+// determined comes back as 'direct' (no referrer) or 'unknown'.
+function classifyTraffic({ source, medium, gclid, fbclid, referrer } = {}) {
+  const src = String(source || '').trim().toLowerCase();
+  const med = String(medium || '').trim().toLowerCase();
+
+  if (gclid) return 'google_paid';
+  if (fbclid) return 'meta_paid';
+
+  if (src && med) {
+    if (/google/.test(src) && PAID_MEDIA.test(med)) return 'google_paid';
+    if (/(facebook|instagram|meta|fb|ig)/.test(src) && PAID_MEDIA.test(med)) return 'meta_paid';
+    if (PAID_MEDIA.test(med)) return 'other_paid';
+    if (/^(organic)$/.test(med)) {
+      if (/google/.test(src)) return 'google_organic';
+      if (/bing/.test(src)) return 'bing_organic';
+      return 'other_organic';
+    }
+    if (/^(referral|referrer)$/.test(med)) return 'referral';
+    if (/^(email|newsletter)$/.test(med)) return 'email';
+  }
+
+  const host = hostOf(referrer);
+  if (!host) return src || med ? 'unknown' : 'direct';
+  if (/(^|\.)besthospice\.com$/i.test(host)) return 'direct';
+  // syndicatedsearch.goog is Google's Search Partners network, which serves
+  // paid ads on third-party sites. It is currently the top referrer, and
+  // treating it as organic or referral would understate ad-driven traffic.
+  if (/(^|\.)syndicatedsearch\.goog$/i.test(host)) return 'google_paid';
+  if (/(^|\.)googleadservices\.com$/i.test(host) || /(^|\.)doubleclick\.net$/i.test(host)) return 'google_paid';
+  const engine = SEARCH_ENGINE_HOSTS.find((e) => e.rx.test(host));
+  if (engine) return engine.source === 'google' ? 'google_organic'
+    : engine.source === 'bing' ? 'bing_organic' : 'other_organic';
+  if (SOCIAL_HOSTS.some((h) => h.rx.test(host))) return 'referral';
+  return 'referral';
+}
+
+const attrStr = (v, max = 512) => {
+  const out = String(v == null ? '' : v).trim();
+  return out ? out.slice(0, max) : null;
+};
+const attrDate = (v) => {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// Turn the client-supplied attribution payload into the 20 stored columns.
+function normalizeAttribution(raw, fallbackReferrer) {
+  const a = raw && typeof raw === 'object' ? raw : {};
+  const first = a.first && typeof a.first === 'object' ? a.first : {};
+  const last = a.last && typeof a.last === 'object' ? a.last : {};
+  const gclid = attrStr(a.gclid || last.gclid || first.gclid, 255);
+  const fbclid = attrStr(a.fbclid || last.fbclid || first.fbclid, 255);
+
+  const firstReferrer = attrStr(first.referrer, 1024) || attrStr(fallbackReferrer, 1024);
+  const lastReferrer = attrStr(last.referrer, 1024) || attrStr(fallbackReferrer, 1024);
+
+  return {
+    gclid,
+    fbclid,
+    firstChannel: classifyTraffic({ source: first.source, medium: first.medium, gclid: first.gclid || gclid, fbclid: first.fbclid || fbclid, referrer: firstReferrer }),
+    firstSource: attrStr(first.source, 255),
+    firstMedium: attrStr(first.medium, 255),
+    firstCampaign: attrStr(first.campaign, 255),
+    firstTerm: attrStr(first.term, 255),
+    firstContent: attrStr(first.content, 255),
+    firstLandingPage: attrStr(first.landingPage, 1024),
+    firstReferrer,
+    firstTouchAt: attrDate(first.at),
+    lastChannel: classifyTraffic({ source: last.source, medium: last.medium, gclid: last.gclid || gclid, fbclid: last.fbclid || fbclid, referrer: lastReferrer }),
+    lastSource: attrStr(last.source, 255),
+    lastMedium: attrStr(last.medium, 255),
+    lastCampaign: attrStr(last.campaign, 255),
+    lastTerm: attrStr(last.term, 255),
+    lastContent: attrStr(last.content, 255),
+    lastLandingPage: attrStr(last.landingPage, 1024),
+    lastReferrer,
+    lastTouchAt: attrDate(last.at)
+  };
+}
+
+async function saveLeadAttribution(leadId, raw, fallbackReferrer) {
+  if (!leadId) return;
+  try {
+    await ensureLeadAttributionColumns();
+    const a = normalizeAttribution(raw, fallbackReferrer);
+    const keys = Object.keys(a);
+    const sets = keys.map((k, i) => `"${k}" = $${i + 1}`).join(', ');
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Lead" SET ${sets} WHERE id = $${keys.length + 1}`,
+      ...keys.map((k) => a[k]), leadId
+    );
+  } catch (err) {
+    // Attribution must never be able to fail a lead submission.
+    console.error('Lead attribution save failed', err?.message || err);
+  }
+}
+
 async function ensureLeadAdminStatusColumns() {
   if (leadAdminStatusColumnReady) return;
   await prisma.$executeRawUnsafe(`ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "adminStatus" TEXT`);
@@ -1126,6 +1269,7 @@ app.get('/cities.html', async (_req, res) => {
   <script src="/abel-chat.js" defer></script>
   <script src="/cookie-consent.js" defer></script>
   <script src="/analytics-tracker.js" defer></script>
+  <script src="/attribution.js" defer></script>
   <script src="/marketing-consent-loader.js" defer></script>
 </head>
 <body>
@@ -3135,7 +3279,7 @@ app.delete('/api/providers/:id', async (req, res) => {
 app.post('/api/notify', rateLimit, async (req, res) => {
   if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
   try {
-    const { mode, leadId, zip, answers, providers, captchaToken, sessionId } = req.body || {};
+    const { mode, leadId, zip, answers, providers, captchaToken, sessionId, attribution } = req.body || {};
     const normalizedSessionId = String(sessionId || '').trim().slice(0, 128) || null;
     const notifyMode = String(mode || 'initial').toLowerCase() === 'details' ? 'details' : 'initial';
     if (!zip || !answers || !Array.isArray(providers) || !providers.length) {
@@ -3301,6 +3445,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           lead.id
         );
       }
+      await saveLeadAttribution(lead.id, attribution, req.headers.referer || req.headers.referrer);
     } else {
       if (!answers.timeline || !answers.contactEmail) {
         return res.status(400).json({ error: 'Missing timeline or contact email' });
@@ -3327,6 +3472,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           lead.id
         );
       }
+      await saveLeadAttribution(lead.id, attribution, req.headers.referer || req.headers.referrer);
 
       const impressionData = toList
         .filter((p) => !!p.id)
@@ -4484,6 +4630,72 @@ app.patch('/api/admin/provider-billing-mode/:id', async (req, res) => {
   } catch (err) {
     console.error('Provider billing mode update failed', err);
     res.status(500).json({ error: 'Could not update billing mode.' });
+  }
+});
+
+// Lead attribution rollup. Answers: how many leads came from organic vs ads,
+// which landing pages produce inquiries, which campaigns produce inquiries.
+app.get('/api/admin/main/attribution', async (req, res) => {
+  if (!hasAdminAccess(req, ['main'])) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await ensureLeadAttributionColumns();
+    const fromRaw = String(req.query.from || '').trim();
+    const toRaw = String(req.query.to || '').trim();
+    const from = fromRaw ? new Date(`${fromRaw}T00:00:00.000Z`) : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const to = toRaw ? new Date(`${toRaw}T23:59:59.999Z`) : new Date();
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      return res.status(400).json({ error: 'Invalid date range' });
+    }
+
+    const [byFirst, byLast, landing, campaigns, totals] = await Promise.all([
+      prisma.$queryRaw`
+        SELECT COALESCE("firstChannel", 'unattributed') AS channel, COUNT(*)::int AS leads
+        FROM "Lead" WHERE "createdAt" >= ${from} AND "createdAt" <= ${to}
+        GROUP BY 1 ORDER BY leads DESC`,
+      prisma.$queryRaw`
+        SELECT COALESCE("lastChannel", 'unattributed') AS channel, COUNT(*)::int AS leads
+        FROM "Lead" WHERE "createdAt" >= ${from} AND "createdAt" <= ${to}
+        GROUP BY 1 ORDER BY leads DESC`,
+      prisma.$queryRaw`
+        SELECT COALESCE("firstLandingPage", '(unknown)') AS landing_page,
+               COALESCE("firstChannel", 'unattributed') AS channel,
+               COUNT(*)::int AS leads
+        FROM "Lead" WHERE "createdAt" >= ${from} AND "createdAt" <= ${to}
+        GROUP BY 1, 2 ORDER BY leads DESC LIMIT 40`,
+      prisma.$queryRaw`
+        SELECT "firstCampaign" AS campaign,
+               COALESCE("firstSource", '(none)') AS source,
+               COALESCE("firstMedium", '(none)') AS medium,
+               COUNT(*)::int AS leads
+        FROM "Lead"
+        WHERE "createdAt" >= ${from} AND "createdAt" <= ${to} AND "firstCampaign" IS NOT NULL
+        GROUP BY 1, 2, 3 ORDER BY leads DESC LIMIT 30`,
+      prisma.$queryRaw`
+        SELECT COUNT(*)::int AS total,
+               COUNT("firstChannel")::int AS attributed
+        FROM "Lead" WHERE "createdAt" >= ${from} AND "createdAt" <= ${to}`
+    ]);
+
+    const t = totals?.[0] || { total: 0, attributed: 0 };
+    res.json({
+      ok: true,
+      from: from.toISOString().slice(0, 10),
+      to: to.toISOString().slice(0, 10),
+      totals: {
+        leads: Number(t.total || 0),
+        attributed: Number(t.attributed || 0),
+        // Leads created before attribution shipped have no data and are counted
+        // separately rather than being lumped in with direct.
+        preAttribution: Number(t.total || 0) - Number(t.attributed || 0)
+      },
+      byFirstTouch: byFirst,
+      byLastTouch: byLast,
+      landingPages: landing,
+      campaigns
+    });
+  } catch (err) {
+    console.error('Attribution rollup failed', err);
+    res.status(500).json({ error: 'Could not load attribution data.' });
   }
 });
 

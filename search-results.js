@@ -361,6 +361,7 @@ async function notifyInitialLead() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       mode: 'initial',
+      attribution: (typeof window !== 'undefined' && window.bhAttribution) ? window.bhAttribution() : null,
       zip: currentZip,
       providers: currentNearbyProviders.map((p) => ({
         id: p.id,
@@ -397,6 +398,7 @@ async function notifyEnhancedDetails(detailsAnswers) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       mode: 'details',
+      attribution: (typeof window !== 'undefined' && window.bhAttribution) ? window.bhAttribution() : null,
       leadId: currentLeadId,
       zip: currentZip,
       providers: currentNearbyProviders.map((p) => ({

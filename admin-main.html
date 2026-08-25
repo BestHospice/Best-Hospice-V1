@@ -483,6 +483,46 @@
       </div>
 
       <div class="card">
+        <h2>Lead Attribution</h2>
+        <p class="note">Where leads actually came from. First touch is how they first found the site; last touch is how they arrived when they submitted. Follows the date range above.</p>
+        <div class="stats-grid" id="attr-stats" style="margin-bottom:12px;"></div>
+        <div class="split">
+          <div>
+            <h3 style="margin:0 0 8px; font-size:15px;">First touch</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Channel</th><th>Leads</th><th>Share</th></tr></thead>
+                <tbody id="attr-first-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h3 style="margin:0 0 8px; font-size:15px;">Last touch</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Channel</th><th>Leads</th><th>Share</th></tr></thead>
+                <tbody id="attr-last-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <h3 style="margin:14px 0 8px; font-size:15px;">Landing pages that produced leads</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Landing page</th><th>First-touch channel</th><th>Leads</th></tr></thead>
+            <tbody id="attr-landing-body"></tbody>
+          </table>
+        </div>
+        <h3 style="margin:14px 0 8px; font-size:15px;">Campaigns that produced leads</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Campaign</th><th>Source</th><th>Medium</th><th>Leads</th></tr></thead>
+            <tbody id="attr-campaign-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Weekly Funnel</h2>
         <p class="note">Where people drop off between landing on the site and being admitted. Follows the date range above. &ldquo;Optional Details&rdquo; is the extra-details step after a lead is already captured, so a low number here is expected.</p>
         <div class="table-wrap">
@@ -1648,6 +1688,67 @@
     document.getElementById('sub-search').addEventListener('input', renderSubscriptions);
     document.getElementById('sub-filter').addEventListener('change', renderSubscriptions);
 
+    const CHANNEL_LABELS = {
+      google_organic: 'Google organic',
+      bing_organic: 'Bing organic',
+      other_organic: 'Other organic',
+      google_paid: 'Google paid',
+      meta_paid: 'Meta paid',
+      other_paid: 'Other paid',
+      referral: 'Referral',
+      email: 'Email',
+      direct: 'Direct',
+      unknown: 'Unknown',
+      unattributed: 'Before tracking'
+    };
+
+    function renderChannelTable(rows, tbodyId, total) {
+      const body = document.getElementById(tbodyId);
+      const list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        body.innerHTML = '<tr><td colspan="3">No leads in selected range.</td></tr>';
+        return;
+      }
+      body.innerHTML = list.map((r) => {
+        const n = Number(r.leads || 0);
+        const share = total ? ((n / total) * 100).toFixed(1) + '%' : '-';
+        return `<tr><td>${CHANNEL_LABELS[r.channel] || r.channel}</td><td>${fmtNum(n)}</td><td>${share}</td></tr>`;
+      }).join('');
+    }
+
+    async function loadAttribution(from, to) {
+      try {
+        const qs = new URLSearchParams();
+        if (from) qs.set('from', from);
+        if (to) qs.set('to', to);
+        const res = await fetch(`/api/admin/main/attribution?${qs.toString()}`, { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const t = data.totals || {};
+        document.getElementById('attr-stats').innerHTML = [
+          ['Leads In Range', fmtNum(t.leads || 0)],
+          ['With Attribution', fmtNum(t.attributed || 0)],
+          ['Before Tracking', fmtNum(t.preAttribution || 0)]
+        ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+        renderChannelTable(data.byFirstTouch, 'attr-first-body', t.attributed || 0);
+        renderChannelTable(data.byLastTouch, 'attr-last-body', t.attributed || 0);
+
+        const landing = data.landingPages || [];
+        document.getElementById('attr-landing-body').innerHTML = landing.length
+          ? landing.map((r) => `<tr><td>${r.landing_page}</td><td>${CHANNEL_LABELS[r.channel] || r.channel}</td><td>${fmtNum(r.leads)}</td></tr>`).join('')
+          : '<tr><td colspan="3">No landing-page data yet.</td></tr>';
+
+        const camps = data.campaigns || [];
+        document.getElementById('attr-campaign-body').innerHTML = camps.length
+          ? camps.map((r) => `<tr><td>${r.campaign}</td><td>${r.source}</td><td>${r.medium}</td><td>${fmtNum(r.leads)}</td></tr>`).join('')
+          : '<tr><td colspan="4">No campaign data yet.</td></tr>';
+      } catch (err) {
+        console.error('Attribution load failed', err);
+        document.getElementById('attr-first-body').innerHTML = '<tr><td colspan="3">Could not load attribution.</td></tr>';
+      }
+    }
+
     async function loadFunnelStats(from, to) {
       try {
         const qs = new URLSearchParams();
@@ -1729,6 +1830,7 @@
       applyLeadSearch();
       renderHeat(data.heatPoints || []);
       await loadFunnelStats(from, to);
+      await loadAttribution(from, to);
     }
 
     function setDefaultDates() {
@@ -3109,6 +3211,7 @@
         { label: 'Subscriptions', start: 'Provider Subscriptions' },
         { label: 'All Providers', start: 'All Providers' },
         { label: 'Manage',        start: 'Manage Providers' },
+        { label: 'Attribution',   start: 'Lead Attribution' },
         { label: 'Weekly Funnel', start: 'Weekly Funnel' },
         { label: 'Stale Leads',   start: 'Leads with No Updates' },
         { label: 'All Leads',     start: 'All Leads' },
