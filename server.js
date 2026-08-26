@@ -2374,6 +2374,10 @@ async function fetchAllProviders() {
 
 // careType is required for the service pages: a /hospice-care/ page must not
 // list a home-care agency. Pass null only where every care type is wanted.
+//
+// This is deliberately stricter than lead distribution: /api/notify is
+// cross-service on purpose, because families often pick the wrong care level.
+// See docs/directory-vs-referral.md before "fixing" either one to match.
 async function providersByLocation(city, state, careType) {
   const legacyCity = city.replace(/\bTucson\b/i, 'Tuscon');
   const results = await prisma.provider.findMany({
