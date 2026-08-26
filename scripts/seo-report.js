@@ -112,6 +112,15 @@ function write(name, header, rows) {
     pull(['query'], [{ dimension: 'page', operator: 'equals', expression: MEDICARE }])
   ]);
 
+  // The apex/HTTP homepage variants are tracked separately by decision, not
+  // fixed at the edge. See reports/seo-technical-notes.md. If the HTTP URL
+  // stops ranking independently, no action is needed.
+  const HOMEPAGE_VARIANTS = ['http://besthospice.com/', 'https://besthospice.com/', HOME];
+  const variantRows = HOMEPAGE_VARIANTS.map((u) => {
+    const r = (pages.rows || []).find((x) => x.keys[0] === u);
+    return [u, r ? r.impressions : 0, r ? r.clicks : 0, r ? r.position.toFixed(1) : '', r ? 'yes' : 'no'];
+  });
+
   const P = pages.rows || [];
   write('gsc-pages.csv', ['url', 'page_type', 'excluded_from_opportunity', 'clicks', 'impressions', 'ctr_pct', 'position'],
     P.map((r) => [r.keys[0], pageType(r.keys[0]), isExcluded(r.keys[0]) ? 'yes' : 'no', r.clicks, r.impressions, (r.ctr * 100).toFixed(2), r.position.toFixed(1)]));
@@ -121,6 +130,7 @@ function write(name, header, rows) {
     (pq.rows || []).map((r) => [r.keys[0], r.keys[1], r.clicks, r.impressions, r.position.toFixed(1)]));
   write('homepage-brand-queries.csv', ['query', 'is_brand', 'clicks', 'impressions', 'position'],
     (brand.rows || []).map((r) => [r.keys[0], /best\s*hospice|besthospice/i.test(r.keys[0]) ? 'yes' : 'no', r.clicks, r.impressions, r.position.toFixed(1)]));
+  write('homepage-variants.csv', ['url', 'impressions', 'clicks', 'position', 'present_in_index'], variantRows);
   write('medicare-guide-queries.csv', ['query', 'clicks', 'impressions', 'position'],
     (medicare.rows || []).map((r) => [r.keys[0], r.clicks, r.impressions, r.position.toFixed(1)]));
 
