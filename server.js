@@ -2329,29 +2329,60 @@ function cityDisplayName(slugCity, providers = []) {
 // or process in the data model; planTier defaults to the string "verified",
 // which is the name of the $250 subscription tier, not a credential. Claiming
 // it in a search snippet implies vetting that does not exist.
-function locationMetadata({ serviceName, placeLabel, providerCount, scope }) {
+// How each service may describe its own funding. Hospice is a Medicare Part A
+// benefit, so Medicare framing is accurate there. Non-medical home care is
+// generally not a Medicare benefit at all - it is usually private-pay or
+// funded through Medicaid long-term services - so promising "Medicare hospice
+// coverage" on a home-care page is both wrong and the exact conflation between
+// non-medical home care and Medicare-certified home health we must avoid.
+const LOCATION_COVERAGE_COPY = {
+  'hospice-care': {
+    zeroTitle: 'Medicare Coverage & Local Guidance',
+    zeroDesc: 'including Medicare coverage, eligibility, and how to arrange care locally',
+    oneTitle: 'Local Provider & Medicare Guidance',
+    oneDesc: 'including a local provider, Medicare coverage, eligibility, and care guidance',
+    manyDesc: 'learn how Medicare hospice coverage works, and understand local care options'
+  },
+  'home-care': {
+    zeroTitle: 'Costs, Coverage & Local Guidance',
+    zeroDesc: 'including what it covers, how families typically pay for it, and how to arrange care locally',
+    oneTitle: 'Local Provider, Costs & Coverage',
+    oneDesc: 'including a local provider, what home care covers, and how families typically pay for it',
+    manyDesc: 'learn how non-medical home care differs from Medicare-certified home health, and how families typically pay for it'
+  },
+  'palliative-care': {
+    zeroTitle: 'Coverage & Local Guidance',
+    zeroDesc: 'including what it covers, who qualifies, and how to arrange care locally',
+    oneTitle: 'Local Provider, Coverage & Guidance',
+    oneDesc: 'including a local provider, what palliative care covers, and who qualifies',
+    manyDesc: 'learn how palliative care coverage works, and understand local care options'
+  }
+};
+
+function locationMetadata({ serviceName, placeLabel, providerCount, scope, serviceKey }) {
   const n = Number(providerCount) || 0;
   const service = String(serviceName || 'Care');
   const lower = service.toLowerCase();
   const place = String(placeLabel || '');
   const across = scope === 'state' ? 'across' : 'in';
+  const copy = LOCATION_COVERAGE_COPY[serviceKey] || LOCATION_COVERAGE_COPY['hospice-care'];
 
   if (n === 0) {
     // Nothing to compare or list. Offer only what the page really has.
     return {
-      title: `${service} in ${place} | Medicare Coverage & Local Guidance`,
-      description: `Learn about ${lower} ${across} ${place}, including Medicare coverage, eligibility, and how to arrange care locally.`
+      title: `${service} in ${place} | ${copy.zeroTitle}`,
+      description: `Learn about ${lower} ${across} ${place}, ${copy.zeroDesc}.`
     };
   }
   if (n === 1) {
     return {
-      title: `${service} in ${place} | Local Provider & Medicare Guidance`,
-      description: `Explore ${lower} ${across} ${place}, including a local provider, Medicare coverage, eligibility, and care guidance.`
+      title: `${service} in ${place} | ${copy.oneTitle}`,
+      description: `Explore ${lower} ${across} ${place}, ${copy.oneDesc}.`
     };
   }
   return {
     title: `${service} in ${place} | Compare ${n} Local Providers`,
-    description: `Compare ${n} ${lower} providers serving ${place}, learn how Medicare hospice coverage works, and understand local care options.`
+    description: `Compare ${n} ${lower} providers serving ${place}, ${copy.manyDesc}.`
   };
 }
 
@@ -2532,12 +2563,37 @@ function latestProviderDate(providers = []) {
   return new Date(Math.max(...stamps.map((d) => d.getTime()))).toISOString().split('T')[0];
 }
 
-function renderTrustBlock() {
+// The cited sources must match the service the page is about. This block used
+// to cite the Medicare hospice benefit on every page, including home-care
+// pages, where Medicare generally does not cover the service at all.
+const TRUST_BLOCK_SOURCES = {
+  'hospice-care': [
+    ['Medicare.gov &mdash; Hospice care coverage', 'https://www.medicare.gov/coverage/hospice-care'],
+    ['CMS &mdash; Hospice Center', 'https://www.cms.gov/medicare/payment/fee-for-service-providers/hospice']
+  ],
+  'home-care': [
+    ['Medicare.gov &mdash; What&rsquo;s home health care?', 'https://www.medicare.gov/what-medicare-covers/whats-home-health-care'],
+    ['Eldercare Locator (Administration for Community Living)', 'https://eldercare.acl.gov/']
+  ],
+  'palliative-care': [
+    ['Medicare.gov &mdash; Hospice care coverage', 'https://www.medicare.gov/coverage/hospice-care'],
+    ['Eldercare Locator (Administration for Community Living)', 'https://eldercare.acl.gov/']
+  ]
+};
+
+function renderTrustBlock(serviceKey = 'hospice-care') {
+  const key = TRUST_BLOCK_SOURCES[serviceKey] ? serviceKey : 'hospice-care';
+  const coverageLine = key === 'home-care'
+    ? 'Non-medical home care is generally not a Medicare benefit; Medicare may cover short-term skilled home health care ordered by a physician, which is a different service.'
+    : 'Medicare and coverage information on this page is drawn from official government sources and is general information, not medical advice.';
+  const sources = TRUST_BLOCK_SOURCES[key]
+    .map(([label, url]) => `<a href="${url}" rel="nofollow noopener" target="_blank">${label}</a>`)
+    .join(', ');
   return `
     <section class="s-card">
       <h3>About this page</h3>
-      <p class="text-small">Provider listings come from the Best Hospice and Home Health directory. Medicare and coverage information on this page is drawn from official government sources and is general information, not medical advice.</p>
-      <p class="text-small">Sources: <a href="https://www.medicare.gov/coverage/hospice-care" rel="nofollow noopener" target="_blank">Medicare.gov &mdash; Hospice care coverage</a>, <a href="https://www.cms.gov/medicare/payment/fee-for-service-providers/hospice" rel="nofollow noopener" target="_blank">CMS &mdash; Hospice Center</a>.</p>
+      <p class="text-small">Provider listings come from the Best Hospice and Home Health directory. ${coverageLine}</p>
+      <p class="text-small">Sources: ${sources}.</p>
       <p class="text-small">BestHospice.com is an independent directory and is not affiliated with Medicare, CMS, or any U.S. government agency.</p>
     </section>
   `;
@@ -2669,7 +2725,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
     : `We are actively expanding coverage in ${cityState}.`;
   const localResources = `Local resources in ${cityState} often include hospital care coordinators, Medicare counseling, and caregiver support groups. Providers can guide you to the right local options.`;
   const cityMeta = locationMetadata({
-    serviceName: service.name, placeLabel: cityState,
+    serviceName: service.name, placeLabel: cityState, serviceKey,
     providerCount: providers.length, scope: 'city'
   });
   const title = cityMeta.title;
@@ -2778,7 +2834,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
               <li class="cov-row"><span class="cov-label">Service</span><span>${service.name}</span></li>
             </ul>
           </section>
-          ${renderTrustBlock()}
+          ${renderTrustBlock(serviceKey)}
           <section class="s-card">
             <h3>Explore more</h3>
             <ul class="link-list">
@@ -2794,15 +2850,66 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: !serviceLocationIndexable(serviceKey), articleSchema: serviceKey === 'hospice-care' ? articleSchema : null });
 }
 
+// Genuinely state-specific material, keyed by service and state. Every factual
+// claim must carry a source that resolves; anything we cannot cite does not go
+// here. Deliberately sparse: a state gets an entry only when there is real
+// local substance to add, never to pad word count.
+const STATE_ENRICHMENT = {
+  'home-care': {
+    az: {
+      heading: 'Home care in Arizona: what is licensed, and what is not',
+      html: `
+      <p>Arizona draws a legal line between two things families often hear described with the same words. Under <a href="https://www.azleg.gov/ars/36/00151.htm" rel="nofollow noopener" target="_blank">A.R.S. &sect;&nbsp;36-151</a>, a <strong>home health agency</strong> is one &ldquo;primarily engaged in providing skilled nursing services and other therapeutic services,&rdquo; and home health services must include &ldquo;part-time or intermittent nursing care provided by or under the supervision of a registered professional nurse.&rdquo;</p>
+      <p><strong>Personal care and homemaker services are excluded from that definition.</strong> Arizona classifies them separately, as supportive services. So an agency that helps with bathing, dressing, meals, mobility and companionship generally is <em>not</em> licensed by the state as a home health agency &mdash; not because it is doing anything wrong, but because that licence covers skilled clinical care, which is a different service.</p>
+      <p>Why this matters when you are choosing: if an agency tells you it provides skilled nursing, physical therapy or wound care, it should hold an Arizona home health agency licence under <a href="https://www.azleg.gov/ars/36/00425-01.htm" rel="nofollow noopener" target="_blank">A.R.S. &sect;&nbsp;36-425.01</a>, and you can check that. If it provides non-medical help at home, there is no equivalent licence to look up, so ask instead about caregiver screening, training, supervision, backup coverage when a caregiver calls out, and whether they carry liability and workers' compensation insurance.</p>
+      <h3>Check an agency's licence yourself</h3>
+      <p>The Arizona Department of Health Services publishes a <a href="https://hsapps.azdhs.gov/ls/sod/Provider.aspx" rel="nofollow noopener" target="_blank">public licensing lookup</a> that also shows statements of deficiency from inspections. Search the agency's name. A deficiency on record is not automatically disqualifying &mdash; read what it was, when it happened, and whether it was corrected &mdash; but an agency claiming to provide skilled care with no licence at all is worth a direct question.</p>
+      <h3>How Arizona families pay for care at home</h3>
+      <p>Non-medical home care is usually paid privately. Medicare does not cover it as a benefit, and this is the single most common misunderstanding families arrive with: Medicare may pay for short-term skilled home <em>health</em> care ordered by a physician, but not for ongoing help with daily living.</p>
+      <p>The main public route in Arizona is the <strong>Arizona Long Term Care System (ALTCS)</strong>, the state's Medicaid long-term care programme. Per <a href="https://www.azahcccs.gov/Members/GetCovered/Categories/ALTCS.html" rel="nofollow noopener" target="_blank">AHCCCS</a>, ALTCS is &ldquo;health insurance for individuals who have an age related, and/or physical, and/or intellectual/developmental disability, and who require nursing facility level of care,&rdquo; and its covered services include <strong>attendant care, personal care and homemaker services</strong> delivered at home rather than in a facility. Eligibility requires both a nursing-facility level of care determination and meeting income and resource limits. Applications go through Health-e-Arizona Plus (HEAplus) or paper form DE-828.</p>
+      <p>Applying takes time, so it is worth starting the ALTCS assessment before care is urgently needed, and asking any agency you speak to whether they are contracted with ALTCS &mdash; not every agency is.</p>
+      <h3>Free, independent help comparing options</h3>
+      <p>Arizona is covered by Area Agencies on Aging, funded under the federal Older Americans Act. They provide caregiver support, benefits counselling and referrals at no charge, and they do not sell care. The federal <a href="https://eldercare.acl.gov/" rel="nofollow noopener" target="_blank">Eldercare Locator</a> will identify the Area Agency on Aging for your ZIP code, or you can reach it at 1-800-677-1116.</p>`,
+      sources: [
+        ['A.R.S. § 36-151 — definitions of home health agency and home health services', 'https://www.azleg.gov/ars/36/00151.htm'],
+        ['A.R.S. § 36-425.01 — home health agency licensure', 'https://www.azleg.gov/ars/36/00425-01.htm'],
+        ['Arizona Department of Health Services — licensing lookup and statements of deficiency', 'https://hsapps.azdhs.gov/ls/sod/Provider.aspx'],
+        ['AHCCCS — Arizona Long Term Care System (ALTCS)', 'https://www.azahcccs.gov/Members/GetCovered/Categories/ALTCS.html'],
+        ['Eldercare Locator (Administration for Community Living)', 'https://eldercare.acl.gov/']
+      ]
+    }
+  }
+};
+
+function renderStateEnrichment(serviceKey, stateCode) {
+  const entry = (STATE_ENRICHMENT[serviceKey] || {})[stateCode];
+  if (!entry) return '';
+  const sources = (entry.sources || [])
+    .map(([label, url]) => `<li><a href="${url}" rel="nofollow noopener" target="_blank">${label}</a></li>`)
+    .join('');
+  return `
+      <section class="content-section">
+        <h2>${entry.heading}</h2>
+        ${entry.html}
+        <h3>Sources</h3>
+        <ul class="link-list">${sources}</ul>
+        <p class="text-small">Programme rules and eligibility limits change. Confirm current details with the agency or programme directly. This is general information, not medical, legal or financial advice.</p>
+      </section>`;
+}
+
 function renderStatePage({ serviceKey, state, providers = [] }) {
   const service = serviceConfig[serviceKey];
   const stateName = stateNameMap[(state || '').toLowerCase()] || (state || '').toUpperCase();
   const stateCode = (state || '').toLowerCase();
-  const stateIntro = stateCode === 'az'
-    ? `Arizona is home to over 1.8 million residents aged 65 and older, representing one of the fastest-growing senior populations in the United States. The Phoenix metro area alone accounts for more than 65% of the state's hospice utilization, with Tucson, Scottsdale, and Mesa also seeing significant demand. Arizona's warm climate attracts retirees year-round, making access to quality hospice, palliative, and home care a critical need for families across the state. Medicare covers the majority of hospice services in Arizona, and the state's ALTCS program provides additional support for qualifying low-income seniors.`
-    : fillTemplate(service.direct, { cityState: stateName });
+  // Arizona previously had a hardcoded intro asserting "over 1.8 million
+  // residents aged 65 and older" and that Phoenix "accounts for more than 65%
+  // of the state's hospice utilization". Neither figure carried a source and
+  // neither could be verified, so both are gone rather than reworded. It also
+  // rendered identically on the hospice, palliative and home-care pages while
+  // talking only about hospice.
+  const stateIntro = fillTemplate(service.direct, { cityState: stateName });
   const stateMeta = locationMetadata({
-    serviceName: service.name, placeLabel: stateName,
+    serviceName: service.name, placeLabel: stateName, serviceKey,
     providerCount: providers.length, scope: 'state'
   });
   const title = stateMeta.title;
@@ -2845,6 +2952,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
         <h2>Cost & Coverage</h2>
         <p>${fillTemplate(service.cost, { stateName })}</p>
       </section>
+      ${renderStateEnrichment(serviceKey, stateCode)}
       <section class="content-section">
         <h2>When to Choose ${service.name}</h2>
         <p>${service.eligibility}</p>
@@ -2861,7 +2969,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
         <h2>FAQs</h2>
         ${renderSimpleFaqItems(service.faq || [])}
       </section>
-      ${renderTrustBlock()}
+      ${renderTrustBlock(serviceKey)}
     </main>
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: !serviceLocationIndexable(serviceKey) });
@@ -2968,7 +3076,7 @@ function renderHubPage({ serviceKey, states = [] }) {
               <li><a href="/education.html">Education Hub<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>
             </ul>
           </section>
-          ${renderTrustBlock()}
+          ${renderTrustBlock(serviceKey)}
         </aside>
       </div>
     </main>
@@ -3052,7 +3160,7 @@ function renderProviderPage(provider) {
       <p style="margin:0 0 14px;">BestHospice.com lists verified ${careLabel} providers across the country. Enter your ZIP code to find and compare options near you — free for families, no referral fees.</p>
       <a href="/search.html" class="button" style="font-size:1rem; padding:12px 28px;">Find Providers Near Me</a>
     </section>
-    ${renderTrustBlock()}
+    ${renderTrustBlock(serviceKeyForCareType(careType))}
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [provider], noindex: true });
 }
