@@ -202,6 +202,16 @@ const normalizeCareType = (value) => {
   if (type === 'home' || type === 'home-care') return 'home';
   return 'hospice';
 };
+// Provider.careType stores the short form ('hospice' | 'palliative' | 'home')
+// while URLs and serviceConfig use the '-care' suffixed form. Anything that
+// crosses between the two must go through these, or comparisons silently fail.
+const SERVICE_KEY_BY_CARE_TYPE = {
+  hospice: 'hospice-care',
+  palliative: 'palliative-care',
+  home: 'home-care'
+};
+const serviceKeyForCareType = (value) => SERVICE_KEY_BY_CARE_TYPE[normalizeCareType(value)] || 'hospice-care';
+
 const normalizeZipCodeList = (value) => {
   const asString = Array.isArray(value) ? value.join(',') : String(value || '');
   const zips = asString
@@ -2354,6 +2364,7 @@ async function fetchAllProviders() {
       website: true,
       email: true,
       featured: true,
+      careType: true,
       createdAt: true,
       updatedAt: true
     }
@@ -2361,7 +2372,9 @@ async function fetchAllProviders() {
   return providers.map(normalizeProviderCitySpelling);
 }
 
-async function providersByLocation(city, state) {
+// careType is required for the service pages: a /hospice-care/ page must not
+// list a home-care agency. Pass null only where every care type is wanted.
+async function providersByLocation(city, state, careType) {
   const legacyCity = city.replace(/\bTucson\b/i, 'Tuscon');
   const results = await prisma.provider.findMany({
     where: {
@@ -2369,7 +2382,8 @@ async function providersByLocation(city, state) {
         { city: { equals: city, mode: 'insensitive' } },
         { city: { equals: legacyCity, mode: 'insensitive' } }
       ],
-      state: { equals: state, mode: 'insensitive' }
+      state: { equals: state, mode: 'insensitive' },
+      ...(careType ? { careType: normalizeCareType(careType) } : {})
     },
   });
   return results.map(normalizeProviderCitySpelling).sort(byPlanThenName);
@@ -2952,21 +2966,25 @@ function renderHubPage({ serviceKey, states = [] }) {
 function renderProviderPage(provider) {
   const slug = providerSlug(provider);
   const cityState = cityStateString(provider.city, provider.state);
-  const careType = (provider.careType || 'hospice-care').toLowerCase();
+  // Stored values are 'hospice' | 'palliative' | 'home'. This previously
+  // compared against 'home-care'/'palliative-care', which never matched, so
+  // every provider was described as a hospice and the city link pointed at a
+  // nonexistent /home/... or /palliative/... route.
+  const careType = normalizeCareType(provider.careType);
 
   // Care-type-specific content blocks
-  const careLabel = careType === 'home-care' ? 'home care' : careType === 'palliative-care' ? 'palliative care' : 'hospice care';
-  const careServiceList = careType === 'home-care'
+  const careLabel = careType === 'home' ? 'home care' : careType === 'palliative' ? 'palliative care' : 'hospice care';
+  const careServiceList = careType === 'home'
     ? 'personal care assistance, bathing and grooming support, meal preparation, medication reminders, housekeeping, companionship, transportation, and respite care for family caregivers'
-    : careType === 'palliative-care'
+    : careType === 'palliative'
     ? 'symptom and pain management, care coordination, emotional and psychological support, social work services, chaplain services, and family counseling'
     : 'nursing visits, pain and symptom management, medication delivery, medical equipment, social work services, chaplain services, aide support, and bereavement counseling for the family';
-  const careGoal = careType === 'home-care'
+  const careGoal = careType === 'home'
     ? 'helping individuals live safely and comfortably at home'
-    : careType === 'palliative-care'
+    : careType === 'palliative'
     ? 'improving quality of life for patients with serious illness at any stage'
     : 'providing comfort-focused end-of-life support to patients and their families';
-  const cityServiceUrl = `${CANONICAL_DOMAIN}/${careType}/${slugify(provider.city)}-${(provider.state || '').toLowerCase()}`;
+  const cityServiceUrl = `${CANONICAL_DOMAIN}/${serviceKeyForCareType(careType)}/${slugify(provider.city)}-${(provider.state || '').toLowerCase()}`;
 
   const title = `${provider.name} | ${careLabel.replace(/\b\w/g, c => c.toUpperCase())} in ${cityState}`;
   const description = `${provider.name} can offer ${careLabel} services in ${cityState}. View contact information, address, and services offered.`;
@@ -7337,27 +7355,20 @@ async function buildSitemapUrls() {
 
   const [providers, allProviderLocations] = await Promise.all([
     fetchAllProviders(),
-    prisma.provider.findMany({ select: { city: true, state: true } })
+    prisma.provider.findMany({ select: { city: true, state: true, careType: true } })
   ]);
 
-  const seenStates = new Set();
-  const seenCities = new Set();
   for (const p of allProviderLocations) {
     const state = String(p.state || '').toLowerCase().trim();
-    const stateLabel = normalizeStateLabel(p.state);
     const city = String(p.city || '').trim();
     if (!state) continue;
-    if (!seenStates.has(state)) {
-      seenStates.add(state);
-      SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${state}`));
-      // /states/* and /cities/* now 301 to their dynamic equivalents, so they
-      // must not be submitted: a sitemap should only contain canonical URLs.
-    }
-    if (!city) continue;
-    const cityKey = `${city.toLowerCase()}-${state}`;
-    if (seenCities.has(cityKey)) continue;
-    seenCities.add(cityKey);
-    SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}/${slugify(city)}-${state}`));
+    // One service key per provider, matching its care type: a city with only
+    // home-care providers should not advertise a hospice page.
+    // /states/* and /cities/* now 301 to their dynamic equivalents, so they
+    // must not be submitted: a sitemap should only contain canonical URLs.
+    const serviceKey = serviceKeyForCareType(p.careType);
+    urls.add(`${CANONICAL_DOMAIN}/${serviceKey}/${state}`);
+    if (city) urls.add(`${CANONICAL_DOMAIN}/${serviceKey}/${slugify(city)}-${state}`);
   }
 
   providers.forEach((p) => {
@@ -7396,8 +7407,11 @@ app.get('/:service(hospice-care|palliative-care|home-care)/:city-:state', async 
     const { service, city, state } = req.params;
     const slugCity = (city || '').replace(/-/g, ' ');
     const stateCode = (state || '').toLowerCase();
-    const providers = await providersByLocation(slugCity, stateCode);
-    const cityName = cityDisplayName(slugCity, providers);
+    const providers = await providersByLocation(slugCity, stateCode, normalizeCareType(service));
+    // Fall back to any provider in the city purely to spell the city name
+    // correctly; these are never rendered as providers for this service.
+    const naming = providers.length ? providers : await providersByLocation(slugCity, stateCode, null);
+    const cityName = cityDisplayName(slugCity, naming);
     const html = renderCityPage({ serviceKey: service, city: cityName, state: stateCode, providers });
     res.send(html);
   } catch (err) {
@@ -7410,7 +7424,7 @@ app.get('/:service(hospice-care|palliative-care|home-care)/:state([a-z]{2})', as
   try {
     const { service, state } = req.params;
     const providersRaw = await prisma.provider.findMany({
-      where: { state: { equals: state, mode: 'insensitive' } }
+      where: { state: { equals: state, mode: 'insensitive' }, careType: normalizeCareType(service) }
     });
     const providers = providersRaw.map(normalizeProviderCitySpelling).sort(byPlanThenName);
     const html = renderStatePage({ serviceKey: service, state, providers });
@@ -7425,7 +7439,9 @@ app.get('/:service(hospice-care|palliative-care|home-care)', async (req, res) =>
   try {
     const { service } = req.params;
     if (!SERVICE_KEYS.includes(service)) return res.status(404).send('Not found');
-    const providers = await prisma.provider.findMany({ select: { state: true } });
+    const providers = await prisma.provider.findMany({
+      where: { careType: normalizeCareType(service) }, select: { state: true }
+    });
     const states = Array.from(
       new Set(
         providers
@@ -7613,24 +7629,22 @@ ${urls.map((u) => `<url><loc>${u}</loc><priority>0.7</priority></url>`).join('\n
 
 app.get('/sitemap-locations.xml', async (_req, res) => {
   const providers = await fetchAllProviders();
-  const seenCities = new Set();
-  const seenStates = new Set();
+  // Only submit a service/place URL when that service actually has providers
+  // there. Emitting all three services for every city advertised pages that
+  // list nobody.
   const urls = [];
+  const seen = new Set();
   for (const p of providers) {
     const state = (p.state || '').toLowerCase();
-    if (state && !seenStates.has(state)) {
-      seenStates.add(state);
-      SERVICE_KEYS.forEach((s) => {
-        urls.push(`${CANONICAL_DOMAIN}/${s}/${state}`);
-      });
+    if (!state) continue;
+    const serviceKey = serviceKeyForCareType(p.careType);
+    for (const loc of [state, p.city ? `${slugify(p.city)}-${state}` : null]) {
+      if (!loc) continue;
+      const url = `${CANONICAL_DOMAIN}/${serviceKey}/${loc}`;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      urls.push(url);
     }
-    if (!p.city || !state) continue;
-    const key = `${p.city.toLowerCase()}-${state}`;
-    if (seenCities.has(key)) continue;
-    seenCities.add(key);
-    SERVICE_KEYS.forEach((s) => {
-      urls.push(`${CANONICAL_DOMAIN}/${s}/${slugify(p.city)}-${state}`);
-    });
   }
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
