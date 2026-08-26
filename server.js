@@ -2493,13 +2493,25 @@ function renderComparisonTable() {
   `;
 }
 
-function renderTrustBlock(dateStr) {
+// Mirrors the sitemap lastmod rule: Provider.updatedAt is a genuine
+// content-modification timestamp, so derive dateModified from it. Rendering a
+// page today does not mean its content changed today, so when there is no real
+// timestamp the field is omitted rather than stamped with the current date.
+function latestProviderDate(providers = []) {
+  const stamps = (providers || [])
+    .map((p) => (p && p.updatedAt ? new Date(p.updatedAt) : null))
+    .filter((d) => d && !Number.isNaN(d.getTime()));
+  if (!stamps.length) return null;
+  return new Date(Math.max(...stamps.map((d) => d.getTime()))).toISOString().split('T')[0];
+}
+
+function renderTrustBlock() {
   return `
     <section class="s-card">
-      <h3>Reviewed for clarity</h3>
-      <p class="text-small">Reviewed by the Best Hospice and Home Health Clinical Review Team.</p>
-      <p class="text-small"><strong>Last updated:</strong> ${dateStr}</p>
-      <p class="text-small">Sources: Medicare.gov, CMS, NIH.</p>
+      <h3>About this page</h3>
+      <p class="text-small">Provider listings come from the Best Hospice and Home Health directory. Medicare and coverage information on this page is drawn from official government sources and is general information, not medical advice.</p>
+      <p class="text-small">Sources: <a href="https://www.medicare.gov/coverage/hospice-care" rel="nofollow noopener" target="_blank">Medicare.gov &mdash; Hospice care coverage</a>, <a href="https://www.cms.gov/medicare/payment/fee-for-service-providers/hospice" rel="nofollow noopener" target="_blank">CMS &mdash; Hospice Center</a>.</p>
+      <p class="text-small">BestHospice.com is an independent directory and is not affiliated with Medicare, CMS, or any U.S. government agency.</p>
     </section>
   `;
 }
@@ -2644,13 +2656,14 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
   const providerSchemas = providers.slice(0, 10);
+  const cityModified = latestProviderDate(providers);
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: `${service.name} in ${cityState}: Providers, Cost & Eligibility`,
     description,
     url: canonical,
-    dateModified: formatDateISO(),
+    ...(cityModified ? { dateModified: cityModified } : {}),
     publisher: { '@type': 'Organization', name: 'Best Hospice and Home Health', url: 'https://www.besthospice.com' }
   };
   const cityFaqItems = (service.faq || [])
@@ -2738,7 +2751,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
               <li class="cov-row"><span class="cov-label">Service</span><span>${service.name}</span></li>
             </ul>
           </section>
-          ${renderTrustBlock(formatDateISO())}
+          ${renderTrustBlock()}
           <section class="s-card">
             <h3>Explore more</h3>
             <ul class="link-list">
@@ -2821,7 +2834,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
         <h2>FAQs</h2>
         ${renderSimpleFaqItems(service.faq || [])}
       </section>
-      ${renderTrustBlock(formatDateISO())}
+      ${renderTrustBlock()}
     </main>
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: serviceKey !== 'hospice-care' });
@@ -2928,7 +2941,7 @@ function renderHubPage({ serviceKey, states = [] }) {
               <li><a href="/education.html">Education Hub<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6"/></svg></a></li>
             </ul>
           </section>
-          ${renderTrustBlock(formatDateISO())}
+          ${renderTrustBlock()}
         </aside>
       </div>
     </main>
@@ -3008,7 +3021,7 @@ function renderProviderPage(provider) {
       <p style="margin:0 0 14px;">BestHospice.com lists verified ${careLabel} providers across the country. Enter your ZIP code to find and compare options near you — free for families, no referral fees.</p>
       <a href="/search.html" class="button" style="font-size:1rem; padding:12px 28px;">Find Providers Near Me</a>
     </section>
-    ${renderTrustBlock(formatDateISO())}
+    ${renderTrustBlock()}
   `;
   return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas: [provider], noindex: true });
 }
