@@ -62,18 +62,47 @@ ok(!/\$\{CANONICAL_DOMAIN\}\/\$\{careType\}\//.test(SRC),
 // from the same predicate so they cannot drift apart again.
 console.log('\nsitemap / noindex consistency:');
 ok(/const INDEXABLE_LOCATION_SERVICES = new Set/.test(SRC),
-  'a single INDEXABLE_LOCATION_SERVICES set exists');
+  'a service-level indexability set exists');
+ok(/const INDEXABLE_LOCATION_EXCEPTIONS = new Set/.test(SRC),
+  'a place-level exception set exists, so states can be promoted one at a time');
 ok(!/noindex: serviceKey !== /.test(SRC),
   'no renderer hardcodes its own indexability comparison');
-ok((SRC.match(/noindex: !serviceLocationIndexable\(serviceKey\)/g) || []).length === 2,
-  'both location renderers (city, state) derive noindex from the predicate');
-ok((SRC.match(/if \(!serviceLocationIndexable\(serviceKey\)\) continue;/g) || []).length === 2,
-  'both sitemap builders skip services whose location pages are noindex');
+ok((SRC.match(/noindex: !serviceLocationIndexable\(serviceKey, /g) || []).length === 2,
+  'both location renderers pass their place slug to the predicate');
+ok((SRC.match(/serviceLocationIndexable\(serviceKey, (loc|state|citySlug)\)/g) || []).length === 3,
+  'both sitemap builders test indexability per URL, not per service');
+
+// Exercise the real predicate rather than pattern-matching it.
 {
-  const set = SRC.match(/const INDEXABLE_LOCATION_SERVICES = new Set\(\[([^\]]*)\]\)/);
-  const keys = set ? set[1].split(',').map((x) => x.trim().replace(/['"]/g, '')).filter(Boolean) : [];
-  ok(keys.length === 1 && keys[0] === 'hospice-care',
-    `only hospice-care location pages are indexable (found: ${keys.join(', ') || 'none'})`);
+  const psrc = [
+    SRC.match(/const INDEXABLE_LOCATION_SERVICES = new Set\([\s\S]*?\);/)[0],
+    SRC.match(/const INDEXABLE_LOCATION_EXCEPTIONS = new Set\([\s\S]*?\n\]\);/)[0],
+    SRC.match(/const serviceLocationIndexable = \(serviceKey, placeSlug\) => \{[\s\S]*?\n\};/)[0]
+  ].join('\n');
+  const f = new Function(`${psrc}\nreturn serviceLocationIndexable;`)();
+  console.log('\nindexability rules (exercised, not pattern-matched):');
+  const cases = [
+    ['hospice-care', 'az', true,  'hospice state page indexable'],
+    ['hospice-care', 'mesa-az', true, 'hospice city page indexable'],
+    ['hospice-care', 'ut', true,  'hospice state page with zero providers still indexable'],
+    ['home-care', 'az', true,     'ARIZONA home care promoted'],
+    ['home-care', 'tn', false,    'Tennessee home care still noindex'],
+    ['home-care', 'pa', false,    'Pennsylvania home care still noindex'],
+    ['home-care', 'co', false,    'Colorado home care still noindex'],
+    ['home-care', 'md', false,    'Maryland home care still noindex'],
+    ['home-care', 'tx', false,    'Texas home care still noindex'],
+    ['home-care', 'va', false,    'Virginia home care still noindex'],
+    ['home-care', 'ga', false,    'Georgia home care still noindex'],
+    ['home-care', 'mesa-az', false, 'Arizona home care CITY page still noindex'],
+    ['home-care', 'phoenix-az', false, 'Phoenix home care city page still noindex'],
+    ['palliative-care', 'az', false, 'palliative state page noindex'],
+    ['palliative-care', 'mesa-az', false, 'palliative city page noindex']
+  ];
+  cases.forEach(([svc, place, want, label]) => ok(f(svc, place) === want, label));
+  const promoted = (SRC.match(/const INDEXABLE_LOCATION_EXCEPTIONS = new Set\([\s\S]*?\n\]\);/)[0]
+    .match(/'([a-z-]+\/[a-z0-9-]+)'/g) || []).map((x) => x.replace(/'/g, ''));
+  ok(promoted.length === 1 && promoted[0] === 'home-care/az',
+    `exactly one place is promoted, and it is home-care/az (found: ${promoted.join(', ') || 'none'})`);
 }
 
 // ---- predicted outcome per page ------------------------------------------

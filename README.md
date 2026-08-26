@@ -30,7 +30,7 @@ Static prototype that lets visitors enter a US ZIP code, zoom a live map, and se
 - Providers stored in SQLite via Prisma; lead notifications, impressions, rate limits, and audit logs also stored in DB.
 
 ## Notes / Tweaks
-- Radius: change `radiusKm` in `script.js` if you want a tighter or wider search.  
+- Radius: change `radiusKm` in `search-results.js` if you want a tighter or wider search.  
 - Styling: `styles.css` holds all theme tweaks (colors, layout, responsive).  
 - Attribution: Leaflet uses OpenStreetMap tiles; attribution is already in the map.  
 - Politeness: For production, set a descriptive `User-Agent` and consider hosting your own Overpass endpoint or using a commercial geocoder to avoid rate limits.
