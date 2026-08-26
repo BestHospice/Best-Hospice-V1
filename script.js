@@ -459,7 +459,7 @@ async function handleInitialSearch(event) {
     const contactTarget = currentContactPhone
       ? `${currentContactPhone} or ${currentContactEmail}`
       : currentContactEmail;
-    reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} verified hospice providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
+    reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
     reassuranceCard.classList.remove('hidden');
     reassuranceCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setStatus(`We've notified ${currentNearbyProviders.length} providers near ${geo.label}.`);

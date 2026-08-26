@@ -556,7 +556,7 @@ async function startResultsFlow() {
       ? `${currentContactPhone} or ${currentContactEmail}`
       : currentContactEmail;
 
-    reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} verified hospice providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
+    reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
     notifyMini.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName}.`;
     setStatus(`We've notified ${currentNearbyProviders.length} providers near ${geo.label}.`);
     showResultsWithOptionalPrompt();

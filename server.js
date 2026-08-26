@@ -212,6 +212,15 @@ const SERVICE_KEY_BY_CARE_TYPE = {
 };
 const serviceKeyForCareType = (value) => SERVICE_KEY_BY_CARE_TYPE[normalizeCareType(value)] || 'hospice-care';
 
+// Single source of truth for whether a service's *location* pages (city and
+// state) may be indexed. The renderers and both sitemap builders consult this,
+// so a location URL can never be noindexed and submitted at the same time.
+// Home care and palliative care stay out until their pages carry enough unique
+// local utility to deserve it; palliative also has no participating providers.
+// The /<service> hub pages are a separate decision and remain indexable.
+const INDEXABLE_LOCATION_SERVICES = new Set(['hospice-care']);
+const serviceLocationIndexable = (serviceKey) => INDEXABLE_LOCATION_SERVICES.has(String(serviceKey || ''));
+
 const normalizeZipCodeList = (value) => {
   const asString = Array.isArray(value) ? value.join(',') : String(value || '');
   const zips = asString
@@ -2782,7 +2791,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
       </div>
     </main>
   `;
-  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: serviceKey !== 'hospice-care', articleSchema: serviceKey === 'hospice-care' ? articleSchema : null });
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: !serviceLocationIndexable(serviceKey), articleSchema: serviceKey === 'hospice-care' ? articleSchema : null });
 }
 
 function renderStatePage({ serviceKey, state, providers = [] }) {
@@ -2855,7 +2864,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
       ${renderTrustBlock()}
     </main>
   `;
-  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: serviceKey !== 'hospice-care' });
+  return renderPageHTML({ title, description, canonical, breadcrumbItems, body, faqSchema, providerSchemas, noindex: !serviceLocationIndexable(serviceKey) });
 }
 
 function renderHubPage({ serviceKey, states = [] }) {
@@ -7371,6 +7380,7 @@ async function buildSitemapUrls() {
     // /states/* and /cities/* now 301 to their dynamic equivalents, so they
     // must not be submitted: a sitemap should only contain canonical URLs.
     const serviceKey = serviceKeyForCareType(p.careType);
+    if (!serviceLocationIndexable(serviceKey)) continue;
     urls.add(`${CANONICAL_DOMAIN}/${serviceKey}/${state}`);
     if (city) urls.add(`${CANONICAL_DOMAIN}/${serviceKey}/${slugify(city)}-${state}`);
   }
@@ -7642,6 +7652,9 @@ app.get('/sitemap-locations.xml', async (_req, res) => {
     const state = (p.state || '').toLowerCase();
     if (!state) continue;
     const serviceKey = serviceKeyForCareType(p.careType);
+    // A noindex page must never be submitted: it only earns a "Submitted URL
+    // marked noindex" report and spends crawl budget saying "ignore me".
+    if (!serviceLocationIndexable(serviceKey)) continue;
     for (const loc of [state, p.city ? `${slugify(p.city)}-${state}` : null]) {
       if (!loc) continue;
       const url = `${CANONICAL_DOMAIN}/${serviceKey}/${loc}`;

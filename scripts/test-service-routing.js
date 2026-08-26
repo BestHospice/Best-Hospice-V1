@@ -56,6 +56,26 @@ ok(!/careType === 'home-care'/.test(SRC),
 ok(!/\$\{CANONICAL_DOMAIN\}\/\$\{careType\}\//.test(SRC),
   'provider page builds its city URL from a service key, not a raw careType');
 
+// ---- sitemap / noindex consistency --------------------------------------
+// The defect: home-care location URLs were submitted in two sitemaps while
+// every one of them rendered <meta robots="noindex">. Both facts must come
+// from the same predicate so they cannot drift apart again.
+console.log('\nsitemap / noindex consistency:');
+ok(/const INDEXABLE_LOCATION_SERVICES = new Set/.test(SRC),
+  'a single INDEXABLE_LOCATION_SERVICES set exists');
+ok(!/noindex: serviceKey !== /.test(SRC),
+  'no renderer hardcodes its own indexability comparison');
+ok((SRC.match(/noindex: !serviceLocationIndexable\(serviceKey\)/g) || []).length === 2,
+  'both location renderers (city, state) derive noindex from the predicate');
+ok((SRC.match(/if \(!serviceLocationIndexable\(serviceKey\)\) continue;/g) || []).length === 2,
+  'both sitemap builders skip services whose location pages are noindex');
+{
+  const set = SRC.match(/const INDEXABLE_LOCATION_SERVICES = new Set\(\[([^\]]*)\]\)/);
+  const keys = set ? set[1].split(',').map((x) => x.trim().replace(/['"]/g, '')).filter(Boolean) : [];
+  ok(keys.length === 1 && keys[0] === 'hospice-care',
+    `only hospice-care location pages are indexable (found: ${keys.join(', ') || 'none'})`);
+}
+
 // ---- predicted outcome per page ------------------------------------------
 const invPath = path.join(__dirname, '..', 'reports', 'cms-raw', 'bh-providers.json');
 if (!fs.existsSync(invPath)) {
