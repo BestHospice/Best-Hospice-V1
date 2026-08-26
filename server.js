@@ -2893,7 +2893,7 @@ function renderStateEnrichment(serviceKey, stateCode) {
         ${entry.html}
         <h3>Sources</h3>
         <ul class="link-list">${sources}</ul>
-        <p class="text-small">Programme rules and eligibility limits change. Confirm current details with the agency or programme directly. This is general information, not medical, legal or financial advice.</p>
+        <p class="text-small">Program rules and eligibility limits change. Confirm current details with the agency or program directly. This is general information, not medical, legal or financial advice.</p>
       </section>`;
 }
 
