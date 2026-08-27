@@ -56,7 +56,11 @@ const read = (name) => parseCSV(fs.readFileSync(path.join(RAW, name + '.csv'), '
 const NA = new Set(['Not Available', 'Not Applicable', '', 'N/A']);
 const num = (v) => {
   if (v == null || NA.has(String(v).trim())) return null;
-  const n = Number(String(v).replace(/,/g, ''));
+  // The 2026-08-19 release began writing percentage scores with a trailing '%'
+  // in state.csv ('55.7%') where the previous release wrote '55.7'. Strip that
+  // and thousands separators, or every state percentage benchmark silently
+  // becomes null and the page renders "not reported" for data we have.
+  const n = Number(String(v).replace(/,/g, '').replace(/%\s*$/, '').trim());
   return Number.isFinite(n) ? n : null;
 };
 const str = (v) => (v == null || NA.has(String(v).trim()) ? null : String(v).trim());

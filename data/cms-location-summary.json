@@ -1,0 +1,123 @@
+{
+  "generated": "2026-08-27T20:24:30.093Z",
+  "measurePeriod": "01/01/2023 - 12/31/2024",
+  "places": {
+    "hospice-care/tucson-az": {
+      "label": "Tucson, Arizona",
+      "state": "AZ",
+      "cohortSize": 47,
+      "basedHere": 29,
+      "routineHomeCareOnly": 1,
+      "levelsReported": 40,
+      "hciLocal": 9.5,
+      "hciCount": 41,
+      "hciState": 8.8,
+      "hciNational": 8.8,
+      "vldLocal": 62.8,
+      "vldCount": 38,
+      "vldState": 55.7,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "For-Profit",
+          "n": 33
+        },
+        {
+          "type": "Other",
+          "n": 7
+        },
+        {
+          "type": "Not reported to CMS",
+          "n": 6
+        },
+        {
+          "type": "Non-Profit",
+          "n": 1
+        }
+      ],
+      "ratedCount": 21,
+      "topRated": [
+        {
+          "name": "T M C HOSPICE AKA PEPPI'S HOUSE",
+          "city": "TUCSON",
+          "state": "AZ",
+          "ownership": "Other",
+          "star": 5,
+          "recommend": 93,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "ARIA HOSPICE COMFORT CARE",
+          "city": "TUCSON",
+          "state": "AZ",
+          "ownership": "Other",
+          "star": 5,
+          "recommend": 87,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "AGAPE HOSPICE & PALLIATIVE CARE",
+          "city": "TUCSON",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 90,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "CATALINA HOSPICE PLLC",
+          "city": "TUCSON",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 88,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "HAVEN HOSPICE",
+          "city": "TUCSON",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 83,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "BRISTOL HOSPICE - TUCSON",
+          "city": "TUCSON",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 78,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "CASA DE LA LUZ HOSPICE",
+          "city": "TUCSON",
+          "state": "AZ",
+          "ownership": "Other",
+          "star": 3,
+          "recommend": 87,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "DESERT HARMONY HOSPICE OF TUCSON",
+          "city": "TUCSON",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 3,
+          "recommend": 84,
+          "hci": 10,
+          "local": true
+        }
+      ]
+    }
+  }
+}
