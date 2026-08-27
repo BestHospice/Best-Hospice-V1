@@ -718,7 +718,7 @@ const serviceConfig = {
       ['How quickly can hospice care start?', 'Many providers can begin services within 24–48 hours after a physician certifies eligibility. In urgent situations, some agencies offer same-day intake.'],
       ['Does Medicare cover hospice care costs?', 'Yes. Medicare Part A covers most hospice services at little to no out-of-pocket cost, including nursing visits, medications for symptom control, medical equipment, and counseling. Eligibility requires a terminal diagnosis with a 6-month prognosis.'],
       ['Who is on the hospice care team?', 'A hospice team typically includes registered nurses, physicians, home health aides, social workers, chaplains, and bereavement counselors — all working together to support both the patient and the family.'],
-      ['How do I find hospice care providers near me?', 'Enter your ZIP code on BestHospice.com to instantly view verified hospice care providers in your area at no cost to your family.'],
+      ['How do I find hospice care providers near me?', 'Enter your ZIP code on BestHospice.com to instantly view hospice care providers in your area at no cost to your family.'],
       ['What is the difference between hospice and palliative care?', 'Hospice care is for patients who have stopped curative treatment and have a prognosis of 6 months or less. Palliative care can begin at any stage of illness alongside curative treatment, focusing on symptom relief and quality of life.'],
       ['Can a patient leave hospice care?', 'Yes. Patients can revoke hospice benefits at any time and return to curative treatment. They can re-enroll in hospice later if eligibility criteria are met again.']
     ]
@@ -763,7 +763,7 @@ const HUB_LONGFORM_CONTENT = {
     intro: [
       'Hospice care is specialized, comfort-focused support for people living with a terminal illness when the goal of care shifts from cure to quality of life. Families often hear the word hospice during one of the most emotional periods of their lives, and many are unsure what it really means. In practice, hospice is a coordinated care model that helps patients stay comfortable and supported while helping loved ones make informed decisions and avoid unnecessary stress.',
       'Hospice is not abandonment of care. It is active care with a different priority. Instead of repeated hospital visits and aggressive treatment side effects, the hospice model prioritizes pain relief, symptom management, dignity, and family support. Many families report that hospice gave them a clearer plan, better communication, and more peaceful time together at home.',
-      'Best Hospice and Home Health helps families compare verified providers by location so they can quickly find agencies with the right coverage area, care philosophy, and communication style.'
+      'Best Hospice and Home Health helps families compare providers by location so they can quickly find agencies with the right coverage area, care philosophy, and communication style.'
     ],
     sections: [
       {
@@ -1451,7 +1451,7 @@ app.get('/states/:state', async (req, res) => {
       <div class="hero-body" style="grid-template-columns:1fr;">
         <div class="hero-text">
           <h1>Hospice and Home Care in ${rawSlug}</h1>
-          <p class="tagline">We are actively expanding our verified provider network to ${rawSlug}. In the meantime, we can still help your family find care.</p>
+          <p class="tagline">We are actively expanding our provider network to ${rawSlug}. In the meantime, we can still help your family find care.</p>
         </div>
       </div>
     </header>
@@ -1465,7 +1465,7 @@ app.get('/states/:state', async (req, res) => {
       <section class="card" style="padding:18px; margin-bottom:18px;">
         <h2 style="margin:0 0 8px;">What Best Hospice and Home Health Does</h2>
         <p style="margin:0 0 10px;">We connect families with verified hospice, palliative care, and home care providers — at no cost to families, with no referral commissions, and no sales pressure.</p>
-        <p style="margin:0;">Enter your ZIP code to instantly see verified providers near you. If we do not have providers in your area yet, we will let you know as soon as we do.</p>
+        <p style="margin:0;">Enter your ZIP code to instantly see providers near you. If we do not have providers in your area yet, we will let you know as soon as we do.</p>
       </section>
       <section class="card" style="padding:18px;">
         <h2 style="margin:0 0 8px;">Need Help Now?</h2>
@@ -1539,7 +1539,7 @@ app.get('/states/:state', async (req, res) => {
       <div class="hero-body" style="grid-template-columns:1fr;">
         <div class="hero-text">
           <h1>Hospice and Home Care Providers in ${stateName}</h1>
-          <p class="tagline">We currently serve ${providers.length} verified providers across ${cityMap.size} cities in ${stateName}.</p>
+          <p class="tagline">We currently serve ${providers.length} providers across ${cityMap.size} cities in ${stateName}.</p>
         </div>
       </div>
     </header>
@@ -2534,7 +2534,6 @@ function renderProviderList(providers) {
     .map(
       (p) => `
       <article class="provider-card">
-        <div class="v-badge"><span class="v-dot"></span>Verified</div>
         <h3 class="provider-name">${p.name}</h3>
         <div class="provider-details">
           ${p.address ? `<div class="p-row">${p.address}</div>` : ''}
@@ -2787,7 +2786,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
     </div>
     <section class="page-hero">
       <div class="hero-inner">
-        <div class="hero-chip"><span class="hero-chip-dot"></span>Verified Local Providers</div>
+        <div class="hero-chip"><span class="hero-chip-dot"></span>Local Providers</div>
         <h1>${service.name} in ${cityState}: Providers, Cost & Eligibility</h1>
         <p class="hero-sub">${fillTemplate(service.direct, { cityState })}</p>
         <div class="hero-btns">
@@ -2797,7 +2796,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
         <div class="hero-trust">
           <div class="trust-pill">Commission-free platform</div>
           <div class="trust-pill">No family referral fees</div>
-          <div class="trust-pill">Verified provider directory</div>
+          <div class="trust-pill">Provider directory</div>
         </div>
       </div>
     </section>
@@ -2841,7 +2840,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
         <aside class="page-sidebar">
           <section class="s-card featured">
             <h3>Need care now?</h3>
-            <p>Connect with verified providers in minutes. Free for families and commission-free.</p>
+            <p>Connect with providers in minutes. Free for families and commission-free.</p>
             <a class="btn-sidebar" href="/search.html">Start your search</a>
           </section>
           <section class="s-card">
@@ -3026,7 +3025,7 @@ function renderHubPage({ serviceKey, states = [] }) {
           <a class="btn-outline" href="/cities.html">Browse cities</a>
         </div>
         <div class="hero-trust">
-          <div class="trust-pill">Verified provider directory</div>
+          <div class="trust-pill">Provider directory</div>
           <div class="trust-pill">No family referral fees</div>
           <div class="trust-pill">Commission-free platform</div>
         </div>
@@ -3083,7 +3082,7 @@ function renderHubPage({ serviceKey, states = [] }) {
         <aside class="page-sidebar">
           <section class="s-card featured">
             <h3>Need care now?</h3>
-            <p>Connect with verified providers in minutes. Free for families and commission-free.</p>
+            <p>Connect with providers in minutes. Free for families and commission-free.</p>
             <a class="btn-sidebar" href="/search.html">Start your search</a>
           </section>
           <section class="s-card">
@@ -8180,7 +8179,7 @@ app.post('/api/discharge-referral', async (req, res) => {
         <p>We've received your referral for <strong>${String(patient_first).trim()} ${String(patient_last).trim()}</strong> (ZIP: ${String(patient_zip).trim()}).</p>
         <p><strong>Care type:</strong> ${careLabels[care_type] || care_type}<br>
         <strong>Urgency:</strong> ${urgencyLabels[urgency] || urgency}</p>
-        <p>We'll match this patient with verified providers in their area within 24 hours. You'll be kept informed as the referral progresses.</p>
+        <p>We'll match this patient with providers in their area within 24 hours. You'll be kept informed as the referral progresses.</p>
         <p>Thank you for trusting Best Hospice & Home Health.<br><br>— The Best Hospice Team</p>
       </div>`;
       sendGenericEmail(String(planner_email).trim().toLowerCase(), 'Referral Received — Best Hospice & Home Health', html).catch(() => {});
