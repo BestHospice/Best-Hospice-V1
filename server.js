@@ -2552,6 +2552,8 @@ function renderCmsLocationSection(serviceKey, placeSlug) {
   if (!d) return '';
   const n = d.cohortSize;
   const cell = (v, unit) => (v == null ? '&mdash;' : `${v}${unit}`);
+  // Care Index is a 0-10 score; render one decimal so 9 and 9.5 line up.
+  const score = (v) => (v == null ? '&mdash;' : Number(v).toFixed(1));
   const ownRows = d.ownership.map((o) =>
     `<tr><td>${escapeHtml(o.type)}</td><td style="text-align:right;white-space:nowrap;">${o.n}</td><td style="text-align:right;white-space:nowrap;">${Math.round((o.n / n) * 100)}%</td></tr>`).join('');
   const ratedRows = d.topRated.map((h) => `
@@ -2559,13 +2561,13 @@ function renderCmsLocationSection(serviceKey, placeSlug) {
                 <td>${escapeHtml(cmsName(h.name))}<div class="text-small">${escapeHtml(cmsName(h.city))}, ${escapeHtml(h.state)}${h.ownership ? ' &middot; ' + escapeHtml(h.ownership) : ''}</div></td>
                 <td style="text-align:right;white-space:nowrap;">${h.star}/5</td>
                 <td style="text-align:right;white-space:nowrap;">${cell(h.recommend, '%')}</td>
-                <td style="text-align:right;white-space:nowrap;">${cell(h.hci, '')}</td>
+                <td style="text-align:right;white-space:nowrap;">${score(h.hci)}</td>
               </tr>`).join('');
   const levels = d.routineHomeCareOnly
     ? `<p><strong>Worth asking about:</strong> ${d.routineHomeCareOnly} of the ${d.levelsReported} hospices that reported levels of care provided <em>only</em> routine home care during the measure period &mdash; meaning no continuous home care during a crisis and no general inpatient care. Ask any hospice which levels of care they actually staff.</p>`
     : `<p>Every hospice serving ${escapeHtml(d.label)} that reported its levels of care provided more than routine home care, so continuous home care during a crisis or general inpatient care was available. Still worth confirming directly with any hospice you speak to.</p>`;
   const ratedBlock = d.topRated.length ? `
-            <h3>Highest family-survey results in this market</h3>
+            <h3>Highest family-survey results in ${escapeHtml(d.label)}</h3>
             <div class="callout"><strong>These are not Best Hospice providers.</strong> The table below comes entirely from public Medicare data. Appearing here does not mean an organization participates in Best Hospice, is verified by us, or is recommended by us. We show it so you can research every local option, including ones we have no relationship with.</div>
             <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;max-width:100%;"><table class="compare-table">
               <thead><tr><th>Hospice (Medicare data)</th><th style="text-align:right;white-space:nowrap;">Survey</th><th style="text-align:right;white-space:nowrap;">Would recommend</th><th style="text-align:right;white-space:nowrap;">Care Index</th></tr></thead>
@@ -2575,13 +2577,13 @@ function renderCmsLocationSection(serviceKey, placeSlug) {
   return `
           <section class="content-section">
             <h2>The hospice market in ${escapeHtml(d.label)}</h2>
-            <p><strong>${n} Medicare-certified hospices</strong> serve ${escapeHtml(d.label)} according to the service areas they report to Medicare, ${d.basedHere} of them based in the city itself. ${d.ratedCount} have a published family-experience survey result.</p>
+            <p><strong>${n} Medicare-certified hospices</strong> ${d.scope === 'state' ? `operate in ${escapeHtml(d.label)}` : `serve ${escapeHtml(d.label)} according to the service areas they report to Medicare, ${d.basedHere} of them based in the city itself`}. ${d.ratedCount} have a published family-experience survey result.</p>
             ${levels}
             <h3>How ${escapeHtml(d.label)} compares</h3>
             <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;max-width:100%;"><table class="compare-table">
               <thead><tr><th>Measure</th><th style="text-align:right;white-space:nowrap;">${escapeHtml(d.label)}</th><th style="text-align:right;white-space:nowrap;">${escapeHtml(d.state)} average</th><th style="text-align:right;white-space:nowrap;">U.S. average</th></tr></thead>
               <tbody>
-                <tr><td>Hospice Care Index (0&ndash;10, higher is better)<div class="text-small">Medicare composite of ten care indicators</div></td><td style="text-align:right;white-space:nowrap;">${cell(d.hciLocal, '')}</td><td style="text-align:right;white-space:nowrap;">${cell(d.hciState, '')}</td><td style="text-align:right;white-space:nowrap;">${cell(d.hciNational, '')}</td></tr>
+                <tr><td>Hospice Care Index (0&ndash;10, higher is better)<div class="text-small">Medicare composite of ten care indicators</div></td><td style="text-align:right;white-space:nowrap;">${score(d.hciLocal)}</td><td style="text-align:right;white-space:nowrap;">${score(d.hciState)}</td><td style="text-align:right;white-space:nowrap;">${score(d.hciNational)}</td></tr>
                 <tr><td>Visits in the last days of life<div class="text-small">Share of patients visited by a nurse or social worker in their final days</div></td><td style="text-align:right;white-space:nowrap;">${cell(d.vldLocal, '%')}</td><td style="text-align:right;white-space:nowrap;">${cell(d.vldState, '%')}</td><td style="text-align:right;white-space:nowrap;">${cell(d.vldNational, '%')}</td></tr>
               </tbody>
             </table></div>
@@ -3051,6 +3053,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
         <p>${fillTemplate(service.cost, { stateName })}</p>
       </section>
       ${renderStateEnrichment(serviceKey, stateCode)}
+      ${renderCmsLocationSection(serviceKey, stateCode)}
       <section class="content-section">
         <h2>When to Choose ${service.name}</h2>
         <p>${service.eligibility}</p>

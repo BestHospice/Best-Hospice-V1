@@ -1,10 +1,11 @@
 {
-  "generated": "2026-08-27T20:24:30.093Z",
+  "generated": "2026-08-27T20:54:08.543Z",
   "measurePeriod": "01/01/2023 - 12/31/2024",
   "places": {
     "hospice-care/tucson-az": {
       "label": "Tucson, Arizona",
       "state": "AZ",
+      "scope": "city",
       "cohortSize": 47,
       "basedHere": 29,
       "routineHomeCareOnly": 1,
@@ -115,6 +116,478 @@
           "star": 3,
           "recommend": 84,
           "hci": 10,
+          "local": true
+        }
+      ]
+    },
+    "hospice-care/phoenix-az": {
+      "label": "Phoenix, Arizona",
+      "state": "AZ",
+      "scope": "city",
+      "cohortSize": 156,
+      "basedHere": 81,
+      "routineHomeCareOnly": 14,
+      "levelsReported": 117,
+      "hciLocal": 8.7,
+      "hciCount": 118,
+      "hciState": 8.8,
+      "hciNational": 8.8,
+      "vldLocal": 55.2,
+      "vldCount": 99,
+      "vldState": 55.7,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "For-Profit",
+          "n": 109
+        },
+        {
+          "type": "Not reported to CMS",
+          "n": 29
+        },
+        {
+          "type": "Other",
+          "n": 14
+        },
+        {
+          "type": "Non-Profit",
+          "n": 4
+        }
+      ],
+      "ratedCount": 26,
+      "topRated": [
+        {
+          "name": "HOSPICE OF THE VALLEY - CENTRAL",
+          "city": "PHOENIX",
+          "state": "AZ",
+          "ownership": "Other",
+          "star": 4,
+          "recommend": 93,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "DESERT VALLEY HOSPICE LLC",
+          "city": "PHOENIX",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 88,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "FAITH HOSPICE",
+          "city": "PHOENIX",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 87,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "SUMMIT HOSPICE",
+          "city": "PHOENIX",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 86,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "SUNCREST HOSPICE PHOENIX, LLC",
+          "city": "PHOENIX",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 86,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "UNITED HOSPICE & PALLIATIVE CARE OF ARIZONA",
+          "city": "PHOENIX",
+          "state": "AZ",
+          "ownership": "Other",
+          "star": 4,
+          "recommend": 85,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "WINGS OF HOPE HOSPICE AND PALLIATIVE CARE, INC.",
+          "city": "PHOENIX",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 81,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "AGAVE HOSPICE AND PALLIATIVE CARE",
+          "city": "PHOENIX",
+          "state": "AZ",
+          "ownership": "For-Profit",
+          "star": 3,
+          "recommend": 84,
+          "hci": 10,
+          "local": true
+        }
+      ]
+    },
+    "hospice-care/salem-or": {
+      "label": "Salem, Oregon",
+      "state": "OR",
+      "scope": "city",
+      "cohortSize": 26,
+      "basedHere": 4,
+      "routineHomeCareOnly": 9,
+      "levelsReported": 25,
+      "hciLocal": 8.8,
+      "hciCount": 24,
+      "hciState": 9,
+      "hciNational": 8.8,
+      "vldLocal": 42.7,
+      "vldCount": 23,
+      "vldState": 51.5,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "For-Profit",
+          "n": 16
+        },
+        {
+          "type": "Non-Profit",
+          "n": 5
+        },
+        {
+          "type": "Not reported to CMS",
+          "n": 4
+        },
+        {
+          "type": "Government",
+          "n": 1
+        }
+      ],
+      "ratedCount": 17,
+      "topRated": [
+        {
+          "name": "WILLAMETTE VITAL HEALTH",
+          "city": "SALEM",
+          "state": "OR",
+          "ownership": "Non-Profit",
+          "star": 4,
+          "recommend": 88,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "SERENITY HOSPICE",
+          "city": "SALEM",
+          "state": "OR",
+          "ownership": "For-Profit",
+          "star": 2,
+          "recommend": 83,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "VANGE JOHN MEMORIAL HOSPICE",
+          "city": "HERMISTON",
+          "state": "OR",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 96,
+          "hci": 7,
+          "local": false
+        },
+        {
+          "name": "LOWER COLUMBIA HOSPICE",
+          "city": "ASTORIA",
+          "state": "OR",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 90,
+          "hci": 7,
+          "local": false
+        },
+        {
+          "name": "AMEDISYS HOSPICE CARE",
+          "city": "ROSEBURG",
+          "state": "OR",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 88,
+          "hci": 9,
+          "local": false
+        },
+        {
+          "name": "SAMARITAN EVERGREEN HOSPICE",
+          "city": "ALBANY",
+          "state": "OR",
+          "ownership": "Non-Profit",
+          "star": 4,
+          "recommend": 87,
+          "hci": 10,
+          "local": false
+        },
+        {
+          "name": "TENDERLY HOSPICE",
+          "city": "TIGARD",
+          "state": "OR",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 87,
+          "hci": 8,
+          "local": false
+        },
+        {
+          "name": "BELOVED HOSPICE, INC",
+          "city": "WILSONVILLE",
+          "state": "OR",
+          "ownership": null,
+          "star": 4,
+          "recommend": 84,
+          "hci": 10,
+          "local": false
+        }
+      ]
+    },
+    "hospice-care/ut": {
+      "label": "Utah",
+      "state": "UT",
+      "scope": "state",
+      "cohortSize": 82,
+      "basedHere": 82,
+      "routineHomeCareOnly": 3,
+      "levelsReported": 76,
+      "hciLocal": 9.3,
+      "hciCount": 75,
+      "hciState": 9.2,
+      "hciNational": 8.8,
+      "vldLocal": 70.7,
+      "vldCount": 71,
+      "vldState": 71.4,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "For-Profit",
+          "n": 63
+        },
+        {
+          "type": "Not reported to CMS",
+          "n": 7
+        },
+        {
+          "type": "Non-Profit",
+          "n": 6
+        },
+        {
+          "type": "Other",
+          "n": 5
+        },
+        {
+          "type": "Government",
+          "n": 1
+        }
+      ],
+      "ratedCount": 25,
+      "topRated": [
+        {
+          "name": "DIXIE HOSPICE CARE LLC",
+          "city": "ST. GEORGE",
+          "state": "UT",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 94,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "ASCEND HOSPICE",
+          "city": "LOGAN",
+          "state": "UT",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 93,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "APPLEGATE HOSPICE",
+          "city": "SOUTH OGDEN",
+          "state": "UT",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 92,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "BRISTOL HOSPICE - UTAH, LLC",
+          "city": "OGDEN",
+          "state": "UT",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 89,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "ASPEN RIDGE HOSPICE",
+          "city": "MURRAY",
+          "state": "UT",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 84,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "ENHABIT HOSPICE",
+          "city": "MURRAY",
+          "state": "UT",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 92,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "BRISTOL HOSPICE - UTAH II, LLC",
+          "city": "MURRAY",
+          "state": "UT",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 91,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "MISSION HOSPICE SERVICES OF ST. GEORGE",
+          "city": "ST. GEORGE",
+          "state": "UT",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 91,
+          "hci": 9,
+          "local": true
+        }
+      ]
+    },
+    "hospice-care/pa": {
+      "label": "Pennsylvania",
+      "state": "PA",
+      "scope": "state",
+      "cohortSize": 179,
+      "basedHere": 179,
+      "routineHomeCareOnly": 9,
+      "levelsReported": 171,
+      "hciLocal": 9,
+      "hciCount": 169,
+      "hciState": 9,
+      "hciNational": 8.8,
+      "vldLocal": 61.2,
+      "vldCount": 165,
+      "vldState": 59.9,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "For-Profit",
+          "n": 108
+        },
+        {
+          "type": "Non-Profit",
+          "n": 53
+        },
+        {
+          "type": "Not reported to CMS",
+          "n": 18
+        }
+      ],
+      "ratedCount": 112,
+      "topRated": [
+        {
+          "name": "VISITING NURSES ASSOCIATION OF VENANGO COUNTY, HOS",
+          "city": "FRANKLIN",
+          "state": "PA",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 98,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "HOSPICE OF WARREN COUNTY",
+          "city": "WARREN",
+          "state": "PA",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 96,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "COMMONWEALTH HOSPICE OF BERWICK",
+          "city": "FORTY FORT",
+          "state": "PA",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 96,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "HOSPICE OF CRAWFORD COUNTY INC",
+          "city": "MEADVILLE",
+          "state": "PA",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 95,
+          "hci": 7,
+          "local": true
+        },
+        {
+          "name": "WELLSPAN HOSPICE SERVICES",
+          "city": "LEWISBURG",
+          "state": "PA",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 95,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "TRADITIONAL HOSPICE",
+          "city": "DUNMORE",
+          "state": "PA",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 94,
+          "hci": 8,
+          "local": true
+        },
+        {
+          "name": "BRIDGES HOSPICE, INC",
+          "city": "MONROEVILLE",
+          "state": "PA",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 94,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "FAMILY PILLARS HOSPICE INC",
+          "city": "BETHLEHEM",
+          "state": "PA",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 94,
+          "hci": 8,
           "local": true
         }
       ]

@@ -21,7 +21,13 @@ const OUT = path.join(ROOT, 'data', 'cms-location-summary.json');
 // Adding a place here is a deliberate act: it puts new content on a live,
 // indexed page. Start small and measure.
 const ENABLED = [
-  { key: 'hospice-care/tucson-az', scope: 'city', city: 'TUCSON', state: 'AZ', label: 'Tucson, Arizona' }
+  // Pilot set. Chosen to span state and city scope, pages with and without
+  // participating providers, and the best and worst CAHPS density available.
+  { key: 'hospice-care/tucson-az',   scope: 'city',  city: 'TUCSON',  state: 'AZ', label: 'Tucson, Arizona' },
+  { key: 'hospice-care/phoenix-az',  scope: 'city',  city: 'PHOENIX', state: 'AZ', label: 'Phoenix, Arizona' },
+  { key: 'hospice-care/salem-or',    scope: 'city',  city: 'SALEM',   state: 'OR', label: 'Salem, Oregon' },
+  { key: 'hospice-care/ut',          scope: 'state',                  state: 'UT', label: 'Utah' },
+  { key: 'hospice-care/pa',          scope: 'state',                  state: 'PA', label: 'Pennsylvania' }
 ];
 
 const data = JSON.parse(fs.readFileSync(SRC, 'utf8'));
@@ -30,7 +36,12 @@ const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : nul
 const r1 = (v) => (v == null ? null : Math.round(v * 10) / 10);
 
 function cohort(p) {
-  if (p.scope === 'state') return H.filter((h) => h.state === p.state);
+  if (p.scope === 'state') {
+    // At state scope every hospice in the state is "based here", so the
+    // in-city-first ordering used for city pages is a no-op.
+    const c = H.filter((h) => h.state === p.state);
+    return { located: c, all: c };
+  }
   const located = H.filter((h) => h.city === p.city && h.state === p.state);
   const zips = new Set(located.map((h) => h.zip).filter(Boolean));
   const seen = new Set(located.map((h) => h.ccn));
@@ -57,6 +68,7 @@ for (const p of ENABLED) {
   out.places[p.key] = {
     label: p.label,
     state: p.state,
+    scope: p.scope,
     cohortSize: all.length,
     basedHere: located.length,
     routineHomeCareOnly: all.filter((h) => h.measures.routineHomeCareOnly === 'Yes').length,
