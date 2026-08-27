@@ -56,6 +56,22 @@ ok(!/careType === 'home-care'/.test(SRC),
 ok(!/\$\{CANONICAL_DOMAIN\}\/\$\{careType\}\//.test(SRC),
   'provider page builds its city URL from a service key, not a raw careType');
 
+// ---- visible list vs JSON-LD ---------------------------------------------
+// /hospice-care/az showed 16 provider cards while its JSON-LD declared 10,
+// and the schema was built from the un-normalized array. Both lists must come
+// from one variable capped once.
+console.log('\nvisible list / JSON-LD agreement:');
+ok(/const LOCATION_PROVIDER_DISPLAY_LIMIT = \d+;/.test(SRC),
+  'a single provider display limit exists');
+ok(!/providerSchemas = providers\.slice\(0, 10\)/.test(SRC),
+  'no renderer caps its schema separately at 10');
+ok((SRC.match(/const providerSchemas = displayProviders;/g) || []).length === 2,
+  'both location renderers derive providerSchemas from the displayed array');
+ok((SRC.match(/renderProviderList\(displayProviders\)/g) || []).length === 2,
+  'both location renderers render the same displayed array');
+ok(/const displayProviders = normalizedProviders\.slice/.test(SRC),
+  'the state page schema uses the city-spelling-normalized array');
+
 // ---- sitemap / noindex consistency --------------------------------------
 // The defect: home-care location URLs were submitted in two sitemaps while
 // every one of them rendered <meta robots="noindex">. Both facts must come

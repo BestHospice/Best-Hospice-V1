@@ -2526,6 +2526,13 @@ function nearbyCityLinks(city, state) {
   ];
 }
 
+// One limit for both the visible list and the JSON-LD, so structured data can
+// never advertise a different number of providers than the page shows. These
+// previously diverged: state pages listed 20 but declared 10, and the schema
+// was built from the un-normalized array so it carried the legacy "Tuscon"
+// spelling while the visible card said "Tucson".
+const LOCATION_PROVIDER_DISPLAY_LIMIT = 20;
+
 function renderProviderList(providers) {
   if (!providers?.length) {
     return '<p class="text-muted">No providers listed yet for this area. We are expanding our network—check back soon.</p>';
@@ -2755,7 +2762,8 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
     { name: cityState, url: canonical }
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
-  const providerSchemas = providers.slice(0, 10);
+  const displayProviders = providers.slice(0, LOCATION_PROVIDER_DISPLAY_LIMIT);
+  const providerSchemas = displayProviders;
   const cityModified = latestProviderDate(providers);
   const articleSchema = {
     '@context': 'https://schema.org',
@@ -2811,7 +2819,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
           <section class="content-section">
             <h2>${service.name} Providers in ${cityState}</h2>
             <div class="provider-stack">
-              ${renderProviderList(providers)}
+              ${renderProviderList(displayProviders)}
             </div>
           </section>
           <section class="content-section">
@@ -2938,8 +2946,9 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
     { name: stateName, url: canonical }
   ];
   const faqSchema = renderFAQSchema(service.faq || []);
-  const providerSchemas = providers.slice(0, 10);
   const normalizedProviders = providers.map(normalizeProviderCitySpelling);
+  const displayProviders = normalizedProviders.slice(0, LOCATION_PROVIDER_DISPLAY_LIMIT);
+  const providerSchemas = displayProviders;
   const cities = Array.from(new Set(normalizedProviders.map((p) => p.city))).filter(Boolean).slice(0, 20);
   const body = `
     <div class="breadcrumb">
@@ -2957,7 +2966,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
     <main class="page-wrap" style="position:relative;z-index:0;padding-top:48px; padding-bottom:56px;">
       <section class="content-section">
         <h2>Top Providers in ${stateName}</h2>
-        <div class="provider-stack">${renderProviderList(normalizedProviders.slice(0, 20))}</div>
+        <div class="provider-stack">${renderProviderList(displayProviders)}</div>
       </section>
       <section class="content-section">
         <h2>Browse cities in ${stateName}</h2>
