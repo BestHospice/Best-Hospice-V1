@@ -101,12 +101,15 @@ function websiteAnchor(url) {
   return `<a href="${href}" target="_blank" rel="noopener">Website - click here</a>`;
 }
 
+// Every subscribing provider shows the same "Partner" label. The old badge
+// exposed the billing tier to families as a one-to-three star rating, which
+// read as a quality score while actually measuring how much the provider pays.
+// Listing order still reflects tier; the results page says so plainly.
 function getPlanBadge(planTier) {
   const tier = String(planTier || '').toLowerCase();
-  if (tier === 'priority' || tier === 'market_leader' || tier === 'advanced') return '<span class="badge">⭐⭐⭐ Priority</span>';
-  if (tier === 'featured' || tier === 'growth_plus') return '<span class="badge">⭐⭐ Featured</span>';
-  if (tier === 'verified' || tier === 'growth' || tier === 'starter') return '<span class="badge">⭐ Verified</span>';
-  return '';
+  const known = ['priority', 'market_leader', 'advanced', 'featured', 'growth_plus',
+                 'verified', 'growth', 'starter'];
+  return known.includes(tier) ? '<span class="badge">Partner</span>' : '';
 }
 
 function formatCareType(value) {
