@@ -2403,8 +2403,28 @@ const LOCATION_COVERAGE_COPY = {
   }
 };
 
-function locationMetadata({ serviceName, placeLabel, providerCount, scope, serviceKey }) {
+function locationMetadata({ serviceName, placeLabel, providerCount, scope, serviceKey, placeSlug }) {
   const n = Number(providerCount) || 0;
+
+  // Where CMS market data is on the page, lead with the number of certified
+  // hospices in the market. "Medicare Coverage & Local Guidance" was accurate
+  // but answered a question nobody searching "hospice care in <city>" is
+  // asking, and at 66 characters it truncated in results anyway. Only applies
+  // to places that actually render the CMS section, so no page claims a number
+  // it does not show.
+  const cms = placeSlug ? (cmsLocationSummary.places || {})[`${serviceKey}/${placeSlug}`] : null;
+  if (cms && cms.cohortSize > 0) {
+    const place = String(placeLabel || '');
+    const across = scope === 'state' ? 'in' : 'serve';
+    return {
+      title: `${serviceName} in ${place}: Compare ${cms.cohortSize} Hospices`,
+      // Kept under ~155 characters so it is not truncated in results.
+      description: `${cms.cohortSize} Medicare-certified hospices ${across} ${place}`
+        + `${cms.ratedCount ? `, ${cms.ratedCount} with family-survey ratings` : ''}`
+        + `. Compare quality measures against state and national averages.`
+    };
+  }
+
   const service = String(serviceName || 'Care');
   const lower = service.toLowerCase();
   const place = String(placeLabel || '');
@@ -2848,7 +2868,7 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
     : `We are actively expanding coverage in ${cityState}.`;
   const localResources = `Local resources in ${cityState} often include hospital care coordinators, Medicare counseling, and caregiver support groups. Providers can guide you to the right local options.`;
   const cityMeta = locationMetadata({
-    serviceName: service.name, placeLabel: cityState, serviceKey,
+    serviceName: service.name, placeLabel: cityState, serviceKey, placeSlug,
     providerCount: providers.length, scope: 'city'
   });
   const title = cityMeta.title;
@@ -3035,7 +3055,7 @@ function renderStatePage({ serviceKey, state, providers = [] }) {
   // talking only about hospice.
   const stateIntro = fillTemplate(service.direct, { cityState: stateName });
   const stateMeta = locationMetadata({
-    serviceName: service.name, placeLabel: stateName, serviceKey,
+    serviceName: service.name, placeLabel: stateName, serviceKey, placeSlug: stateCode,
     providerCount: providers.length, scope: 'state'
   });
   const title = stateMeta.title;
