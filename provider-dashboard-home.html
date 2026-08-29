@@ -161,8 +161,6 @@
             <label style="font-weight:700;">Monthly subscription:
               <select id="roi-monthly" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
                 <option value="250">$250 — Partner</option>
-                <option value="375">$375 — Partner</option>
-                <option value="500">$500 — Partner</option>
               </select>
             </label>
             <label style="font-weight:700;">Revenue per client per month:
@@ -380,19 +378,10 @@
       if(!res.ok) throw new Error(data.error || 'Request failed');
       return data;
     }
-
-    // Mirrors normalizePlanTier in server.js so legacy tier names price correctly.
-    function normalizePlanTier(value){
-      const tier = String(value || '').trim().toLowerCase();
-      if (tier === 'verified' || tier === 'featured' || tier === 'priority') return tier;
-      if (tier === 'market_leader' || tier === 'advanced') return 'priority';
-      if (tier === 'growth_plus') return 'featured';
-      if (tier === 'growth' || tier === 'starter') return 'verified';
-      return 'verified';
-    }
-    function planToPrice(planTier){
-      const rates = { verified: 250, featured: 375, priority: 500 };
-      return rates[normalizePlanTier(planTier)] || 250;
+    // One Partner tier at a flat $250. Enterprise multi-location subscriptions
+    // are priced in Stripe and are not represented here.
+    function planToPrice(){
+      return 250;
     }
 
     async function loadMetrics(){

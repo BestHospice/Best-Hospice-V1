@@ -180,17 +180,15 @@ const PROVIDER_JWT_SECRET = getRequiredSecret('PROVIDER_JWT_SECRET');
 const ADMIN_SESSION_SECRET = getRequiredSecret('ADMIN_SESSION_SECRET');
 const DASHBOARD_VERIFY_URL = process.env.DASHBOARD_VERIFY_URL || 'https://www.besthospice.com/provider-dashboard.html';
 const PROVIDER_PLAN_DEFAULT = 'active';
-const normalizePlanTier = (value) => {
-  const tier = String(value || '').trim().toLowerCase();
-  if (tier === 'verified' || tier === 'featured' || tier === 'priority') return tier;
-  if (tier === 'market_leader' || tier === 'advanced') return 'priority';
-  if (tier === 'growth_plus') return 'featured';
-  if (tier === 'growth' || tier === 'starter') return 'verified';
-  return 'verified';
-};
+// There is one subscription tier, Partner, at PROVIDER_MONTHLY_RATE. The stored
+// string is still 'verified' because that is the key STRIPE_PRICE_ID_VERIFIED is
+// filed under and what all existing rows contain; renaming it would mean a new
+// Stripe env var plus a data migration for no functional gain. It is internal
+// and never shown - every customer-facing surface says "Partner".
+const SINGLE_PLAN_TIER = 'verified';
+const normalizePlanTier = () => SINGLE_PLAN_TIER;
 const normalizeCheckoutPlan = (value) => {
   const plan = String(value || '').trim().toLowerCase();
-  if (plan === 'verified' || plan === 'featured' || plan === 'priority') return plan;
   if (plan === '5locenterprise' || plan === 'enterprise' || plan === 'enterprise5' || plan === '5loc') return '5locenterprise';
   if (plan === '10locenterprise' || plan === 'enterprise10' || plan === '10loc') return '10locenterprise';
   return 'verified';
@@ -269,14 +267,15 @@ async function fixTusconProviderData() {
   }
 }
 const PROVIDER_MONTHLY_RATE = 250;
-const PROVIDER_TIER_RATES = { verified: 250, featured: 375, priority: 500 };
+// One tier, one rate. Enterprise multi-location subscriptions are priced in
+// Stripe and are not represented here; see the note in the commit message.
 // Assumed revenue to a provider per admitted client. Estimate only; used in Abel's ROI answers.
 // Defaults for Abel's ROI math, matching the dashboard calculator's starting values.
 const DEFAULT_REVENUE_PER_CLIENT_MONTH = 1000;
 const DEFAULT_MONTHS_PER_CLIENT = 3;
 // The provider dashboard already prices by tier (planToPrice in provider-dashboard-home.html).
 // Abel must agree with it, or a priority provider is quoted the verified rate.
-const providerRateForTier = (planTier) => PROVIDER_TIER_RATES[normalizePlanTier(planTier)] || PROVIDER_MONTHLY_RATE;
+const providerRateForTier = () => PROVIDER_MONTHLY_RATE;
 const providerRateById = async (providerId) => {
   if (!providerId) return PROVIDER_MONTHLY_RATE;
   try {
@@ -302,19 +301,16 @@ const providerAdmittedCount = async (providerId) => {
     return 0;
   }
 };
-const PLAN_NOTIFY_DELAY_MS = { priority: 0, featured: 60 * 1000, verified: 120 * 1000 };
-// Mirrors getPlanRank in search-results.js so listing order matches everywhere.
-const PLAN_RANK = { priority: 3, featured: 2, verified: 1 };
+// Every Partner is notified at the same time. Staggering by tier was the only
+// thing the old $375 and $500 plans actually bought.
+const PLAN_NOTIFY_DELAY_MS = 0;
+
 // One step down per cancellation; verified is the floor.
-const PROVIDER_TIER_DEMOTION = { priority: 'featured', featured: 'verified', verified: 'verified' };
-const planRank = (planTier) => PLAN_RANK[normalizePlanTier(planTier)] || 1;
-const byPlanThenName = (a, b) => {
-  const rank = planRank(b.planTier) - planRank(a.planTier);
-  if (rank !== 0) return rank;
-  const feat = (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
-  if (feat !== 0) return feat;
-  return String(a.name || '').localeCompare(String(b.name || ''));
-};
+
+// With one tier there is no paid placement, so listing order is alphabetical
+// and identical for every Partner. The old comparator sorted by plan rank and
+// then by the `featured` flag, both of which tracked how much a provider paid.
+const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
 const JOB_POLL_MS = 5000;
 const JOB_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const JOB_MAX_ATTEMPTS = 3;
@@ -1076,12 +1072,11 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           status,
           periodEnd
         });
-        // Record the plan that was actually bought. Previously every checkout set
-        // featured = true, which ranked a $250 Verified listing like a $500 Priority one.
-        const purchasedTier = normalizePlanTier(session.metadata?.planTier || session.metadata?.plan);
+        // One tier, so there is nothing to record beyond it, and `featured` is
+        // always false now that paid placement is gone.
         await prisma.provider.update({
           where: { id: providerId },
-          data: { planTier: purchasedTier, featured: purchasedTier !== 'verified' }
+          data: { planTier: SINGLE_PLAN_TIER, featured: false }
         });
       }
     } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
@@ -1101,19 +1096,12 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           `UPDATE "Provider" SET "subscriptionStatus" = 'canceled' WHERE "id" = $1`,
           providerId
         );
-        // Cancelling drops the listing one tier, so ranking follows payment.
-        const current = await prisma.provider.findUnique({
-          where: { id: providerId },
-          select: { planTier: true }
-        });
-        const demoted = PROVIDER_TIER_DEMOTION[normalizePlanTier(current?.planTier)] || 'verified';
-        await prisma.provider.update({
-          where: { id: providerId },
-          data: { planTier: demoted, featured: demoted !== 'verified' }
-        });
+        // Cancelling used to drop the listing one tier so ranking followed
+        // payment. With a single tier there is nothing to demote to, and lead
+        // access is already governed by billingMode and subscriptionStatus.
         await logAdminAction(
-          'system', 'PROVIDER_TIER_DEMOTED', providerId,
-          { from: normalizePlanTier(current?.planTier), to: demoted, reason: 'subscription canceled' },
+          'system', 'PROVIDER_SUBSCRIPTION_CANCELED', providerId,
+          { reason: 'subscription canceled' },
           hashIp(req.ip || '')
         );
       }
@@ -2494,7 +2482,7 @@ async function providersByLocation(city, state, careType) {
       ...(careType ? { careType: normalizeCareType(careType) } : {})
     },
   });
-  return results.map(normalizeProviderCitySpelling).sort(byPlanThenName);
+  return results.map(normalizeProviderCitySpelling).sort(byName);
 }
 
 function renderBreadcrumbList(items) {
@@ -3373,9 +3361,9 @@ app.post('/api/providers/email/checkout', async (req, res) => {
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
 
     const planPrices = {
-      verified: process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
-      featured: process.env.STRIPE_PRICE_ID_FEATURED || process.env.STRIPE_PRICE_ID_ADVANCED,
-      priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER,
+      // STRIPE_PRICE_ID_PARTNER is honoured if set, so the env var can be
+      // renamed later without a breaking deploy.
+      verified: process.env.STRIPE_PRICE_ID_PARTNER || process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
       '5locenterprise': process.env.STRIPE_PRICE_ID_5LOCEnterprise,
       '10locenterprise': process.env.STRIPE_PRICE_ID_10LOCEnterprise
     };
@@ -3465,9 +3453,9 @@ app.post('/api/providers/:id/checkout', async (req, res) => {
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
 
     const planPrices = {
-      verified: process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
-      featured: process.env.STRIPE_PRICE_ID_FEATURED || process.env.STRIPE_PRICE_ID_ADVANCED,
-      priority: process.env.STRIPE_PRICE_ID_PRIORITY || process.env.STRIPE_PRICE_ID_MARKET_LEADER,
+      // STRIPE_PRICE_ID_PARTNER is honoured if set, so the env var can be
+      // renamed later without a breaking deploy.
+      verified: process.env.STRIPE_PRICE_ID_PARTNER || process.env.STRIPE_PRICE_ID_VERIFIED || process.env.STRIPE_PRICE_ID_GROWTH,
       '5locenterprise': process.env.STRIPE_PRICE_ID_5LOCEnterprise,
       '10locenterprise': process.env.STRIPE_PRICE_ID_10LOCEnterprise
     };
@@ -3923,8 +3911,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
         String(providerRecord?.secondaryContactEmail || '').trim()
       ]);
       if (!recipientEmails.length) return null;
-      const planTier = normalizePlanTier(p.planTier || providerRecord?.planTier);
-      const delayMs = PLAN_NOTIFY_DELAY_MS[planTier] ?? PLAN_NOTIFY_DELAY_MS.verified;
+      const delayMs = PLAN_NOTIFY_DELAY_MS;
       return {
         id: uuid(),
         leadId: lead.id,
@@ -6614,18 +6601,9 @@ app.post('/api/provider/billing', requireProviderAuth, async (req, res) => {
   try {
     const ctx = await getProviderContext(req.providerUserId);
     if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
-    const enteredMonthly = Number.parseInt(String(req.body?.monthlySubscription || ''), 10);
-    let planTier = 'verified';
-    if (enteredMonthly === 375) planTier = 'featured';
-    else if (enteredMonthly === 500) planTier = 'priority';
-    else if (enteredMonthly === 250) planTier = 'verified';
-    else planTier = 'verified';
-    const priceMap = {
-      verified: process.env.STRIPE_PRICE_ID_VERIFIED,
-      featured: process.env.STRIPE_PRICE_ID_FEATURED,
-      priority: process.env.STRIPE_PRICE_ID_PRIORITY
-    };
-    const priceId = priceMap[planTier];
+    // One plan, so the amount the dashboard sends no longer selects a tier.
+    const planTier = SINGLE_PLAN_TIER;
+    const priceId = process.env.STRIPE_PRICE_ID_PARTNER || process.env.STRIPE_PRICE_ID_VERIFIED;
     if (!priceId || !process.env.STRIPE_SUCCESS_URL || !process.env.STRIPE_CANCEL_URL) {
       return res.status(500).json({ error: 'Stripe is not fully configured.' });
     }
@@ -7675,7 +7653,7 @@ app.get('/:service(hospice-care|palliative-care|home-care)/:state([a-z]{2})', as
     const providersRaw = await prisma.provider.findMany({
       where: { state: { equals: state, mode: 'insensitive' }, careType: normalizeCareType(service) }
     });
-    const providers = providersRaw.map(normalizeProviderCitySpelling).sort(byPlanThenName);
+    const providers = providersRaw.map(normalizeProviderCitySpelling).sort(byName);
     const html = renderStatePage({ serviceKey: service, state, providers });
     res.send(html);
   } catch (err) {

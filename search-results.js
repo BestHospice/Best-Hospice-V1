@@ -119,13 +119,6 @@ function formatCareType(value) {
   return 'Hospice Care';
 }
 
-function getPlanRank(planTier) {
-  const tier = String(planTier || '').toLowerCase();
-  if (tier === 'priority' || tier === 'market_leader' || tier === 'advanced') return 3;
-  if (tier === 'featured' || tier === 'growth_plus') return 2;
-  if (tier === 'verified' || tier === 'growth' || tier === 'starter') return 1;
-  return 1;
-}
 
 function parseServiceZipCodes(value) {
   return String(value || '')
@@ -159,8 +152,6 @@ function getNearbyProviders(lat, lon, providers, radiusKm, searchZip) {
     .map((p) => ({ ...p, distance: haversineKm(lat, lon, p.lat, p.lon) }))
     .filter((p) => providerMatchesCoverage(p, p.distance, radiusKm, searchZip))
     .sort((a, b) => {
-      const rankDiff = getPlanRank(b.planTier) - getPlanRank(a.planTier);
-      if (rankDiff !== 0) return rankDiff;
       return (a.distance || 0) - (b.distance || 0);
     });
 }
@@ -527,8 +518,6 @@ async function startResultsFlow() {
       unique.push(p);
     }
     unique.sort((a, b) => {
-      const rankDiff = getPlanRank(b.planTier) - getPlanRank(a.planTier);
-      if (rankDiff !== 0) return rankDiff;
       return (a.distance || 0) - (b.distance || 0);
     });
 
