@@ -160,6 +160,8 @@
             </label>
             <label style="font-weight:700;">Monthly subscription:
               <select id="roi-monthly" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;">
+                <!-- Relabelled on load from the rate the server reports, so an
+                     Enterprise subscriber does not see the Partner price. -->
                 <option value="250">$250 — Partner</option>
               </select>
             </label>
@@ -411,11 +413,17 @@
           applyCoverageForm(data.provider);
         }
         renderSubscriptionBanner(data.subscription);
-        if (data.provider && data.provider.planTier) {
-          planMonthly = planToPrice(data.provider.planTier);
+        if (data.provider) {
+          // data.subscription.monthlyRate is what Stripe bills; fall back to the
+          // Partner rate for providers who have not subscribed yet.
+          planMonthly = Number(data.subscription && data.subscription.monthlyRate) || planToPrice();
           document.getElementById('bill-monthly').textContent = `$${planMonthly}`;
           const monthlySelect = document.getElementById('roi-monthly');
-          if (monthlySelect) monthlySelect.value = String(planMonthly);
+          if (monthlySelect) {
+            const opt = monthlySelect.options[0];
+            if (opt) { opt.value = String(planMonthly); opt.textContent = `$${planMonthly} — Partner`; }
+            monthlySelect.value = String(planMonthly);
+          }
         }
         updateBillingCards();
         setStatus('');

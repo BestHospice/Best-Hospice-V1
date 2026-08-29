@@ -273,14 +273,22 @@ const PROVIDER_MONTHLY_RATE = 250;
 // Defaults for Abel's ROI math, matching the dashboard calculator's starting values.
 const DEFAULT_REVENUE_PER_CLIENT_MONTH = 1000;
 const DEFAULT_MONTHS_PER_CLIENT = 3;
-// The provider dashboard already prices by tier (planToPrice in provider-dashboard-home.html).
-// Abel must agree with it, or a priority provider is quoted the verified rate.
-const providerRateForTier = () => PROVIDER_MONTHLY_RATE;
+
+// Prefer what Stripe says the provider is actually billed. There is one Partner
+// price, but Enterprise multi-location subscriptions cost something different,
+// and previously every provider was quoted $250 regardless. Falls back to the
+// Partner rate when there is no subscription yet, which is every provider today.
 const providerRateById = async (providerId) => {
   if (!providerId) return PROVIDER_MONTHLY_RATE;
   try {
-    const provider = await prisma.provider.findUnique({ where: { id: providerId }, select: { planTier: true } });
-    return providerRateForTier(provider?.planTier);
+    await ensureProviderStripeColumns();
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT "subscriptionMonthlyCents" AS cents FROM "Provider" WHERE id = $1 LIMIT 1`,
+      providerId
+    );
+    const cents = Number(rows?.[0]?.cents);
+    if (Number.isFinite(cents) && cents > 0) return cents / 100;
+    return PROVIDER_MONTHLY_RATE;
   } catch (err) {
     console.error('providerRateById failed, using default rate', err?.message || err);
     return PROVIDER_MONTHLY_RATE;
@@ -498,6 +506,11 @@ async function ensureProviderStripeColumns() {
   // billingMode defaults to 'free' so every provider that already exists is
   // grandfathered and can never be gated by accident.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "billingMode" TEXT NOT NULL DEFAULT 'free'`);
+  // What the provider is actually billed each month, in cents, read from the
+  // Stripe subscription. Null until they have one, in which case ROI falls back
+  // to PROVIDER_MONTHLY_RATE. This exists so Enterprise multi-location
+  // subscribers are not quoted the single-location Partner price.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "subscriptionMonthlyCents" INTEGER`);
   providerStripeColumnsReady = true;
 }
 
@@ -529,6 +542,23 @@ const subscriptionPeriodEnd = (subscription) => {
   if (Number.isFinite(subscription.current_period_end)) return subscription.current_period_end;
   const item = subscription.items?.data?.[0];
   return Number.isFinite(item?.current_period_end) ? item.current_period_end : null;
+};
+
+// The real monthly amount on a Stripe subscription, in cents, normalised to a
+// month so a yearly plan is not reported as a month's cost. Reads the modern
+// items[].price shape and falls back to the legacy top-level plan.
+const subscriptionMonthlyCents = (subscription) => {
+  if (!subscription) return null;
+  const item = subscription.items?.data?.[0];
+  const price = item?.price || subscription.plan;
+  const unit = Number(price?.unit_amount ?? price?.amount);
+  if (!Number.isFinite(unit)) return null;
+  const qty = Number(item?.quantity) || 1;
+  const interval = String(price?.recurring?.interval || price?.interval || 'month');
+  const count = Number(price?.recurring?.interval_count || price?.interval_count) || 1;
+  const months = interval === 'year' ? 12 * count : (interval === 'week' ? count / 4.345 : count);
+  if (!months) return null;
+  return Math.round((unit * qty) / months);
 };
 
 // Stripe statuses that mean the provider is genuinely paying right now.
@@ -1027,12 +1057,14 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
          SET "stripeCustomerId" = COALESCE($1, "stripeCustomerId"),
              "stripeSubscriptionId" = COALESCE($2, "stripeSubscriptionId"),
              "subscriptionStatus" = COALESCE($3, "subscriptionStatus"),
-             "currentPeriodEnd" = COALESCE($4, "currentPeriodEnd")
-         WHERE "id" = $5`,
+             "currentPeriodEnd" = COALESCE($4, "currentPeriodEnd"),
+             "subscriptionMonthlyCents" = COALESCE($5, "subscriptionMonthlyCents")
+         WHERE "id" = $6`,
         fields.customerId || null,
         fields.subscriptionId || null,
         fields.status || null,
         fields.periodEnd ? new Date(fields.periodEnd * 1000) : null,
+        Number.isFinite(fields.monthlyCents) ? fields.monthlyCents : null,
         providerId
       );
     };
@@ -1057,11 +1089,13 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       if (providerId) {
         let status = 'active';
         let periodEnd = null;
+        let monthlyCents = null;
         if (session.subscription && stripe) {
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));
             status = sub.status || 'active';
             periodEnd = subscriptionPeriodEnd(sub);
+            monthlyCents = subscriptionMonthlyCents(sub);
           } catch (subErr) {
             console.error('Could not retrieve subscription after checkout', subErr?.message || subErr);
           }
@@ -1070,7 +1104,8 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           customerId: session.customer ? String(session.customer) : null,
           subscriptionId: session.subscription ? String(session.subscription) : null,
           status,
-          periodEnd
+          periodEnd,
+          monthlyCents
         });
         // One tier, so there is nothing to record beyond it, and `featured` is
         // always false now that paid placement is gone.
@@ -1086,7 +1121,8 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         customerId: sub.customer ? String(sub.customer) : null,
         subscriptionId: sub.id ? String(sub.id) : null,
         status: sub.status || null,
-        periodEnd: subscriptionPeriodEnd(sub)
+        periodEnd: subscriptionPeriodEnd(sub),
+        monthlyCents: subscriptionMonthlyCents(sub)
       });
     } else if (event.type === 'customer.subscription.deleted') {
       const sub = event.data.object;
@@ -1115,7 +1151,8 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
             customerId: sub.customer ? String(sub.customer) : null,
             subscriptionId: sub.id ? String(sub.id) : null,
             status: sub.status || null,
-            periodEnd: subscriptionPeriodEnd(sub)
+            periodEnd: subscriptionPeriodEnd(sub),
+            monthlyCents: subscriptionMonthlyCents(sub)
           });
         } catch (invErr) {
           console.error('Could not sync subscription from invoice event', invErr?.message || invErr);
@@ -5116,7 +5153,7 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
     const rows = await prisma.$queryRaw`
       SELECT id, name, email, "planTier", "subscriptionStatus",
              "currentPeriodEnd", "stripeCustomerId", "stripeSubscriptionId",
-             "billingMode", "receiveClientLeads"
+             "billingMode", "receiveClientLeads", "subscriptionMonthlyCents"
       FROM "Provider"
       ORDER BY name ASC
     `;
@@ -5130,7 +5167,9 @@ app.get('/api/admin/main/subscriptions', async (req, res) => {
         name: r.name,
         email: r.email || '',
         planTier: tier,
-        monthlyRate: providerRateForTier(tier),
+        monthlyRate: Number(r.subscriptionMonthlyCents) > 0
+          ? Number(r.subscriptionMonthlyCents) / 100
+          : PROVIDER_MONTHLY_RATE,
         status: r.subscriptionStatus || null,
         state,
         currentPeriodEnd: r.currentPeriodEnd || null,
@@ -6486,7 +6525,9 @@ app.get('/api/provider/spend', requireProviderAuth, async (req, res) => {
     const today = new Date();
     const diffDays = Math.max(0, (today - since) / (1000 * 60 * 60 * 24));
     const months = Math.max(1, Math.ceil(diffDays / 30));
-    const monthlyRate = providerRateForTier(ctx.provider?.planTier);
+    // What Stripe actually bills them, so Enterprise multi-location
+    // subscribers are not shown the single-location Partner rate.
+    const monthlyRate = await providerRateById(ctx.provider?.id);
     const totalSpend = months * monthlyRate;
     res.json({
       ok: true,
@@ -6558,7 +6599,7 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
     ]);
     // The Stripe columns are added by raw SQL, so the typed client cannot see them.
     const subRows = await prisma.$queryRaw`
-      SELECT "subscriptionStatus", "currentPeriodEnd", "stripeSubscriptionId"
+      SELECT "subscriptionStatus", "currentPeriodEnd", "stripeSubscriptionId", "subscriptionMonthlyCents"
       FROM "Provider" WHERE "id" = ${providerId} LIMIT 1
     `;
     const subRow = subRows?.[0] || {};
@@ -6578,7 +6619,12 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
         status: subscriptionStatus,
         state: subscriptionBannerState(subscriptionStatus),
         currentPeriodEnd: subRow.currentPeriodEnd || null,
-        hasSubscription: Boolean(subRow.stripeSubscriptionId)
+        hasSubscription: Boolean(subRow.stripeSubscriptionId),
+        // What Stripe bills, so the dashboard shows an Enterprise subscriber
+        // their real rate rather than the Partner price.
+        monthlyRate: Number(subRow.subscriptionMonthlyCents) > 0
+          ? Number(subRow.subscriptionMonthlyCents) / 100
+          : PROVIDER_MONTHLY_RATE
       },
       metrics: {
         totalNotifications,
