@@ -48,7 +48,11 @@ const CASES = [
   // provider-facing
   ['/provider.html',                         200, 'Partner'],
   ['/provider-billing.html',                 200, 'Partner'],
-  ['/discharge-planners.html',               200, 'Partner listing']
+  ['/discharge-planners.html',               200, 'Partner listing'],
+  // provider platform: both areas must serve and cross-link
+  ['/provider-dashboard-home.html',          200, 'Market Intelligence'],
+  ['/provider-intelligence.html',            200, 'Market Intelligence'],
+  ['/provider-intelligence.html',            200, 'included with your Best Hospice provider subscription']
 ];
 
 // Things that must NOT appear anywhere, checked on the pages we fetch.

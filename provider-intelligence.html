@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Intelligence | Best Hospice and Home Health</title>
+  <meta name="description" content="Market intelligence for Best Hospice and Home Health provider partners." />
+  <meta name="robots" content="noindex, follow" />
+  <!-- authenticated provider area: not a consumer search destination -->
+  <link rel="canonical" href="https://www.besthospice.com/provider-intelligence.html" />
+  <link rel="stylesheet" href="styles-modern.css?v=15" />
+  <link rel="stylesheet" href="/styles/main.css" />
+  <script src="abel-chat.js" defer></script>
+  <style>
+    /* Visually matched to provider-dashboard-home.html. The dashboard keeps its
+       own copy of the shell styles; extracting them into a shared file would
+       mean editing the working dashboard's CSS, which is not worth the risk for
+       a shell. Worth doing as a follow-up once both pages have settled. */
+    body { background:#f3f6fb; }
+    .dash-shell { max-width: 1040px; margin:24px auto; padding:0 16px; }
+    .dash-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:20px; box-shadow:0 12px 24px rgba(15,23,42,0.08); display:grid; gap:16px; }
+    .dash-btn { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; padding:8px 12px; border-radius:10px; font-weight:700; cursor:pointer; }
+    .hidden { display:none !important; }
+
+    /* ---- Platform switch: Operations | Market Intelligence ---- */
+    .plat-switch { display:flex; gap:6px; background:#eef2f7; border:1px solid #e2e8f0; border-radius:12px; padding:4px; width:max-content; max-width:100%; }
+    .plat-switch a { display:inline-block; padding:8px 16px; border-radius:9px; font-weight:700; font-size:14px; text-decoration:none; color:#475569; white-space:nowrap; }
+    .plat-switch a[aria-current="page"] { background:#fff; color:#0f172a; box-shadow:0 1px 3px rgba(15,23,42,.12); }
+    .plat-switch a:not([aria-current]):hover { color:#0f172a; }
+
+    /* ---- Section navigation ---- */
+    .mi-body { display:grid; grid-template-columns:200px minmax(0,1fr); gap:18px; align-items:start; }
+    .mi-body, .mi-main, .mi-panel, .mi-panel > * { min-width:0; }
+    .mi-nav { position:sticky; top:16px; display:grid; gap:2px; border:1px solid #e5e7eb; border-radius:12px; padding:8px; background:#fff; }
+    .mi-nav .nav-title { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#94a3b8; font-weight:700; padding:6px 8px; }
+    .mi-nav button { display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:none; border:0; padding:8px 10px; border-radius:9px; font:inherit; font-size:14px; color:#475569; cursor:pointer; }
+    .mi-nav button:hover { background:#f1f5f9; color:#0f172a; }
+    .mi-nav button.active { background:#0f766e; color:#fff; font-weight:700; }
+    .mi-nav .dot { width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.5; flex:none; }
+    .mi-bar { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+    .mi-bar h2 { margin:0; font-size:1.15rem; flex:1; }
+    .mi-bar .count { font-size:12px; color:#94a3b8; font-weight:700; }
+    .mi-arrow { background:#fff; border:1px solid #e2e8f0; border-radius:9px; width:32px; height:32px; font-size:15px; color:#475569; cursor:pointer; }
+    .mi-arrow:disabled { opacity:.35; cursor:default; }
+    .mi-toggle { display:none; background:#fff; border:1px solid #e2e8f0; border-radius:9px; width:34px; height:32px; cursor:pointer; }
+    .mi-panel { display:none; }
+    .mi-panel.active { display:block; }
+
+    /* ---- Module cards ---- */
+    .mi-grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+    .mi-card { border:1px solid #e5e7eb; border-radius:14px; padding:16px; background:#fbfdff; display:flex; flex-direction:column; gap:8px; }
+    .mi-card h3 { margin:0; font-size:1rem; }
+    .mi-card p { margin:0; color:#4b5563; font-size:14px; line-height:1.55; }
+    .mi-state { margin-top:auto; display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; padding:6px 10px; border-radius:999px; width:max-content; }
+    .mi-state .s-dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+    .mi-state.available { background:#ecfdf5; color:#047857; }
+    .mi-state.coming_soon { background:#eff6ff; color:#1d4ed8; }
+    .mi-state.not_applicable { background:#f4f4f5; color:#52525b; }
+    .mi-why { font-size:12.5px; color:#6b7280; margin:0; }
+    .mi-note { border:1px solid #e5e7eb; border-left:3px solid #0f766e; border-radius:0 10px 10px 0; background:#f8fafc; padding:10px 14px; font-size:14px; color:#374151; }
+    .mi-lede { color:#4b5563; margin:0; line-height:1.6; max-width:62ch; }
+
+    @media (max-width: 860px) {
+      .mi-body { grid-template-columns:minmax(0,1fr); }
+      .mi-nav { position:static; }
+      /* Collapsed on a phone the nav has no content, so it must not leave an
+         empty bordered box above the section bar. */
+      .mi-nav.collapsed { border:0; padding:0; background:none; }
+      .mi-nav.collapsed button { display:none; }
+      .mi-nav.collapsed .nav-title { display:none; }
+      .mi-toggle { display:inline-block; }
+      .dash-shell { margin:14px auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="dash-shell">
+    <div class="dash-card">
+
+      <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+        <div>
+          <h1 style="margin:0 0 8px; font-size:1.4rem;">Market Intelligence</h1>
+          <p id="provider-label" style="margin:0; color:#4b5563;"></p>
+          <div id="provider-switcher" class="hidden" style="margin-top:8px;">
+            <label style="font-weight:700; font-size:14px; color:#111827;">
+              Location:
+              <select id="provider-selector" style="margin-left:8px; padding:6px; border:1px solid #d1d5db; border-radius:8px;"></select>
+            </label>
+          </div>
+        </div>
+        <button class="dash-btn" id="logout">Log out</button>
+      </div>
+
+      <nav class="plat-switch" aria-label="Provider platform areas">
+        <a href="provider-dashboard-home.html">Operations</a>
+        <a href="provider-intelligence.html" aria-current="page">Market Intelligence</a>
+      </nav>
+
+      <p class="mi-lede">Understand your organization, your local market, your competitive position, your quality performance, and where there may be room to grow.</p>
+
+      <div class="mi-note">Market Intelligence is included with your Best Hospice provider subscription. There is nothing extra to buy.</div>
+
+      <p id="mi-status" style="margin:0; color:#4b5563; font-size:14px;">Loading your market intelligence...</p>
+
+      <div class="mi-body hidden" id="mi-shell">
+        <nav class="mi-nav" id="mi-nav" aria-label="Market Intelligence sections">
+          <div class="nav-title">Sections</div>
+        </nav>
+        <div class="mi-main">
+          <div class="mi-bar">
+            <button class="mi-toggle" id="mi-toggle" aria-label="Toggle section list">&#9776;</button>
+            <h2 id="mi-title"></h2>
+            <span class="count" id="mi-count"></span>
+            <button class="mi-arrow" id="mi-prev" aria-label="Previous section">&#8592;</button>
+            <button class="mi-arrow" id="mi-next" aria-label="Next section">&#8594;</button>
+          </div>
+
+          <div class="mi-panel" data-section="Overview">
+            <p class="mi-lede" style="margin-bottom:14px;">A summary of everything below. Each module tells you whether its data is available for your organization today, and if not, why.</p>
+            <div class="mi-grid" id="mi-overview-grid"></div>
+          </div>
+
+          <div class="mi-panel" data-section="My Market">
+            <p class="mi-lede" id="mi-market-lede"></p>
+            <div class="mi-grid" id="mi-market-grid"></div>
+          </div>
+
+          <div class="mi-panel" data-section="Competitors">
+            <div class="mi-grid" id="mi-competitors-grid"></div>
+          </div>
+
+          <div class="mi-panel" data-section="Quality">
+            <div class="mi-grid" id="mi-quality-grid"></div>
+          </div>
+
+          <div class="mi-panel" data-section="Opportunities">
+            <div class="mi-grid" id="mi-opportunities-grid"></div>
+          </div>
+
+          <div class="mi-panel" data-section="Reports">
+            <div class="mi-grid" id="mi-reports-grid"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+  const tokenKey = 'provider_jwt';
+
+  async function callApi(path, method = 'GET', body) {
+    const token = localStorage.getItem(tokenKey) || '';
+    if (!token) { window.location.href = 'provider-dashboard.html'; return; }
+    const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+    const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  }
+
+  const STATE_LABEL = {
+    available: 'Available now',
+    coming_soon: 'Coming soon',
+    not_applicable: 'Not available for your provider type'
+  };
+
+  // Every card names the capability it depends on, so when a capability flips
+  // to `available` the card starts rendering real data without the layout
+  // needing to change. No card ever invents a number.
+  const MODULES = {
+    'Overview': [
+      { cap: 'competitorBenchmarking', title: 'Market Position',
+        body: 'Understand how your organization compares with other providers in your local market.' },
+      { cap: 'competitorBenchmarking', title: 'Competitor Benchmarking',
+        body: 'Compare your organization with nearby providers and identify your competitive strengths and weaknesses.' },
+      { cap: 'cmsQuality', title: 'Quality Intelligence',
+        body: 'Track available quality measures and understand how your organization performs against local, state, and national benchmarks.' },
+      { cap: 'marketOpportunity', title: 'Market Opportunities',
+        body: 'Identify markets and service areas that may present attractive growth opportunities.' },
+      { cap: 'bestHospiceLeadAnalytics', title: 'Best Hospice Performance',
+        body: 'Referrals received, how quickly your team responded, and how many became admissions.',
+        linkText: 'See it in Operations → Performance', linkHref: 'provider-dashboard-home.html' },
+      { cap: 'reports', title: 'Reports',
+        body: 'Receive concise reports summarizing your performance, market, quality, and opportunities.' }
+    ],
+    'My Market': [
+      { cap: 'geographicDemand', title: 'Where Families Are Searching',
+        body: 'The areas families search from, and which services they ask for most.' },
+      { cap: 'geographicDemand', title: 'Demand Trend',
+        body: 'Whether requests in your market are rising or falling over time.' },
+      { cap: 'marketOpportunity', title: 'Provider Coverage',
+        body: 'How many participating providers serve your market, and where coverage is thin.' }
+    ],
+    'Competitors': [
+      { cap: 'competitorBenchmarking', title: 'Local Provider Roster',
+        body: 'The other providers operating in your market, drawn from public records.' },
+      { cap: 'competitorBenchmarking', title: 'Relative Performance',
+        body: 'How your published measures compare with theirs, where both are available.' },
+      { cap: 'competitorBenchmarking', title: 'Position Over Time',
+        body: 'Whether your standing in the local market is improving or slipping.' }
+    ],
+    'Quality': [
+      { cap: 'cmsRatings', title: 'Star Ratings',
+        body: 'Your published rating alongside local, state, and national averages.' },
+      { cap: 'cmsQuality', title: 'Quality Measures',
+        body: 'The individual measures behind your rating, and which are your strongest and weakest.' },
+      { cap: 'cahps', title: 'Family Experience',
+        body: 'Survey results describing what families said about the care they received.' },
+      { cap: 'stateLicensing', title: 'Licensing & Certification',
+        body: 'Your licensing and certification status as published by public sources.' }
+    ],
+    'Opportunities': [
+      { cap: 'marketOpportunity', title: 'Expansion Markets',
+        body: 'Nearby areas with demand that your current service area does not reach.' },
+      { cap: 'marketOpportunity', title: 'Coverage Gaps',
+        body: 'Places families are searching where few participating providers respond.' },
+      { cap: 'geographicDemand', title: 'Service Mix',
+        body: 'Which services families request most in your market compared with what you offer.' }
+    ],
+    'Reports': [
+      { cap: 'reports', title: 'Monthly Executive Summary',
+        body: 'A short monthly summary of your performance, market, quality, and opportunities.' },
+      { cap: 'reports', title: 'Historical Snapshots',
+        body: 'How each of your measures has moved since the previous reporting period.' }
+    ]
+  };
+  const SECTIONS = Object.keys(MODULES);
+
+  function renderCard(mod, caps) {
+    const cap = caps[mod.cap] || { status: 'coming_soon', reason: '' };
+    const el = document.createElement('div');
+    el.className = 'mi-card';
+    const link = mod.linkHref && cap.status === 'available'
+      ? `<p class="mi-why"><a href="${mod.linkHref}">${mod.linkText}</a></p>` : '';
+    el.innerHTML = `
+      <h3>${mod.title}</h3>
+      <p>${mod.body}</p>
+      ${cap.reason ? `<p class="mi-why">${cap.reason}</p>` : ''}
+      ${link}
+      <span class="mi-state ${cap.status}"><span class="s-dot"></span>${STATE_LABEL[cap.status] || cap.status}</span>`;
+    return el;
+  }
+
+  const GRID_IDS = {
+    'Overview': 'mi-overview-grid', 'My Market': 'mi-market-grid',
+    'Competitors': 'mi-competitors-grid', 'Quality': 'mi-quality-grid',
+    'Opportunities': 'mi-opportunities-grid', 'Reports': 'mi-reports-grid'
+  };
+
+  function renderAll(caps) {
+    SECTIONS.forEach((name) => {
+      const grid = document.getElementById(GRID_IDS[name]);
+      if (!grid) return;
+      grid.innerHTML = '';
+      MODULES[name].forEach((mod) => grid.appendChild(renderCard(mod, caps)));
+    });
+  }
+
+  // ---- section navigation ----
+  const panels = Array.from(document.querySelectorAll('.mi-panel'));
+  const nav = document.getElementById('mi-nav');
+  const titleEl = document.getElementById('mi-title');
+  const countEl = document.getElementById('mi-count');
+  const prevBtn = document.getElementById('mi-prev');
+  const nextBtn = document.getElementById('mi-next');
+  let navButtons = [];
+  let current = -1;
+
+  function show(i) {
+    if (i < 0 || i >= panels.length || i === current) return;
+    panels.forEach((p, n) => p.classList.toggle('active', n === i));
+    navButtons.forEach((b, n) => b.classList.toggle('active', n === i));
+    titleEl.textContent = SECTIONS[i];
+    countEl.textContent = (i + 1) + ' / ' + panels.length;
+    prevBtn.disabled = i === 0;
+    nextBtn.disabled = i === panels.length - 1;
+    current = i;
+    try { localStorage.setItem('bhProviderIntelPanel', String(i)); } catch (_) {}
+    // Real URLs, which the Operations dashboard does not have. Deep links work.
+    try { window.history.replaceState({}, '', '#' + encodeURIComponent(SECTIONS[i])); } catch (_) {}
+    if (window.innerWidth <= 860) nav.classList.add('collapsed');
+  }
+
+  function buildNav() {
+    navButtons = SECTIONS.map((label, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = '<span class="dot"></span>';
+      b.appendChild(document.createTextNode(label));
+      b.addEventListener('click', () => show(i));
+      nav.appendChild(b);
+      return b;
+    });
+    prevBtn.addEventListener('click', () => show(current - 1));
+    nextBtn.addEventListener('click', () => show(current + 1));
+    document.getElementById('mi-toggle').addEventListener('click', () => nav.classList.toggle('collapsed'));
+    document.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); show(current + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); show(current - 1); }
+    });
+  }
+
+  function initialSection() {
+    const fromHash = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
+    const byHash = SECTIONS.indexOf(fromHash);
+    if (byHash >= 0) return byHash;
+    const stored = Number(localStorage.getItem('bhProviderIntelPanel'));
+    return Number.isInteger(stored) && stored >= 0 && stored < SECTIONS.length ? stored : 0;
+  }
+
+  async function loadLocations() {
+    try {
+      const data = await callApi('/api/provider/locations');
+      const list = data.providers || [];
+      if (list.length <= 1) return;
+      const wrap = document.getElementById('provider-switcher');
+      const sel = document.getElementById('provider-selector');
+      sel.innerHTML = '';
+      list.forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name + (p.city ? ' — ' + p.city + ', ' + (p.state || '') : '');
+        if (p.id === data.activeProviderId) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      wrap.classList.remove('hidden');
+      sel.addEventListener('change', async () => {
+        await callApi('/api/provider/select', 'POST', { providerId: sel.value });
+        window.location.reload();
+      });
+    } catch (_err) { /* switcher is optional */ }
+  }
+
+  (async function start() {
+    const status = document.getElementById('mi-status');
+    try {
+      const data = await callApi('/api/provider/intelligence/capabilities');
+      const p = data.provider || {};
+      document.getElementById('provider-label').textContent =
+        p.name ? `${p.name}${p.city ? ' — ' + p.city + ', ' + (p.state || '') : ''}` : '';
+      document.getElementById('mi-market-lede').textContent =
+        `Everything here is scoped to this location. Your market is currently based on ${data.market && data.market.label ? data.market.label : 'your listing address'}` +
+        `${data.market && data.market.serviceRadiusMiles ? `, within about ${data.market.serviceRadiusMiles} miles` : ''}. How a market is defined may change as this product develops.`;
+      renderAll(data.capabilities || {});
+      buildNav();
+      status.classList.add('hidden');
+      document.getElementById('mi-shell').classList.remove('hidden');
+      show(initialSection());
+      loadLocations();
+    } catch (err) {
+      status.style.color = '#b91c1c';
+      status.textContent = err && err.message ? err.message : 'Could not load your market intelligence.';
+    }
+  })();
+
+  document.getElementById('logout').addEventListener('click', () => {
+    localStorage.removeItem(tokenKey);
+    window.location.href = 'provider-dashboard.html';
+  });
+</script>
+</body>
+</html>

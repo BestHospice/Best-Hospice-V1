@@ -19,6 +19,12 @@
     .metric-card h4 { margin:0 0 6px; }
     .dash-btn { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; padding:8px 12px; border-radius:10px; font-weight:700; cursor:pointer; justify-self:end; }
     .hidden { display:none !important; }
+
+    /* ---- Platform switch: Operations | Market Intelligence ---- */
+    .plat-switch { display:flex; gap:6px; background:#eef2f7; border:1px solid #e2e8f0; border-radius:12px; padding:4px; width:max-content; max-width:100%; }
+    .plat-switch a { display:inline-block; padding:8px 16px; border-radius:9px; font-weight:700; font-size:14px; text-decoration:none; color:#475569; white-space:nowrap; }
+    .plat-switch a[aria-current="page"] { background:#fff; color:#0f172a; box-shadow:0 1px 3px rgba(15,23,42,.12); }
+    .plat-switch a:not([aria-current]):hover { color:#0f172a; }
     .notice { margin-top: 10px; border: 1px solid #e5e7eb; border-radius: 12px; background: #f8fafc; padding: 10px 12px; }
     .notice summary { cursor: pointer; font-weight: 700; font-size: 14px; color: #374151; }
     .notice p { margin: 8px 0 0; color: #4b5563; font-size: 14px; line-height: 1.55; }
@@ -97,6 +103,11 @@
         </div>
         <button class="dash-btn" id="logout">Log out</button>
       </div>
+
+      <nav class="plat-switch" aria-label="Provider platform areas">
+        <a href="provider-dashboard-home.html" aria-current="page">Operations</a>
+        <a href="provider-intelligence.html">Market Intelligence</a>
+      </nav>
 
       <div class="metrics">
         <div class="metric-card">

@@ -552,7 +552,7 @@ const subscriptionPeriodEnd = (subscription) => {
   return Number.isFinite(item?.current_period_end) ? item.current_period_end : null;
 };
 
-// The real monthly amount on a Stripe subscription, in cents, normalised to a
+// The real monthly amount on a Stripe subscription, in cents, normalized to a
 // month so a yearly plan is not reported as a month's cost. Reads the modern
 // items[].price shape and falls back to the legacy top-level plan.
 const subscriptionMonthlyCents = (subscription) => {
@@ -5819,6 +5819,136 @@ app.patch('/api/provider/profile', requireProviderAuth, async (req, res) => {
     res.json({ ok: true, provider: updated });
   } catch (err) {
     console.error('Provider profile update failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── PROVIDER MARKET INTELLIGENCE ────────────────────────────────────────────
+// Capability model for the intelligence shell. Every module reports one of
+// three states, and the difference between them matters:
+//
+//   available       we hold the data now and the module can render real numbers
+//   coming_soon     the data exists publicly for this provider type but we have
+//                   not ingested it per-provider yet
+//   not_applicable  no such dataset exists for this provider type, so the
+//                   module should say so rather than promise it later
+//
+// This is what stops the shell from implying that fabricated data belongs to a
+// real provider, and what a future ingestion phase flips rather than replaces.
+const INTELLIGENCE_MODULES = [
+  'bestHospiceLeadAnalytics',
+  'cmsQuality',
+  'cmsRatings',
+  'cahps',
+  'competitorBenchmarking',
+  'geographicDemand',
+  'marketOpportunity',
+  'stateLicensing',
+  'reports'
+];
+
+// CMS publishes hospice quality, star and CAHPS datasets. There is no
+// equivalent we ingest for non-medical home care or palliative care, and none
+// at all for assisted living or any provider type we have not modelled yet.
+const CMS_QUALITY_PROVIDER_TYPES = new Set(['hospice']);
+
+// Capability derivation must NOT go through normalizeCareType(), which falls
+// back to 'hospice' for anything unrecognised. That default is right for
+// service-page routing but wrong here: it would tell an assisted-living
+// provider that Medicare publishes hospice quality data about them. An
+// unmodelled provider type inherits no datasets.
+const KNOWN_INTELLIGENCE_TYPES = {
+  hospice: 'hospice',
+  'hospice-care': 'hospice',
+  palliative: 'palliative',
+  'palliative-care': 'palliative',
+  home: 'home',
+  'home-care': 'home'
+};
+const TYPE_LABELS = { hospice: 'hospice', palliative: 'palliative care', home: 'home care' };
+
+function providerIntelligenceCapabilities(provider) {
+  const raw = String(provider?.careType || '').trim().toLowerCase();
+  const careType = KNOWN_INTELLIGENCE_TYPES[raw] || null;
+  const cmsCovered = careType ? CMS_QUALITY_PROVIDER_TYPES.has(careType) : false;
+  // Reads correctly for a known type ("for home care providers") and for an
+  // unmodelled one ("for your provider type").
+  const typePhrase = careType ? `${TYPE_LABELS[careType]} providers` : 'your provider type';
+
+  const cmsState = cmsCovered
+    ? { status: 'coming_soon', reason: 'Medicare publishes this for hospices. We are preparing per-provider matching.' }
+    : { status: 'not_applicable', reason: `Medicare does not publish this dataset for ${typePhrase}.` };
+
+  const caps = {
+    bestHospiceLeadAnalytics: {
+      status: 'available',
+      reason: 'Drawn from your own referral activity on Best Hospice.'
+    },
+    cmsQuality: cmsState,
+    cmsRatings: cmsState,
+    cahps: cmsState,
+    competitorBenchmarking: {
+      status: 'coming_soon',
+      reason: 'Requires matching your organization to public provider records in your area.'
+    },
+    geographicDemand: {
+      status: 'coming_soon',
+      reason: 'Built from where families search and request care.'
+    },
+    marketOpportunity: {
+      status: 'coming_soon',
+      reason: 'Combines local demand with participating-provider coverage.'
+    },
+    stateLicensing: {
+      status: 'not_applicable',
+      reason: 'State licensing records are not yet integrated for any provider type.'
+    },
+    reports: {
+      status: 'coming_soon',
+      reason: 'Will summarize the modules above once they carry data.'
+    }
+  };
+
+  // Every module must be accounted for, so a new one cannot be silently
+  // missing from the response and render as undefined in the UI.
+  for (const key of INTELLIGENCE_MODULES) {
+    if (!caps[key]) caps[key] = { status: 'coming_soon', reason: '' };
+  }
+  return caps;
+}
+
+// Scoped to the active location, matching every other dashboard section. CMS
+// quality measures are published per certified location rather than per
+// company, so a roll-up across locations would not be meaningful without a
+// separate design.
+app.get('/api/provider/intelligence/capabilities', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const p = ctx.provider;
+    res.json({
+      ok: true,
+      provider: {
+        id: p.id,
+        name: p.name,
+        // Raw, not normalized: an unmodelled type must not be reported as
+        // hospice just because that is the routing default.
+        careType: String(p.careType || '').trim().toLowerCase() || null,
+        city: p.city || '',
+        state: p.state || ''
+      },
+      // Neutral on purpose: serviceRadiusKm is a lead-delivery setting, not a
+      // market boundary. The eventual definition of "market" may be a county,
+      // a metro, a ZIP set or a custom territory.
+      market: {
+        label: p.city && p.state ? `${p.city}, ${p.state}` : (p.state || 'your area'),
+        basis: 'provider_location',
+        serviceRadiusMiles: p.serviceRadiusKm ? Math.round(p.serviceRadiusKm / 1.60934) : null
+      },
+      capabilities: providerIntelligenceCapabilities(p)
+    });
+  } catch (err) {
+    console.error('Provider intelligence capabilities failed', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
