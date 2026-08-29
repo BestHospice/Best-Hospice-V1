@@ -1734,6 +1734,33 @@ const rootStatic = express.static(__dirname, {
   }
 });
 
+// Every file in guides/, by slug. Used to resolve extensionless guide URLs
+// and to decide which .html URLs are safe to redirect.
+const GUIDE_SLUGS = (() => {
+  try {
+    return new Set(
+      fs.readdirSync(path.join(__dirname, 'guides'))
+        .filter((n) => n.endsWith('.html'))
+        .map((n) => n.slice(0, -5))
+    );
+  } catch (err) {
+    console.warn('guides/ could not be read; extensionless guide URLs disabled.');
+    return new Set();
+  }
+})();
+
+// /guides/x and /guides/x.html were both indexable and both returned 200 with
+// the same canonical, so one page's signals were split across two URLs. The
+// extensionless form is canonical everywhere else (sitemap, canonical tag), so
+// the .html form redirects to it. Registered before the static middleware,
+// which would otherwise serve the .html file and never reach this.
+app.get('/guides/:slug.html', (req, res, next) => {
+  const slug = String(req.params.slug || '');
+  if (slug === 'index' || !GUIDE_SLUGS.has(slug)) return next();
+  const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+  return res.redirect(301, `/guides/${slug}${qs}`);
+});
+
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   let requestPath = '/';
@@ -6880,23 +6907,23 @@ State pages (use when user asks about a specific state):
 - [NAVIGATE:/states/virginia.html|Hospice providers in Virginia]
 - [NAVIGATE:/states/west-virginia.html|Hospice providers in West Virginia]
 Guide pages (use when the topic matches):
-- [NAVIGATE:/guides/hospice-care.html|Hospice care guide]
-- [NAVIGATE:/guides/palliative-care.html|Palliative care guide]
-- [NAVIGATE:/guides/home-care.html|Home care guide]
-- [NAVIGATE:/guides/hospice-vs-palliative-care.html|Hospice vs palliative care]
-- [NAVIGATE:/guides/when-is-it-time-for-hospice.html|When is it time for hospice?]
-- [NAVIGATE:/guides/when-is-it-time-for-hospice-arizona.html|When is it time for hospice in Arizona?]
-- [NAVIGATE:/guides/medicare-hospice-coverage.html|Medicare hospice coverage]
-- [NAVIGATE:/guides/how-to-choose-hospice-provider.html|How to choose a hospice provider]
-- [NAVIGATE:/guides/home-health-care-costs.html|Home health care costs]
-- [NAVIGATE:/guides/hospice-care-cancer-arizona.html|Hospice care for cancer in Arizona]
-- [NAVIGATE:/guides/hospice-care-dementia-alzheimers-arizona.html|Hospice care for dementia in Arizona]
-- [NAVIGATE:/guides/hospice-care-heart-failure-arizona.html|Hospice care for heart failure in Arizona]
-- [NAVIGATE:/guides/hospice-care-copd-arizona.html|Hospice care for COPD in Arizona]
-- [NAVIGATE:/guides/palliative-care-vs-hospice-arizona.html|Palliative vs hospice care in Arizona]
-- [NAVIGATE:/guides/veteran-hospice-care-arizona.html|Veteran hospice care in Arizona]
-- [NAVIGATE:/guides/how-to-pay-for-hospice-care-arizona.html|How to pay for hospice care in Arizona]
-- [NAVIGATE:/guides/altcs-home-care-arizona.html|ALTCS home care in Arizona]
+- [NAVIGATE:/guides/hospice-care|Hospice care guide]
+- [NAVIGATE:/guides/palliative-care|Palliative care guide]
+- [NAVIGATE:/guides/home-care|Home care guide]
+- [NAVIGATE:/guides/hospice-vs-palliative-care|Hospice vs palliative care]
+- [NAVIGATE:/guides/when-is-it-time-for-hospice|When is it time for hospice?]
+- [NAVIGATE:/guides/when-is-it-time-for-hospice-arizona|When is it time for hospice in Arizona?]
+- [NAVIGATE:/guides/medicare-hospice-coverage|Medicare hospice coverage]
+- [NAVIGATE:/guides/how-to-choose-hospice-provider|How to choose a hospice provider]
+- [NAVIGATE:/guides/home-health-care-costs|Home health care costs]
+- [NAVIGATE:/guides/hospice-care-cancer-arizona|Hospice care for cancer in Arizona]
+- [NAVIGATE:/guides/hospice-care-dementia-alzheimers-arizona|Hospice care for dementia in Arizona]
+- [NAVIGATE:/guides/hospice-care-heart-failure-arizona|Hospice care for heart failure in Arizona]
+- [NAVIGATE:/guides/hospice-care-copd-arizona|Hospice care for COPD in Arizona]
+- [NAVIGATE:/guides/palliative-care-vs-hospice-arizona|Palliative vs hospice care in Arizona]
+- [NAVIGATE:/guides/veteran-hospice-care-arizona|Veteran hospice care in Arizona]
+- [NAVIGATE:/guides/how-to-pay-for-hospice-care-arizona|How to pay for hospice care in Arizona]
+- [NAVIGATE:/guides/altcs-home-care-arizona|ALTCS home care in Arizona]
 Only include a NAVIGATE line when it genuinely helps the user take a next step. Do not include it for every response.`;
 
   const clientSystemPrompt = `You are Abel, a warm and knowledgeable AI assistant for Best Hospice and Home Health — a free platform that connects families with licensed hospice, palliative care, and home care providers.
@@ -7514,39 +7541,6 @@ app.post('/api/ai/chat', async (req, res) => {
 
 // ---------- Programmatic SEO pages ----------
 const SERVICE_KEYS = Object.keys(serviceConfig);
-const GUIDE_PATHS = [
-  '/guides/hospice-care',
-  '/guides/palliative-care',
-  '/guides/home-care',
-  '/guides/how-to-choose-hospice-provider',
-  '/guides/medicare-hospice-coverage',
-  '/guides/when-is-it-time-for-hospice',
-  '/guides/hospice-vs-palliative-care',
-  '/guides/home-health-care-costs',
-  '/guides/does-hospice-mean-giving-up',
-  '/guides/hospice-care-for-dementia',
-  '/guides/hospice-care-for-cancer',
-  '/guides/hospice-care-for-copd-heart-failure',
-  '/guides/hospice-care-birmingham-alabama',
-  '/guides/palliative-care-vs-hospice-arizona',
-  '/guides/hospice-care-cancer-arizona',
-  '/guides/hospice-care-dementia-alzheimers-arizona',
-  '/guides/hospice-care-heart-failure-arizona',
-  '/guides/hospice-care-copd-arizona',
-  '/guides/when-is-it-time-for-hospice-arizona',
-  '/guides/how-to-pay-for-hospice-care-arizona',
-  '/guides/veteran-hospice-care-arizona',
-  '/guides/altcs-home-care-arizona',
-  '/guides/hospice-care-cost',
-  '/guides/hospice-care-nashville-tennessee',
-  '/guides/hospice-care-denver-colorado',
-  '/guides/hospice-care-tampa-florida',
-  '/guides/hospice-care-charlotte-north-carolina',
-  '/guides/hospice-care-dallas-texas',
-  '/guides/hospice-care-houston-texas',
-  '/guides/hospice-care-atlanta-georgia',
-  '/guides/hospice-care-las-vegas-nevada'
-];
 const CORE_CONTENT_PAGES = [
   '/',
   '/contact.html',
@@ -7573,7 +7567,13 @@ async function buildSitemapUrls() {
   const urls = new Set();
   CORE_CONTENT_PAGES.forEach((p) => urls.add(`${CANONICAL_DOMAIN}${p}`));
   SERVICE_KEYS.forEach((s) => urls.add(`${CANONICAL_DOMAIN}/${s}`));
-  GUIDE_PATHS.forEach((p) => urls.add(`${CANONICAL_DOMAIN}${p}`));
+  // Every guide on disk, so the 22 city guides that had no route and were in
+  // no sitemap are submitted too. This replaced a hardcoded 31-entry list that
+  // had silently fallen out of date.
+  GUIDE_SLUGS.forEach((slug) => {
+    if (slug === 'index') return;
+    urls.add(`${CANONICAL_DOMAIN}/guides/${slug}`);
+  });
 
   const [providers, allProviderLocations] = await Promise.all([
     fetchAllProviders(),
@@ -7795,6 +7795,23 @@ app.get('/guides/hospice-care-atlanta-georgia', (_req, res) => {
   res.sendFile(path.join(__dirname, 'guides', 'hospice-care-atlanta-georgia.html'));
 });
 
+// Catch-all for guides that never got an explicit route. 22 city guides -
+// Phoenix, Tucson, Los Angeles, Chicago and others - existed on disk, were
+// linked internally as .html, and returned 404 at their extensionless URL,
+// which is the form the sitemap and every canonical tag point at. The slug is
+// checked against the directory listing, so this cannot be used to reach
+// anything outside guides/.
+app.get('/guides/:slug', (req, res, next) => {
+  const slug = String(req.params.slug || '');
+  if (!GUIDE_SLUGS.has(slug) || slug === 'index') return next();
+  return res.sendFile(path.join(__dirname, 'guides', `${slug}.html`));
+});
+
+// /guides used to 301 to /guides/, which 404s. Serve the index at both.
+app.get(['/guides', '/guides/'], (_req, res) => {
+  res.sendFile(path.join(__dirname, 'guides', 'index.html'));
+});
+
 app.get('/hospice-care-near-me', (_req, res) => {
   res.sendFile(path.join(__dirname, 'hospice-care-near-me.html'));
 });
@@ -7825,7 +7842,10 @@ ${urls.map((u) => `<url><loc>${u}</loc><priority>0.8</priority></url>`).join('\n
 app.get('/sitemap-pages.xml', async (_req, res) => {
   const pages = CORE_CONTENT_PAGES;
   const serviceHubs = SERVICE_KEYS.map((s) => `/${s}`);
-  const guides = GUIDE_PATHS;
+  // Derived from the directory, matching buildSitemapUrls, so the two sitemaps
+  // cannot disagree about which guides exist.
+  const guides = Array.from(GUIDE_SLUGS).filter((slug) => slug !== 'index').sort()
+    .map((slug) => `/guides/${slug}`);
   const cityDir = path.join(__dirname, 'cities');
   const blogDir = path.join(__dirname, 'blog');
   const stateDir = path.join(__dirname, 'states');
