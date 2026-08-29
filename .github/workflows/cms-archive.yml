@@ -1,0 +1,90 @@
+name: CMS release archive
+
+# CMS overwrites its hospice datasets in place. Any measure that compares one
+# release to the next can only ever use history we kept at the time, so a missed
+# quarter is unrecoverable. Between 2026-05-01 and 2026-08-19, 242 hospices left
+# the data and 59 entered - none of which is visible without both snapshots.
+#
+# Stored as release assets rather than commits, deliberately:
+#   - assets do not enter the git tree, so Render's deploy clone stays small
+#   - nothing is pushed to main, so no monthly no-op deploy is triggered
+#
+# Runs monthly rather than quarterly because CMS's publish dates drift (13 April
+# then 19 August, roughly four months). The job no-ops when the current release
+# has already been captured, so extra runs cost one API call.
+
+on:
+  schedule:
+    # 07:00 UTC on the 3rd of each month, a few days after CMS typically posts.
+    - cron: '0 7 3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    name: Capture the current CMS hospice release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Resolve the current release key
+        id: key
+        run: echo "key=$(node scripts/cms-archive.js --print-key)" >> "$GITHUB_OUTPUT"
+
+      - name: Has this release already been captured?
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="cms-${{ steps.key.outputs.key }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$TAG is already archived; nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "$TAG is new; will download and archive."
+          fi
+
+      - name: Download and compress the release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          CMS_ARCHIVE_DIR: ${{ github.workspace }}/cms-archive
+        run: node scripts/cms-archive.js
+
+      - name: Publish as a release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          KEY="${{ steps.key.outputs.key }}"
+          DIR="${{ github.workspace }}/cms-archive/$KEY"
+          ls -la "$DIR"
+          # Notes go via a file so YAML indentation does not leak into them.
+          {
+            echo "Snapshot of the CMS Provider Data Catalog hospice datasets, release $KEY, captured $(date -u +%Y-%m-%d)."
+            echo
+            echo "CMS overwrites these files in place, so this is the only record of this release. Six gzipped CSVs plus manifest.json, which carries per-file sha256, source URLs and dataset ids."
+            echo
+            echo "To restore:"
+            echo '```'
+            echo "gunzip -c provider.csv.gz > reports/cms-raw/provider.csv   # and the other five"
+            echo "node scripts/cms-ingest.js"
+            echo '```'
+          } > notes.md
+          gh release create "cms-$KEY" "$DIR"/* \
+            --title "CMS hospice datasets $KEY" \
+            --notes-file notes.md
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
+            echo "### No new CMS release (${{ steps.key.outputs.key }} already archived)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Archived CMS release ${{ steps.key.outputs.key }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Published as release \`cms-${{ steps.key.outputs.key }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi

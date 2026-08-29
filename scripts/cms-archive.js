@@ -10,9 +10,12 @@
  * Read-only with respect to CMS and to the site. Writes one directory per
  * release and refuses to overwrite an existing one.
  *
- *   node scripts/cms-archive.js            archive the current release
- *   node scripts/cms-archive.js --list     show what has been archived
- *   node scripts/cms-archive.js --dry-run  resolve and report, download nothing
+ *   node scripts/cms-archive.js              archive the current release
+ *   node scripts/cms-archive.js --list       show what has been archived
+ *   node scripts/cms-archive.js --dry-run    resolve and report, download nothing
+ *   node scripts/cms-archive.js --print-key  print the current release key only
+ *
+ * CMS_ARCHIVE_DIR overrides where archives are written.
  */
 const fs = require('fs');
 const path = require('path');
@@ -21,7 +24,11 @@ const crypto = require('crypto');
 const https = require('https');
 
 const ROOT = path.join(__dirname, '..');
-const ARCHIVE = path.join(ROOT, 'reports', 'cms-archive');
+// CMS_ARCHIVE_DIR lets CI write somewhere uploadable; locally it defaults
+// under reports/, which is gitignored.
+const ARCHIVE = process.env.CMS_ARCHIVE_DIR
+  ? path.resolve(process.env.CMS_ARCHIVE_DIR)
+  : path.join(ROOT, 'reports', 'cms-archive');
 const CATALOG = 'https://data.cms.gov/provider-data/api/1/metastore/schemas/dataset/items?show-reference-ids=false';
 
 // Dataset identifiers, not file names. CMS renames the files every quarter
@@ -89,6 +96,13 @@ function list() {
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--list')) return list();
+
+  // Resolve the release key without downloading, so CI can check whether this
+  // release was already captured before spending 130 MB of transfer.
+  if (args.includes('--print-key')) {
+    console.log(releaseKey(await resolve()));
+    return;
+  }
 
   console.log('resolving current CMS release from the Provider Data Catalog...');
   const resolved = await resolve();
