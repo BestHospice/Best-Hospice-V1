@@ -2867,14 +2867,16 @@ function renderCityPage({ serviceKey, city, state, providers = [] }) {
     ? `We currently list ${providerCount} ${providerCount === 1 ? 'provider' : 'providers'} in ${cityState}.`
     : `We are actively expanding coverage in ${cityState}.`;
   const localResources = `Local resources in ${cityState} often include hospital care coordinators, Medicare counseling, and caregiver support groups. Providers can guide you to the right local options.`;
+  // placeSlug must be declared before locationMetadata() reads it, or every
+  // city page throws a ReferenceError from the temporal dead zone.
+  const placeSlug = `${slugify(city)}-${(state || '').toLowerCase()}`;
+  const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${placeSlug}`;
   const cityMeta = locationMetadata({
     serviceName: service.name, placeLabel: cityState, serviceKey, placeSlug,
     providerCount: providers.length, scope: 'city'
   });
   const title = cityMeta.title;
   const description = cityMeta.description;
-  const placeSlug = `${slugify(city)}-${(state || '').toLowerCase()}`;
-  const canonical = `${CANONICAL_DOMAIN}/${serviceKey}/${placeSlug}`;
   const breadcrumbItems = [
     { name: 'Home', url: `${CANONICAL_DOMAIN}/` },
     { name: service.name, url: `${CANONICAL_DOMAIN}/${serviceKey}` },
