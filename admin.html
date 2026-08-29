@@ -53,17 +53,17 @@
       <div class="card">
         <h2>Team Up Now</h2>
         <p>Add your hospice details to appear in searches.</p>
-        <a class="button" href="admin-add.html">Open provider form</a>
+        <a class="button" href="admin-main.html">Open provider form</a>
       </div>
       <div class="card">
         <h2>Manage Providers</h2>
         <p>Function for the Best Hospice and Home Health team members to keep the site recent and relevant.</p>
-        <a class="button" href="admin-manage.html">Open provider management</a>
+        <a class="button" href="admin-main.html">Open provider management</a>
       </div>
       <div class="card">
         <h2>Provider Information</h2>
         <p>View and edit provider details (mileage, contact info, etc.).</p>
-        <a class="button" href="admin-dashboard.html">Open provider dashboard</a>
+        <a class="button" href="admin-main.html">Open provider dashboard</a>
       </div>
       <div class="card">
         <h2>Admin Main</h2>
@@ -82,7 +82,7 @@
     async function checkSession() {
       try {
         await window.adminAuth.getSession();
-        window.location.href = 'admin-menu.html';
+        window.location.href = 'admin-main.html';
       } catch (_err) {
         loginCard.classList.remove('hidden');
         adminHome.classList.add('hidden');

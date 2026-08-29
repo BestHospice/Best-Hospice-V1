@@ -57,13 +57,20 @@ const ADMIN_PASSWORD_HASH = requireAdminCredential('ADMIN_PASSWORD_HASH');
 const ADMIN_CREDENTIALS_READY = ADMIN_LOGIN_EMAIL !== ADMIN_CREDENTIAL_DISABLED
   && ADMIN_PASSWORD_HASH !== ADMIN_CREDENTIAL_DISABLED;
 const ADMIN_SESSION_COOKIE = 'bh_admin_session_v2';
+// The eleven single-purpose admin pages were folded into admin-main.html as
+// panels; only the console and the per-provider editor remain.
 const ADMIN_PROTECTED_PAGES = new Set([
+  '/admin-main.html',
+  '/admin-provider-detail.html'
+]);
+
+// These eleven pages were removed once admin-main.html absorbed them as
+// panels. Redirect rather than 404 so existing bookmarks keep working.
+const REMOVED_ADMIN_PAGES = [
   '/admin-menu.html',
   '/admin-add.html',
   '/admin-manage.html',
   '/admin-dashboard.html',
-  '/admin-provider-detail.html',
-  '/admin-main.html',
   '/admin-audit.html',
   '/admin-newsletter.html',
   '/admin-territory.html',
@@ -71,7 +78,8 @@ const ADMIN_PROTECTED_PAGES = new Set([
   '/admin-discharge-leads.html',
   '/admin-testimonials.html',
   '/admin-provider-notifications.html'
-]);
+];
+app.get(REMOVED_ADMIN_PAGES, (_req, res) => res.redirect(301, '/admin-main.html'));
 
 function isAdminMainToken(token) {
   return token === ADMIN_TOKEN_DASH || token === ADMIN_TOKEN_AUDIT;
@@ -1220,7 +1228,7 @@ async function handleAdminLogin(req, res, { redirectOnSuccess = false } = {}) {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const nextPathRaw = String(req.body?.next || req.query?.next || '').trim();
-  const safeNextPath = nextPathRaw.startsWith('/') ? nextPathRaw : '/admin-menu.html';
+  const safeNextPath = nextPathRaw.startsWith('/') ? nextPathRaw : '/admin-main.html';
   const fail = (status, error) => {
     if (redirectOnSuccess) {
       return res.redirect(302, `/admin.html?error=${encodeURIComponent(error)}&next=${encodeURIComponent(safeNextPath)}`);
@@ -7973,9 +7981,6 @@ app.get('/discharge-planners', (_req, res) => {
   res.sendFile(path.join(__dirname, 'discharge-planners.html'));
 });
 
-app.get('/admin-discharge-leads.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'admin-discharge-leads.html'));
-});
 
 // GET /api/youtube/videos — public, latest videos from YouTube channel RSS
 app.get('/api/youtube/videos', async (req, res) => {
