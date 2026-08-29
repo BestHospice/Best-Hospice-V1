@@ -230,6 +230,53 @@
       </div>
 
       <div style="border-top:1px solid #e5e7eb; padding-top:12px;">
+        <h3>Your listing details</h3>
+        <p style="color:#4b5563; font-size:14px; margin:0 0 12px;">These appear on your public listing and are what families use to reach you. Your business name, primary email and care type are set by us &mdash; email <a href="mailto:contact@besthospice.com">contact@besthospice.com</a> to change those.</p>
+
+        <div class="cov-field">
+          <label class="dash-label" for="prof-phone">Phone number</label>
+          <input id="prof-phone" type="tel" class="cov-input" style="max-width:260px;" placeholder="(480) 555-0100">
+        </div>
+
+        <div class="cov-field">
+          <label class="dash-label" for="prof-website">Website</label>
+          <input id="prof-website" type="text" class="cov-input" style="max-width:360px;" placeholder="example.com">
+        </div>
+
+        <div class="cov-field">
+          <label class="dash-label" for="prof-email2">Second contact email <span style="font-weight:400; color:#6b7280;">(optional)</span></label>
+          <input id="prof-email2" type="email" class="cov-input" style="max-width:360px;" placeholder="office@example.com">
+          <p class="cov-hint">Referral notifications are sent to this address as well as your main one.</p>
+        </div>
+
+        <div class="cov-field">
+          <label class="dash-label" for="prof-street">Street address</label>
+          <input id="prof-street" type="text" class="cov-input" style="max-width:420px;" placeholder="4902 S Val Vista Dr.">
+          <p class="cov-hint">Your radius is measured from here, so changing it changes which families you are notified about.</p>
+        </div>
+
+        <div class="cov-field" style="display:flex; gap:10px; flex-wrap:wrap;">
+          <span>
+            <label class="dash-label" for="prof-city">City</label>
+            <input id="prof-city" type="text" class="cov-input" style="width:200px;" placeholder="Gilbert">
+          </span>
+          <span>
+            <label class="dash-label" for="prof-state">State</label>
+            <input id="prof-state" type="text" class="cov-input" style="width:80px;" maxlength="2" placeholder="AZ">
+          </span>
+          <span>
+            <label class="dash-label" for="prof-zip">ZIP</label>
+            <input id="prof-zip" type="text" class="cov-input" style="width:110px;" maxlength="5" placeholder="85298">
+          </span>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+          <button class="dash-btn" id="prof-save">Save listing details</button>
+          <span id="prof-status" style="font-size:14px;"></span>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #e5e7eb; padding-top:12px;">
         <h3>Coverage</h3>
         <p style="color:#4b5563; font-size:14px; margin:0 0 12px;">You are notified when a lead matches your service ZIP codes <strong>or</strong> falls inside your radius. Keep at least one active.</p>
 
@@ -411,6 +458,7 @@
           document.getElementById('coverage-label').textContent = `Coverage: ${coverageText}`;
           document.getElementById('coverage-summary').textContent = coverageText;
           applyCoverageForm(data.provider);
+          applyProfileForm(data.provider);
         }
         renderSubscriptionBanner(data.subscription);
         if (data.provider) {
@@ -849,6 +897,17 @@
         : '';
     }
 
+    function applyProfileForm(provider) {
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+      set('prof-phone', provider.phone);
+      set('prof-website', provider.website);
+      set('prof-email2', provider.secondaryContactEmail);
+      set('prof-street', provider.street);
+      set('prof-city', provider.city);
+      set('prof-state', provider.state);
+      set('prof-zip', provider.zip);
+    }
+
     function applyCoverageForm(provider) {
       const radiusKm = Number(provider.serviceRadiusKm || 0);
       const zips = String(provider.serviceZipCodes || '').split(',').map((z) => z.trim()).filter(Boolean);
@@ -885,13 +944,40 @@
       }
     });
 
+    document.getElementById('prof-save').addEventListener('click', async () => {
+      const status = document.getElementById('prof-status');
+      const val = (id) => (document.getElementById(id).value || '').trim();
+      status.style.color = '#4b5563';
+      status.textContent = 'Saving...';
+      try {
+        await callApi('/api/provider/profile', 'PATCH', {
+          phone: val('prof-phone'),
+          website: val('prof-website'),
+          secondaryContactEmail: val('prof-email2'),
+          street: val('prof-street'),
+          city: val('prof-city'),
+          state: val('prof-state'),
+          zip: val('prof-zip')
+        });
+        status.style.color = '#0f766e';
+        status.textContent = 'Saved.';
+        await loadMetrics();
+      } catch (err) {
+        status.style.color = '#dc2626';
+        status.textContent = err.message || 'Could not save your details.';
+      }
+    });
+
     // ---- Section navigation: group the four h3 sections into panels ----
     (function setupProviderSections() {
       const card = document.querySelector('.dash-card');
       if (!card || card.dataset.paneled) return;
 
-      const LABELS = ['Leads', 'Performance', 'Billing', 'Coverage', 'Testimonial', 'Job Seekers'];
-      const HEADS = ['Lead Analytics', 'Return on Investment', 'Manage Billing', 'Coverage', 'Your Testimonial', 'Job Seekers'];
+      // Order here is panel order, and every h3 section in the card must appear
+      // or it is left stranded outside the panel shell. Keep in step with the
+      // markup above.
+      const LABELS = ['Leads', 'Performance', 'Billing', 'Listing', 'Coverage', 'Testimonial', 'Job Seekers'];
+      const HEADS = ['Lead Analytics', 'Return on Investment', 'Manage Billing', 'Your listing details', 'Coverage', 'Your Testimonial', 'Job Seekers'];
 
       const blocks = Array.from(card.children);
       const targets = [];

@@ -5709,6 +5709,121 @@ app.patch('/api/provider/coverage', requireProviderAuth, async (req, res) => {
   }
 });
 
+// Provider self-service for contact details and listing address.
+//
+// Deliberately excludes four fields, each for a specific reason:
+//   name       changes providerSlug(), which changes the indexed
+//              /provider/<slug>-<id> URL. Admin-only so a rename is a
+//              considered decision rather than a side effect.
+//   email      the primary lead-notification address and the account link.
+//              A typo here silently stops referrals arriving.
+//   careType   decides which service pages list the provider. Letting an
+//              agency self-classify reintroduces the home-care-on-hospice-pages
+//              problem we just fixed.
+//   plan/billing  payment state, set by Stripe webhooks only.
+app.patch('/api/provider/profile', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const current = ctx.provider;
+    const data = {};
+
+    if (req.body?.phone !== undefined) {
+      const phone = String(req.body.phone).trim();
+      if (phone && phone.replace(/\D/g, '').length < 10) {
+        return res.status(400).json({ error: 'Enter a phone number with at least 10 digits.' });
+      }
+      data.phone = phone || null;
+    }
+
+    if (req.body?.website !== undefined) {
+      let site = String(req.body.website).trim();
+      if (site) {
+        if (!/^https?:\/\//i.test(site)) site = `https://${site}`;
+        try {
+          const u = new URL(site);
+          if (!u.hostname.includes('.')) throw new Error('no tld');
+        } catch (_err) {
+          return res.status(400).json({ error: 'Enter a valid website address, for example example.com' });
+        }
+      }
+      data.website = site || null;
+    }
+
+    if (req.body?.secondaryContactEmail !== undefined) {
+      const secondary = String(req.body.secondaryContactEmail).trim().toLowerCase();
+      if (secondary && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(secondary)) {
+        return res.status(400).json({ error: 'Enter a valid second contact email, or leave it blank.' });
+      }
+      data.secondaryContactEmail = secondary || null;
+    }
+
+    // Address is all-or-nothing: a street without a matching city, state and
+    // ZIP cannot be geocoded, and a stale lat/lon means the provider quietly
+    // stops matching nearby families.
+    const wantsAddress = ['street', 'city', 'state', 'zip'].some((k) => req.body?.[k] !== undefined);
+    if (wantsAddress) {
+      const street = String(req.body?.street ?? '').trim();
+      const city = String(req.body?.city ?? '').trim();
+      const state = String(req.body?.state ?? '').trim().toUpperCase();
+      const zip = String(req.body?.zip ?? '').trim();
+      if (!street || !city || !state || !zip) {
+        return res.status(400).json({ error: 'Street, city, state and ZIP are all required to change your address.' });
+      }
+      if (!/^[A-Z]{2}$/.test(state)) {
+        return res.status(400).json({ error: 'Use the two-letter state code, for example AZ.' });
+      }
+      if (!/^\d{5}$/.test(zip)) {
+        return res.status(400).json({ error: 'Enter a five-digit ZIP code.' });
+      }
+      const full = `${street}, ${city}, ${state} ${zip}`;
+      if (full !== String(current.address || '').trim()) {
+        const geo = await geocodeAddress(full);
+        // Refusing is the safe failure. Saving an address whose coordinates
+        // still point at the old location would silently break lead matching,
+        // and the provider would have no way to tell.
+        if (!geo || !Number.isFinite(geo.lat) || !Number.isFinite(geo.lon)) {
+          return res.status(422).json({
+            error: 'We could not locate that address, so nothing was saved. Check the street and ZIP, or contact us and we will set it manually.'
+          });
+        }
+        data.address = full;
+        data.city = city;
+        data.state = state;
+        data.zip = zip;
+        data.lat = geo.lat;
+        data.lon = geo.lon;
+      }
+    }
+
+    if (!Object.keys(data).length) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+
+    const updated = await prisma.provider.update({
+      where: { id: ctx.providerId },
+      data,
+      select: {
+        phone: true, website: true, secondaryContactEmail: true,
+        address: true, city: true, state: true, zip: true, lat: true, lon: true
+      }
+    });
+
+    await logAdminAction(
+      'provider_user',
+      'PROVIDER_PROFILE_UPDATE',
+      ctx.providerId,
+      { fields: Object.keys(data), regeocoded: data.lat !== undefined },
+      hashIp(req.ip || '')
+    );
+
+    res.json({ ok: true, provider: updated });
+  } catch (err) {
+    console.error('Provider profile update failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.delete('/api/admin/main/website-events', async (req, res) => {
   if (!hasAdminAccess(req, ['main'])) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -6621,7 +6736,22 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
         email: ctx.provider.email,
         planTier: ctx.provider.planTier || 'verified',
         serviceRadiusKm: ctx.provider.serviceRadiusKm || 0,
-        serviceZipCodes: ctx.provider.serviceZipCodes || null
+        serviceZipCodes: ctx.provider.serviceZipCodes || null,
+        // Self-editable via PATCH /api/provider/profile. `street` is derived by
+        // stripping the ", city, ST zip" suffix that address is stored with, so
+        // the form can show the street on its own.
+        phone: ctx.provider.phone || '',
+        website: ctx.provider.website || '',
+        secondaryContactEmail: ctx.provider.secondaryContactEmail || '',
+        address: ctx.provider.address || '',
+        street: (() => {
+          const full = String(ctx.provider.address || '').trim();
+          const suffix = `, ${ctx.provider.city || ''}, ${ctx.provider.state || ''} ${ctx.provider.zip || ''}`;
+          return full.endsWith(suffix) ? full.slice(0, -suffix.length) : full;
+        })(),
+        city: ctx.provider.city || '',
+        state: ctx.provider.state || '',
+        zip: ctx.provider.zip || ''
       },
       subscription: {
         status: subscriptionStatus,
