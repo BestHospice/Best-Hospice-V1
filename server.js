@@ -3981,8 +3981,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           additionalNotes,
           providerEmail: recipientEmails[0],
           providerEmails: recipientEmails,
-          providerPhone: providerRecord?.phone || p.phone || '',
-          planTier
+          providerPhone: providerRecord?.phone || p.phone || ''
         }
       };
     })
