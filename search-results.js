@@ -548,11 +548,6 @@ async function startResultsFlow() {
       ? `${currentContactPhone} or ${currentContactEmail}`
       : currentContactEmail;
 
-    reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
-    notifyMini.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName}.`;
-    setStatus(`We've notified ${currentNearbyProviders.length} providers near ${geo.label}.`);
-    showResultsWithOptionalPrompt();
-
     try {
       await Promise.race([
         getCaptchaToken(),
@@ -561,16 +556,31 @@ async function startResultsFlow() {
     } catch (_captchaErr) {
       // captcha optional — proceed without it
     }
+
+    // Notify first, then say so. This used to run the other way round: the
+    // page told the family "You're all set! The providers below have been
+    // notified" before the notify request was even sent, so when /api/notify
+    // failed they saw a confident confirmation and a contradictory error at
+    // the same time, and nobody had actually been contacted.
     const initialResult = await notifyInitialLead();
     currentLeadId = initialResult.leadId || null;
+
+    reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
+    notifyMini.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName}.`;
+    setStatus(`We've notified ${currentNearbyProviders.length} providers near ${geo.label}.`);
+    showResultsWithOptionalPrompt();
   } catch (err) {
     console.error(err);
+    // Never leave a "you're all set" message up when the notification failed.
+    leadConfirmation?.classList.add('hidden');
+    notifyMini?.classList.add('hidden');
+    optionalCard?.classList.add('hidden');
     if (reassuranceCard && !reassuranceCard.classList.contains('hidden')) {
-      reassuranceMessage.textContent = 'Something went wrong loading your results. Please go back and try again.';
+      reassuranceMessage.textContent = 'We could not reach providers just now, so nobody has been contacted yet. Please try again, or contact us at contact@besthospice.com or (205) 739-1592 and we will connect you directly.';
       if (flowContinueBtn) { flowContinueBtn.textContent = 'Back to Search'; flowContinueBtn.onclick = () => { window.location.href = 'search.html'; }; }
       if (flowSkipBtn) flowSkipBtn.classList.add('hidden');
     } else {
-      setStatus('Unable to complete search right now. Please try again.', true);
+      setStatus('We could not reach providers just now, so nobody has been contacted yet. Please try again, or contact us at contact@besthospice.com and we will connect you directly.', true);
     }
   }
 }
