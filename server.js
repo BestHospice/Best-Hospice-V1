@@ -5850,8 +5850,14 @@ app.delete('/api/admin/main/leads/:id', async (req, res) => {
     return res.status(400).json({ error: 'Missing lead id' });
   }
   try {
-    const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true } });
+    // Capture enough to identify the lead afterwards; once the row is gone the
+    // audit entry is the only record that it ever existed.
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { id: true, zip: true, clientEmail: true, firstName: true, lastName: true, createdAt: true }
+    });
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
+    const notifiedCount = await prisma.leadNotification.count({ where: { leadId } });
 
     await prisma.$transaction([
       prisma.notificationJob.deleteMany({ where: { leadId } }),
@@ -5874,6 +5880,20 @@ app.delete('/api/admin/main/leads/:id', async (req, res) => {
         data: { leadCount: row._count._all || 0 }
       });
     }
+
+    await logAdminAction(
+      'admin',
+      'LEAD_DELETED',
+      leadId,
+      {
+        zip: lead.zip || null,
+        clientEmail: lead.clientEmail || null,
+        name: [lead.firstName, lead.lastName].filter(Boolean).join(' ') || null,
+        createdAt: lead.createdAt,
+        notificationsRemoved: notifiedCount
+      },
+      hashIp(req.ip || '')
+    );
 
     res.json({ ok: true, deletedLeadId: leadId });
   } catch (err) {

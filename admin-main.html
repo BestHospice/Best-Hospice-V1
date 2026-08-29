@@ -588,6 +588,7 @@
                 <th>Email</th>
                 <th style="text-align:center;">Status</th>
                 <th>Admitted To</th>
+                <th style="text-align:center;">Delete</th>
               </tr>
             </thead>
             <tbody id="all-leads-body"><tr><td colspan="6" style="color:#64748b; padding:16px;">Loading…</td></tr></tbody>
@@ -2013,8 +2014,32 @@
               <option value="">— select —</option>${providerOptions.replace(`value="${l.adminProviderId||''}"`, `value="${l.adminProviderId||''}" selected`)}
             </select>${admittedProvider ? `<div style="font-size:11px; color:#065f46; margin-top:2px;">${admittedProvider.name}</div>` : ''}` : ''}
           </td>
+          <td style="text-align:center;">
+            <button class="status-btn" style="color:#b91c1c; border-color:#fecaca;"
+              onclick="deleteLead('${l.id}', ${JSON.stringify(name).replace(/"/g, '&quot;')})">Delete</button>
+          </td>
         </tr>`;
-      }).join('') : '<tr><td colspan="6" style="color:#64748b; padding:16px;">No leads match.</td></tr>';
+      }).join('') : '<tr><td colspan="7" style="color:#64748b; padding:16px;">No leads match.</td></tr>';
+    }
+
+    // Removes the lead and everything hanging off it. Used mostly to clear test
+    // submissions so they do not distort admitted counts and conversion rates.
+    async function deleteLead(leadId, name) {
+      if (!window.confirm(`Delete the lead for ${name || 'this client'}?\n\nThis also removes its provider notifications, outcomes and impressions, and cannot be undone.`)) return;
+      const row = document.getElementById(`alrow-${leadId}`);
+      const btn = row ? row.querySelector('button[onclick^="deleteLead"]') : null;
+      if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
+      try {
+        const res = await fetch(`/api/admin/main/leads/${encodeURIComponent(leadId)}`, {
+          method: 'DELETE', credentials: 'same-origin'
+        });
+        if (!res.ok) throw new Error('Delete failed');
+        allLeadsData = allLeadsData.filter((l) => l.id !== leadId);
+        renderAllLeads();
+      } catch (_err) {
+        alert('Could not delete that lead right now.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+      }
     }
 
     async function setLeadStatus(leadId, status) {
