@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-27T20:54:08.543Z",
+  "generated": "2026-08-29T13:08:21.645Z",
   "measurePeriod": "01/01/2023 - 12/31/2024",
   "places": {
     "hospice-care/tucson-az": {
@@ -589,6 +589,586 @@
           "recommend": 94,
           "hci": 8,
           "local": true
+        }
+      ]
+    },
+    "hospice-care/nj": {
+      "label": "New Jersey",
+      "state": "NJ",
+      "scope": "state",
+      "cohortSize": 61,
+      "basedHere": 61,
+      "routineHomeCareOnly": 2,
+      "levelsReported": 58,
+      "hciLocal": 9.2,
+      "hciCount": 59,
+      "hciState": 9.2,
+      "hciNational": 8.8,
+      "vldLocal": 56.7,
+      "vldCount": 57,
+      "vldState": 54.9,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "For-Profit",
+          "n": 32
+        },
+        {
+          "type": "Non-Profit",
+          "n": 17
+        },
+        {
+          "type": "Other",
+          "n": 8
+        },
+        {
+          "type": "Not reported to CMS",
+          "n": 4
+        }
+      ],
+      "ratedCount": 46,
+      "topRated": [
+        {
+          "name": "HOLY NAME HOSPICE",
+          "city": "TEANECK",
+          "state": "NJ",
+          "ownership": "Other",
+          "star": 5,
+          "recommend": 97,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "KAREN ANN QUINLAN HOSPICE",
+          "city": "NEWTON",
+          "state": "NJ",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 92,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "SAMARITAN HEALTHCARE AND HOSPICE",
+          "city": "MOUNT LAUREL",
+          "state": "NJ",
+          "ownership": "Non-Profit",
+          "star": 4,
+          "recommend": 90,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "DOVE HOSPICE SERVICES OF NEW JERSEY, LLC",
+          "city": "MANALAPAN",
+          "state": "NJ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 90,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "VNA OF CENTRAL JERSEY HOME CARE & HOSPICE",
+          "city": "TOMS RIVER",
+          "state": "NJ",
+          "ownership": "Non-Profit",
+          "star": 4,
+          "recommend": 89,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "COMPASSIONATE CARE HOSPICE OF NORTHERN NJ, LLC",
+          "city": "ROCKAWAY",
+          "state": "NJ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 88,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "VITAS HEALTHCARE CORPORATION ATLANTIC",
+          "city": "LIVINGSTON",
+          "state": "NJ",
+          "ownership": "For-Profit",
+          "star": 4,
+          "recommend": 87,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "HOLY REDEEMER HOSPICE-NJ, SOUTH",
+          "city": "RUNNEMEDE",
+          "state": "NJ",
+          "ownership": "Non-Profit",
+          "star": 4,
+          "recommend": 86,
+          "hci": 9,
+          "local": true
+        }
+      ]
+    },
+    "hospice-care/md": {
+      "label": "Maryland",
+      "state": "MD",
+      "scope": "state",
+      "cohortSize": 26,
+      "basedHere": 26,
+      "routineHomeCareOnly": 0,
+      "levelsReported": 25,
+      "hciLocal": 9.7,
+      "hciCount": 24,
+      "hciState": 9.7,
+      "hciNational": 8.8,
+      "vldLocal": 59.2,
+      "vldCount": 24,
+      "vldState": 59.5,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "Non-Profit",
+          "n": 14
+        },
+        {
+          "type": "Other",
+          "n": 7
+        },
+        {
+          "type": "For-Profit",
+          "n": 5
+        }
+      ],
+      "ratedCount": 23,
+      "topRated": [
+        {
+          "name": "TALBOT HOSPICE FOUNDATION, INC",
+          "city": "EASTON",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 95,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "COMPASS REGIONAL HOSPICE, INC",
+          "city": "CENTREVILLE",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 94,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "UPMC WESTERN MARYLAND",
+          "city": "CUMBERLAND",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 93,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "HOSPICE OF GARRETT COUNTY",
+          "city": "OAKLAND",
+          "state": "MD",
+          "ownership": "Other",
+          "star": 5,
+          "recommend": 93,
+          "hci": 8,
+          "local": true
+        },
+        {
+          "name": "HOSPICE OF ST MARY'S",
+          "city": "CALLAWAY",
+          "state": "MD",
+          "ownership": "Other",
+          "star": 5,
+          "recommend": 91,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "HOSPICE OF WASHINGTON COUNTY, INC",
+          "city": "HAGERSTOWN",
+          "state": "MD",
+          "ownership": "Other",
+          "star": 4,
+          "recommend": 90,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "GILCHRIST HOSPICE CARE, INC",
+          "city": "HUNT VALLEY",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 4,
+          "recommend": 89,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "COASTAL HOSPICE INC",
+          "city": "SALISBURY",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 4,
+          "recommend": 88,
+          "hci": 10,
+          "local": true
+        }
+      ]
+    },
+    "hospice-care/tn": {
+      "label": "Tennessee",
+      "state": "TN",
+      "scope": "state",
+      "cohortSize": 61,
+      "basedHere": 61,
+      "routineHomeCareOnly": 0,
+      "levelsReported": 57,
+      "hciLocal": 9.6,
+      "hciCount": 59,
+      "hciState": 9.6,
+      "hciNational": 8.8,
+      "vldLocal": 66.8,
+      "vldCount": 57,
+      "vldState": 66.5,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "For-Profit",
+          "n": 34
+        },
+        {
+          "type": "Other",
+          "n": 12
+        },
+        {
+          "type": "Non-Profit",
+          "n": 6
+        },
+        {
+          "type": "Not reported to CMS",
+          "n": 6
+        },
+        {
+          "type": "Government",
+          "n": 3
+        }
+      ],
+      "ratedCount": 45,
+      "topRated": [
+        {
+          "name": "HOSPICE OF CUMBERLAND COUNTY INC",
+          "city": "CROSSVILLE",
+          "state": "TN",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 96,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "QUALITY HOSPICE",
+          "city": "JAMESTOWN",
+          "state": "TN",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 96,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "ALIVE HOSPICE INC",
+          "city": "NASHVILLE",
+          "state": "TN",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 93,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "SMOKY MOUNTAIN HOME HEALTH AND HOSPICE, I N C",
+          "city": "NEWPORT",
+          "state": "TN",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 93,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "BEACON HOSPICE",
+          "city": "NEW TAZEWELL",
+          "state": "TN",
+          "ownership": "Other",
+          "star": 5,
+          "recommend": 92,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "BAPTIST HOSPICE UNION CITY",
+          "city": "UNION CITY",
+          "state": "TN",
+          "ownership": "Other",
+          "star": 5,
+          "recommend": 91,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "KINDRED HOSPICE",
+          "city": "COOKEVILLE",
+          "state": "TN",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 90,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "PRISMA HEALTH HOSPICE AND PALLIATIVE CARE",
+          "city": "MARYVILLE",
+          "state": "TN",
+          "ownership": "Government",
+          "star": 5,
+          "recommend": 90,
+          "hci": 9,
+          "local": true
+        }
+      ]
+    },
+    "hospice-care/al": {
+      "label": "Alabama",
+      "state": "AL",
+      "scope": "state",
+      "cohortSize": 85,
+      "basedHere": 85,
+      "routineHomeCareOnly": 1,
+      "levelsReported": 85,
+      "hciLocal": 9.3,
+      "hciCount": 84,
+      "hciState": 9.3,
+      "hciNational": 8.8,
+      "vldLocal": 71.2,
+      "vldCount": 83,
+      "vldState": 69.4,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "For-Profit",
+          "n": 55
+        },
+        {
+          "type": "Other",
+          "n": 19
+        },
+        {
+          "type": "Non-Profit",
+          "n": 7
+        },
+        {
+          "type": "Combination Government & Non-Profit",
+          "n": 3
+        },
+        {
+          "type": "Government",
+          "n": 1
+        }
+      ],
+      "ratedCount": 50,
+      "topRated": [
+        {
+          "name": "LAKESIDE HOSPICE INC",
+          "city": "PELL CITY",
+          "state": "AL",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 99,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "HOSPICE OF THE VALLEY, INC",
+          "city": "DECATUR",
+          "state": "AL",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 97,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "PREFERRED HOSPICE",
+          "city": "FLORENCE",
+          "state": "AL",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 96,
+          "hci": 8,
+          "local": true
+        },
+        {
+          "name": "ENHABIT HOSPICE RAINBOW CITY",
+          "city": "RAINBOW CITY",
+          "state": "AL",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 96,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "HOSPICE OF WEST ALABAMA",
+          "city": "TUSCALOOSA",
+          "state": "AL",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 95,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "AVEANNA HOSPICE OF ANDALUSIA",
+          "city": "ANDALUSIA",
+          "state": "AL",
+          "ownership": "For-Profit",
+          "star": 5,
+          "recommend": 94,
+          "hci": 10,
+          "local": true
+        },
+        {
+          "name": "COLUMBUS HOSPICE OF ALABAMA",
+          "city": "PHENIX CITY",
+          "state": "AL",
+          "ownership": "Non-Profit",
+          "star": 5,
+          "recommend": 94,
+          "hci": 9,
+          "local": true
+        },
+        {
+          "name": "HEARTLITE HOSPICE",
+          "city": "SCOTTSBORO",
+          "state": "AL",
+          "ownership": "Other",
+          "star": 5,
+          "recommend": 94,
+          "hci": 10,
+          "local": true
+        }
+      ]
+    },
+    "hospice-care/silver-spring-md": {
+      "label": "Silver Spring, Maryland",
+      "state": "MD",
+      "scope": "city",
+      "cohortSize": 7,
+      "basedHere": 1,
+      "routineHomeCareOnly": 0,
+      "levelsReported": 7,
+      "hciLocal": 9.3,
+      "hciCount": 7,
+      "hciState": 9.7,
+      "hciNational": 8.8,
+      "vldLocal": 51,
+      "vldCount": 7,
+      "vldState": 59.5,
+      "vldNational": 48.3,
+      "ownership": [
+        {
+          "type": "Non-Profit",
+          "n": 4
+        },
+        {
+          "type": "For-Profit",
+          "n": 2
+        },
+        {
+          "type": "Other",
+          "n": 1
+        }
+      ],
+      "ratedCount": 7,
+      "topRated": [
+        {
+          "name": "HOLY CROSS HOME CARE AND HOSPICE",
+          "city": "SILVER SPRING",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 2,
+          "recommend": 67,
+          "hci": 8,
+          "local": true
+        },
+        {
+          "name": "MONTGOMERY HOSPICE & PRINCE GEORGES HOSPICE",
+          "city": "ROCKVILLE",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 3,
+          "recommend": 87,
+          "hci": 10,
+          "local": false
+        },
+        {
+          "name": "FREDERICK HEALTH HOSPICE",
+          "city": "FREDERICK",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 3,
+          "recommend": 86,
+          "hci": 10,
+          "local": false
+        },
+        {
+          "name": "JEWISH SOCIAL SERVICE AGENCY HOSPICE",
+          "city": "ROCKVILLE",
+          "state": "MD",
+          "ownership": "Non-Profit",
+          "star": 2,
+          "recommend": 83,
+          "hci": 10,
+          "local": false
+        },
+        {
+          "name": "CAPITAL CARING",
+          "city": "GREENBELT",
+          "state": "MD",
+          "ownership": "Other",
+          "star": 2,
+          "recommend": 78,
+          "hci": 8,
+          "local": false
+        },
+        {
+          "name": "ACCENTCARE HOSPICE & PALLIATIVE CARE OF MARYLAND",
+          "city": "COLUMBIA",
+          "state": "MD",
+          "ownership": "For-Profit",
+          "star": 2,
+          "recommend": 71,
+          "hci": 10,
+          "local": false
+        },
+        {
+          "name": "HEARTLAND HOSPICE (BELTSVILLE)",
+          "city": "BELTSVILLE",
+          "state": "MD",
+          "ownership": "For-Profit",
+          "star": 1,
+          "recommend": 59,
+          "hci": 9,
+          "local": false
         }
       ]
     }

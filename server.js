@@ -2565,7 +2565,7 @@ function renderCmsLocationSection(serviceKey, placeSlug) {
               </tr>`).join('');
   const levels = d.routineHomeCareOnly
     ? `<p><strong>Worth asking about:</strong> ${d.routineHomeCareOnly} of the ${d.levelsReported} hospices that reported levels of care provided <em>only</em> routine home care during the measure period &mdash; meaning no continuous home care during a crisis and no general inpatient care. Ask any hospice which levels of care they actually staff.</p>`
-    : `<p>Every hospice serving ${escapeHtml(d.label)} that reported its levels of care provided more than routine home care, so continuous home care during a crisis or general inpatient care was available. Still worth confirming directly with any hospice you speak to.</p>`;
+    : `<p>Every hospice ${d.scope === 'state' ? 'in' : 'serving'} ${escapeHtml(d.label)} that reported its levels of care provided more than routine home care, so continuous home care during a crisis or general inpatient care was available. Still worth confirming directly with any hospice you speak to.</p>`;
   const ratedBlock = d.topRated.length ? `
             <h3>Highest family-survey results in ${escapeHtml(d.label)}</h3>
             <div class="callout"><strong>These are not Best Hospice providers.</strong> The table below comes entirely from public Medicare data. Appearing here does not mean an organization participates in Best Hospice, is verified by us, or is recommended by us. We show it so you can research every local option, including ones we have no relationship with.</div>
@@ -2573,7 +2573,7 @@ function renderCmsLocationSection(serviceKey, placeSlug) {
               <thead><tr><th>Hospice (Medicare data)</th><th style="text-align:right;white-space:nowrap;">Survey</th><th style="text-align:right;white-space:nowrap;">Would recommend</th><th style="text-align:right;white-space:nowrap;">Care Index</th></tr></thead>
               <tbody>${ratedRows}</tbody>
             </table></div>
-            <p class="text-small">Showing ${Math.min(8, d.topRated.length)} of the ${d.ratedCount} hospices with a published survey rating, those based in ${escapeHtml(d.label)} first. The other ${n - d.ratedCount} have no published rating, usually because too few families were surveyed to report it &mdash; a missing rating is not a bad rating.</p>` : '';
+            <p class="text-small">Showing ${Math.min(8, d.topRated.length)} of the ${d.ratedCount} hospices with a published survey rating, those based in ${escapeHtml(d.label)} first.${n - d.ratedCount > 0 ? ` The other ${n - d.ratedCount} have no published rating, usually because too few families were surveyed to report it &mdash; a missing rating is not a bad rating.` : ''}</p>` : '';
   return `
           <section class="content-section">
             <h2>The hospice market in ${escapeHtml(d.label)}</h2>
@@ -2587,7 +2587,7 @@ function renderCmsLocationSection(serviceKey, placeSlug) {
                 <tr><td>Visits in the last days of life<div class="text-small">Share of patients visited by a nurse or social worker in their final days</div></td><td style="text-align:right;white-space:nowrap;">${cell(d.vldLocal, '%')}</td><td style="text-align:right;white-space:nowrap;">${cell(d.vldState, '%')}</td><td style="text-align:right;white-space:nowrap;">${cell(d.vldNational, '%')}</td></tr>
               </tbody>
             </table></div>
-            <p class="text-small">Local figures are the average across the hospices serving ${escapeHtml(d.label)}: ${d.hciCount} have a published Care Index score and ${d.vldCount} a published visits measure.</p>
+            <p class="text-small">Local figures are the average across the hospices ${d.scope === 'state' ? 'in' : 'serving'} ${escapeHtml(d.label)}: ${d.hciCount} have a published Care Index score and ${d.vldCount} a published visits measure.</p>
             <h3>Ownership</h3>
             <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;max-width:100%;"><table class="compare-table">
               <thead><tr><th>Ownership type</th><th style="text-align:right;white-space:nowrap;">Hospices</th><th style="text-align:right;white-space:nowrap;">Share</th></tr></thead>

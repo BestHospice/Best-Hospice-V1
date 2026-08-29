@@ -27,7 +27,19 @@ const ENABLED = [
   { key: 'hospice-care/phoenix-az',  scope: 'city',  city: 'PHOENIX', state: 'AZ', label: 'Phoenix, Arizona' },
   { key: 'hospice-care/salem-or',    scope: 'city',  city: 'SALEM',   state: 'OR', label: 'Salem, Oregon' },
   { key: 'hospice-care/ut',          scope: 'state',                  state: 'UT', label: 'Utah' },
-  { key: 'hospice-care/pa',          scope: 'state',                  state: 'PA', label: 'Pennsylvania' }
+  { key: 'hospice-care/pa',          scope: 'state',                  state: 'PA', label: 'Pennsylvania' },
+
+  // Tranche 2, 2026-08-29. Chosen on impressions plus data density. The
+  // Arizona city pages (scottsdale, fountain-hills, gilbert, payson) are
+  // deliberately left out as a matched control against Tucson and Phoenix:
+  // same state, same measure density, differing only in enrichment. Texas is
+  // also held back - a 1,053-hospice cohort at 17% CAHPS is a data-quality
+  // test, not a test of whether this format works.
+  { key: 'hospice-care/nj',          scope: 'state',                  state: 'NJ', label: 'New Jersey' },
+  { key: 'hospice-care/md',          scope: 'state',                  state: 'MD', label: 'Maryland' },
+  { key: 'hospice-care/tn',          scope: 'state',                  state: 'TN', label: 'Tennessee' },
+  { key: 'hospice-care/al',          scope: 'state',                  state: 'AL', label: 'Alabama' },
+  { key: 'hospice-care/silver-spring-md', scope: 'city', city: 'SILVER SPRING', state: 'MD', label: 'Silver Spring, Maryland' }
 ];
 
 const data = JSON.parse(fs.readFileSync(SRC, 'utf8'));
