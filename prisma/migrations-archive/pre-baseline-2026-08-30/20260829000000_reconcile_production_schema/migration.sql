@@ -56,16 +56,6 @@ CREATE TABLE IF NOT EXISTS "Testimonial" (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
-CREATE TABLE IF NOT EXISTS "WaitlistRequest" (
-  "id" TEXT NOT NULL,
-  "zip" TEXT NOT NULL,
-  "contactEmail" TEXT,
-  "contactPhone" TEXT,
-  "timeline" TEXT,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "WaitlistRequest_pkey" PRIMARY KEY ("id")
-  );
-
 CREATE TABLE IF NOT EXISTS "DischargeReferral" (
   "id" TEXT NOT NULL,
   "planner_name" TEXT,

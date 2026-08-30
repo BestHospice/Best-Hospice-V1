@@ -9,78 +9,110 @@ datasource db {
 }
 
 model Provider {
-  id                    String   @id @default(uuid())
-  name                  String
-  email                 String
-  secondaryContactEmail String?
-  serviceZipCodes       String?
-  providerLoginEmail    String?
-  phone                 String?
-  website               String?
-  address               String
-  city                  String
-  state                 String
-  zip                   String
-  lat                   Float
-  lon                   Float
-  serviceRadiusKm       Float
-  featured              Boolean  @default(false)
-  activelyHiring        Boolean  @default(true)
-  planTier              String   @default("verified")
-  careType              String   @default("hospice")
-  leadCount             Int      @default(0)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  notifications LeadNotification[]
-  impressions   ProviderImpression[]
-  users         ProviderUserProvider[]
-  activeUsers   ProviderUser[]         @relation("ActiveProvider")
-  outcomes      LeadOutcome[]
+  id                       String                 @id @default(uuid())
+  name                     String
+  email                    String
+  phone                    String?
+  website                  String?
+  address                  String
+  city                     String
+  state                    String
+  zip                      String
+  lat                      Float
+  lon                      Float
+  serviceRadiusKm          Float
+  featured                 Boolean                @default(false)
+  leadCount                Int                    @default(0)
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  planTier                 String                 @default("verified")
+  providerLoginEmail       String?
+  careType                 String                 @default("hospice")
+  secondaryContactEmail    String?
+  serviceZipCodes          String?
+  activelyHiring           Boolean                @default(true)
+  receiveClientLeads       Boolean                @default(true)
+  receiveJobLeads          Boolean                @default(true)
+  stripeCustomerId         String?
+  stripeSubscriptionId     String?
+  subscriptionStatus       String?
+  currentPeriodEnd         DateTime?              @db.Timestamp(6)
+  billingMode              String                 @default("free")
+  subscriptionMonthlyCents Int?
+  notifications            LeadNotification[]
+  outcomes                 LeadOutcome[]
+  impressions              ProviderImpression[]
+  activeUsers              ProviderUser[]         @relation("ActiveProvider")
+  users                    ProviderUserProvider[]
 }
 
 model Lead {
-  id          String   @id @default(uuid())
-  zip         String
-  submittedBy String
-  careDays    String?
-  careTimes   String?
-  services    String?
-  clientEmail String?
-  clientPhone String?
-  firstName   String?
-  lastName    String?
-  createdAt   DateTime @default(now())
+  id               String               @id @default(uuid())
+  zip              String
+  submittedBy      String
+  careDays         String?
+  careTimes        String?
+  services         String?
+  clientEmail      String?
+  clientPhone      String?
+  firstName        String?
+  lastName         String?
+  createdAt        DateTime             @default(now())
+  sessionId        String?
+  adminStatus      String?
+  adminProviderId  String?
+  gclid            String?
+  fbclid           String?
+  firstChannel     String?
+  firstSource      String?
+  firstMedium      String?
+  firstCampaign    String?
+  firstTerm        String?
+  firstContent     String?
+  firstLandingPage String?
+  firstReferrer    String?
+  firstTouchAt     DateTime?            @db.Timestamptz(6)
+  lastChannel      String?
+  lastSource       String?
+  lastMedium       String?
+  lastCampaign     String?
+  lastTerm         String?
+  lastContent      String?
+  lastLandingPage  String?
+  lastReferrer     String?
+  lastTouchAt      DateTime?            @db.Timestamptz(6)
+  notifications    LeadNotification[]
+  outcomes         LeadOutcome[]
+  impressions      ProviderImpression[]
 
-  notifications LeadNotification[]
-  impressions   ProviderImpression[]
-  outcomes      LeadOutcome[]
+  @@index([firstChannel], map: "idx_lead_first_channel")
+  @@index([sessionId], map: "idx_lead_session_id")
 }
 
 model LeadNotification {
   id                String    @id @default(uuid())
-  lead              Lead      @relation(fields: [leadId], references: [id])
   leadId            String
-  provider          Provider  @relation(fields: [providerId], references: [id])
   providerId        String
   status            String
   sendgridMessageId String?
   errorMessage      String?
   sentAt            DateTime?
   createdAt         DateTime  @default(now())
+  lead              Lead      @relation(fields: [leadId], references: [id])
+  provider          Provider  @relation(fields: [providerId], references: [id])
 }
 
 model LeadOutcome {
   id                  String             @id @default(uuid())
-  lead                Lead               @relation(fields: [leadId], references: [id])
   leadId              String
-  provider            Provider           @relation(fields: [providerId], references: [id])
   providerId          String
   status              String             @default("new")
   firstResponseAt     DateTime?
   lastStatusChangedAt DateTime           @default(now())
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
+  lead                Lead               @relation(fields: [leadId], references: [id])
+  provider            Provider           @relation(fields: [providerId], references: [id])
   events              LeadOutcomeEvent[]
 
   @@unique([leadId, providerId])
@@ -90,12 +122,12 @@ model LeadOutcome {
 
 model LeadOutcomeEvent {
   id            String      @id @default(uuid())
-  leadOutcome   LeadOutcome @relation(fields: [leadOutcomeId], references: [id])
   leadOutcomeId String
   fromStatus    String?
   toStatus      String
   changedBy     String      @default("provider")
   changedAt     DateTime    @default(now())
+  leadOutcome   LeadOutcome @relation(fields: [leadOutcomeId], references: [id])
 
   @@index([leadOutcomeId, changedAt])
 }
@@ -121,12 +153,12 @@ model NotificationJob {
 
 model ProviderImpression {
   id         String   @id @default(uuid())
-  provider   Provider @relation(fields: [providerId], references: [id])
   providerId String
-  lead       Lead?    @relation(fields: [leadId], references: [id])
   leadId     String?
   zip        String
   createdAt  DateTime @default(now())
+  lead       Lead?    @relation(fields: [leadId], references: [id])
+  provider   Provider @relation(fields: [providerId], references: [id])
 }
 
 model BlogPost {
@@ -142,13 +174,13 @@ model BlogPost {
 
 model BlogComment {
   id          String   @id @default(uuid())
-  post        BlogPost @relation(fields: [postId], references: [id])
   postId      String
   body        String
   authorEmail String
   authorCity  String
   authorState String
   createdAt   DateTime @default(now())
+  post        BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
 
 model BlogEmailVerification {
@@ -187,21 +219,21 @@ model ProviderUser {
   email               String                 @unique
   passwordHash        String
   emailVerifiedAt     DateTime?
+  createdAt           DateTime               @default(now())
   verifyCode          String?
   verifyCodeExpiresAt DateTime?
-  activeProvider      Provider?              @relation("ActiveProvider", fields: [activeProviderId], references: [id])
   activeProviderId    String?
+  activeProvider      Provider?              @relation("ActiveProvider", fields: [activeProviderId], references: [id])
   links               ProviderUserProvider[]
-  createdAt           DateTime               @default(now())
 }
 
 model ProviderUserProvider {
   id             String       @id @default(uuid())
-  providerUser   ProviderUser @relation(fields: [providerUserId], references: [id])
   providerUserId String
-  provider       Provider     @relation(fields: [providerId], references: [id])
   providerId     String
   createdAt      DateTime     @default(now())
+  provider       Provider     @relation(fields: [providerId], references: [id])
+  providerUser   ProviderUser @relation(fields: [providerUserId], references: [id])
 
   @@unique([providerUserId, providerId])
 }
@@ -229,4 +261,84 @@ model JobLead {
   openToMultiple      String?
   notifiedProviderIds String?
   createdAt           DateTime @default(now())
+}
+
+model DischargeReferral {
+  id           String   @id
+  plannerName  String?  @map("planner_name")
+  plannerTitle String?  @map("planner_title")
+  plannerEmail String?  @map("planner_email")
+  plannerPhone String?  @map("planner_phone")
+  facility     String?
+  patientFirst String?  @map("patient_first")
+  patientLast  String?  @map("patient_last")
+  patientZip   String?  @map("patient_zip")
+  careType     String?  @map("care_type")
+  urgency      String?
+  insurance    String?
+  notes        String?
+  status       String   @default("new")
+  source       String   @default("discharge_planner")
+  submittedAt  DateTime @default(now()) @map("submitted_at")
+}
+
+model Testimonial {
+  id           String    @id
+  quote        String
+  authorName   String    @map("author_name")
+  authorTitle  String?   @map("author_title")
+  active       Boolean   @default(true)
+  displayOrder Int       @default(0) @map("display_order")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  status       String    @default("approved")
+  providerId   String?   @map("provider_id")
+  reviewedAt   DateTime? @map("reviewed_at") @db.Timestamptz(6)
+}
+
+model NewsletterIssue {
+  id          String   @id
+  issueNumber Int      @map("issue_number")
+  slug        String   @unique(map: "idx_newsletter_issues_slug")
+  subject     String
+  preview     String?
+  webHtml     String?  @map("web_html")
+  sentCount   Int      @default(0) @map("sent_count")
+  failedCount Int      @default(0) @map("failed_count")
+  sentAt      DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+
+  @@map("newsletter_issues")
+}
+
+model NewsletterSubscriber {
+  id        String   @id
+  name      String
+  email     String   @unique
+  source    String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([email], map: "idx_newsletter_subscribers_email")
+  @@map("newsletter_subscribers")
+}
+
+model WebsiteEvent {
+  id           String   @id
+  viewerId     String   @map("viewer_id")
+  sessionId    String   @map("session_id")
+  eventType    String   @map("event_type")
+  path         String
+  referrer     String?
+  durationMs   Int?     @map("duration_ms")
+  scrollDepth  Int?     @map("scroll_depth")
+  eventValue   String?  @map("event_value")
+  metadataJson String?  @map("metadata_json")
+  userAgent    String?  @map("user_agent")
+  ipHash       String?  @map("ip_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt], map: "idx_website_events_created_at")
+  @@index([eventType], map: "idx_website_events_event_type")
+  @@index([sessionId], map: "idx_website_events_session_id")
+  @@index([viewerId], map: "idx_website_events_viewer_id")
+  @@map("website_events")
 }
