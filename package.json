@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "prisma:migrate": "prisma migrate dev --name init",
+    "prisma:migrate:dev": "node scripts/prisma-migrate-dev.js",
+    "prisma:status": "prisma migrate status",
     "prisma:generate": "prisma generate",
     "generate:static-seo": "node scripts/generate-static-seo-pages.js",
     "postinstall": "prisma generate --schema prisma/schema.prisma",
