@@ -142,81 +142,92 @@ function candidatesFor(p) {
   return out;
 }
 
+
+// Exported so the identity-review generator reuses this scoring rather than
+// reimplementing it. Two copies of the matching rules would drift, and a
+// review file built from drifted rules is worse than no review file.
+module.exports = { CONFIDENCE, nameSim, normName, normStreet, digits, candidatesFor, providers: bh, hospices: H };
+
 // ---- run ------------------------------------------------------------------
-// Only hospice-typed providers are matched against CMS *hospice* data. Matching
-// a home-care agency here is a category error, not a near miss.
-const eligible = bh.filter((p) => String(p.careType || '').toLowerCase() === 'hospice');
-const ineligible = bh.filter((p) => String(p.careType || '').toLowerCase() !== 'hospice');
+if (require.main === module) runReport();
 
-const rows = [];
-const buckets = { high: [], review: [], none: [] };
-for (const p of eligible) {
-  const cands = candidatesFor(p);
-  const best = cands[0];
-  let status;
-  if (!best) status = 'no_match';
-  else if (best.score >= CONFIDENCE.HIGH) status = 'candidate_high';
-  else status = 'candidate_review';
-  (status === 'candidate_high' ? buckets.high : status === 'no_match' ? buckets.none : buckets.review).push({ p, best, cands });
-  rows.push({
-    bhName: p.name, bhType: p.careType, bhCity: p.city, bhState: p.state,
-    cmsName: best ? best.h.name : '', ccn: best ? best.h.ccn : '',
-    cmsCity: best ? best.h.city : '',
-    method: best ? best.method : '', confidence: best ? best.score.toFixed(2) : '',
-    supporting: best ? best.reasons.join('; ') : '',
-    uncertainty: best ? best.against.join('; ') : 'no in-state CMS hospice resembled this record',
-    otherCandidates: best ? Math.max(0, cands.length - 1) : 0,
-    proposedStatus: status
-  });
-}
+function runReport() {
+  // Only hospice-typed providers are matched against CMS *hospice* data. Matching
+  // a home-care agency here is a category error, not a near miss.
+  const eligible = bh.filter((p) => String(p.careType || '').toLowerCase() === 'hospice');
+  const ineligible = bh.filter((p) => String(p.careType || '').toLowerCase() !== 'hospice');
 
-// One CMS certification belongs to one organization at one location. If two
-// Best Hospice records both point at it, at least one is wrong.
-const ccnClaims = {};
-rows.forEach((r) => { if (r.ccn) (ccnClaims[r.ccn] = ccnClaims[r.ccn] || []).push(r.bhName); });
-const contested = Object.entries(ccnClaims).filter(([, names]) => names.length > 1);
-rows.forEach((r) => {
-  if (r.ccn && ccnClaims[r.ccn].length > 1) {
-    r.uncertainty = [r.uncertainty, `CCN also proposed for: ${ccnClaims[r.ccn].filter((n) => n !== r.bhName).join(', ')}`].filter(Boolean).join('; ');
-    if (r.proposedStatus === 'candidate_high') r.proposedStatus = 'candidate_review';
+  const rows = [];
+  const buckets = { high: [], review: [], none: [] };
+  for (const p of eligible) {
+    const cands = candidatesFor(p);
+    const best = cands[0];
+    let status;
+    if (!best) status = 'no_match';
+    else if (best.score >= CONFIDENCE.HIGH) status = 'candidate_high';
+    else status = 'candidate_review';
+    (status === 'candidate_high' ? buckets.high : status === 'no_match' ? buckets.none : buckets.review).push({ p, best, cands });
+    rows.push({
+      bhName: p.name, bhType: p.careType, bhCity: p.city, bhState: p.state,
+      cmsName: best ? best.h.name : '', ccn: best ? best.h.ccn : '',
+      cmsCity: best ? best.h.city : '',
+      method: best ? best.method : '', confidence: best ? best.score.toFixed(2) : '',
+      supporting: best ? best.reasons.join('; ') : '',
+      uncertainty: best ? best.against.join('; ') : 'no in-state CMS hospice resembled this record',
+      otherCandidates: best ? Math.max(0, cands.length - 1) : 0,
+      proposedStatus: status
+    });
   }
-});
 
-console.log(`Best Hospice providers: ${bh.length}`);
-console.log(`  eligible for CMS hospice matching (careType=hospice): ${eligible.length}`);
-console.log(`  not eligible (no CMS hospice dataset applies):        ${ineligible.length}`);
-console.log(`\nCandidates for the ${eligible.length} eligible providers:`);
-console.log(`  high confidence (>= ${CONFIDENCE.HIGH}) : ${buckets.high.length}`);
-console.log(`  needs review                : ${buckets.review.length}`);
-console.log(`  no match                    : ${buckets.none.length}`);
-if (contested.length) {
-  console.log(`\ncontested CCNs (same CMS record proposed for more than one provider):`);
-  contested.forEach(([ccn, names]) => console.log(`  CCN ${ccn} <- ${names.join(', ')}`));
-}
-const finalHigh = rows.filter((r) => r.proposedStatus === 'candidate_high').length;
-const finalReview = rows.filter((r) => r.proposedStatus === 'candidate_review').length;
-console.log(`\nafter contested-CCN demotion:  high ${finalHigh}, review ${finalReview}, none ${buckets.none.length}`);
-
-const show = (label, list) => {
-  if (!list.length) return;
-  console.log(`\n--- ${label} ---`);
-  list.forEach(({ p, best, cands }) => {
-    if (!best) { console.log(`  ${p.name} (${p.city}, ${p.state})\n     no in-state CMS hospice resembled this record`); return; }
-    console.log(`  ${p.name} (${p.city}, ${p.state})`);
-    console.log(`     -> ${best.h.name} (${best.h.city}) CCN ${best.h.ccn}`);
-    console.log(`        ${best.method} @ ${best.score.toFixed(2)} | for: ${best.reasons.join('; ')}`);
-    if (best.against.length) console.log(`        against: ${best.against.join('; ')}`);
-    if (cands.length > 1) console.log(`        ${cands.length - 1} other in-state candidate(s)`);
+  // One CMS certification belongs to one organization at one location. If two
+  // Best Hospice records both point at it, at least one is wrong.
+  const ccnClaims = {};
+  rows.forEach((r) => { if (r.ccn) (ccnClaims[r.ccn] = ccnClaims[r.ccn] || []).push(r.bhName); });
+  const contested = Object.entries(ccnClaims).filter(([, names]) => names.length > 1);
+  rows.forEach((r) => {
+    if (r.ccn && ccnClaims[r.ccn].length > 1) {
+      r.uncertainty = [r.uncertainty, `CCN also proposed for: ${ccnClaims[r.ccn].filter((n) => n !== r.bhName).join(', ')}`].filter(Boolean).join('; ');
+      if (r.proposedStatus === 'candidate_high') r.proposedStatus = 'candidate_review';
+    }
   });
-};
-show('HIGH CONFIDENCE', buckets.high);
-show('NEEDS REVIEW', buckets.review);
-show('NO MATCH', buckets.none);
 
-if (process.argv.includes('--csv')) {
-  const out = path.join(ROOT, 'reports', 'cms-match-candidates.csv');
-  const cols = Object.keys(rows[0]);
-  const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-  fs.writeFileSync(out, [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n'));
-  console.log(`\nwrote ${path.relative(ROOT, out)} (${rows.length} rows)`);
+  console.log(`Best Hospice providers: ${bh.length}`);
+  console.log(`  eligible for CMS hospice matching (careType=hospice): ${eligible.length}`);
+  console.log(`  not eligible (no CMS hospice dataset applies):        ${ineligible.length}`);
+  console.log(`\nCandidates for the ${eligible.length} eligible providers:`);
+  console.log(`  high confidence (>= ${CONFIDENCE.HIGH}) : ${buckets.high.length}`);
+  console.log(`  needs review                : ${buckets.review.length}`);
+  console.log(`  no match                    : ${buckets.none.length}`);
+  if (contested.length) {
+    console.log(`\ncontested CCNs (same CMS record proposed for more than one provider):`);
+    contested.forEach(([ccn, names]) => console.log(`  CCN ${ccn} <- ${names.join(', ')}`));
+  }
+  const finalHigh = rows.filter((r) => r.proposedStatus === 'candidate_high').length;
+  const finalReview = rows.filter((r) => r.proposedStatus === 'candidate_review').length;
+  console.log(`\nafter contested-CCN demotion:  high ${finalHigh}, review ${finalReview}, none ${buckets.none.length}`);
+
+  const show = (label, list) => {
+    if (!list.length) return;
+    console.log(`\n--- ${label} ---`);
+    list.forEach(({ p, best, cands }) => {
+      if (!best) { console.log(`  ${p.name} (${p.city}, ${p.state})\n     no in-state CMS hospice resembled this record`); return; }
+      console.log(`  ${p.name} (${p.city}, ${p.state})`);
+      console.log(`     -> ${best.h.name} (${best.h.city}) CCN ${best.h.ccn}`);
+      console.log(`        ${best.method} @ ${best.score.toFixed(2)} | for: ${best.reasons.join('; ')}`);
+      if (best.against.length) console.log(`        against: ${best.against.join('; ')}`);
+      if (cands.length > 1) console.log(`        ${cands.length - 1} other in-state candidate(s)`);
+    });
+  };
+  show('HIGH CONFIDENCE', buckets.high);
+  show('NEEDS REVIEW', buckets.review);
+  show('NO MATCH', buckets.none);
+
+  if (process.argv.includes('--csv')) {
+    const out = path.join(ROOT, 'reports', 'cms-match-candidates.csv');
+    const cols = Object.keys(rows[0]);
+    const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    fs.writeFileSync(out, [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n'));
+    console.log(`\nwrote ${path.relative(ROOT, out)} (${rows.length} rows)`);
+  }
+
 }
