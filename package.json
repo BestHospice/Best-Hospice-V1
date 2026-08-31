@@ -9,9 +9,11 @@
     "prisma:status": "prisma migrate status",
     "prisma:generate": "prisma generate",
     "generate:static-seo": "node scripts/generate-static-seo-pages.js",
+    "cms:identity:import": "node scripts/import-cms-hospice-identities.js",
     "postinstall": "prisma generate --schema prisma/schema.prisma",
     "test:seo": "node scripts/test-seo-templates.js",
-    "test:seo:live": "node scripts/test-seo-templates.js --live https://www.besthospice.com"
+    "test:seo:live": "node scripts/test-seo-templates.js --live https://www.besthospice.com",
+    "test:cms:importer": "node scripts/test-cms-identity-importer.js"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
