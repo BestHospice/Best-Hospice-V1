@@ -9,7 +9,7 @@ datasource db {
 }
 
 model Provider {
-  id                       String                 @id @default(uuid())
+  id                       String                     @id @default(uuid())
   name                     String
   email                    String
   phone                    String?
@@ -21,28 +21,29 @@ model Provider {
   lat                      Float
   lon                      Float
   serviceRadiusKm          Float
-  featured                 Boolean                @default(false)
-  leadCount                Int                    @default(0)
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  planTier                 String                 @default("verified")
+  featured                 Boolean                    @default(false)
+  leadCount                Int                        @default(0)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  planTier                 String                     @default("verified")
   providerLoginEmail       String?
-  careType                 String                 @default("hospice")
+  careType                 String                     @default("hospice")
   secondaryContactEmail    String?
   serviceZipCodes          String?
-  activelyHiring           Boolean                @default(true)
-  receiveClientLeads       Boolean                @default(true)
-  receiveJobLeads          Boolean                @default(true)
+  activelyHiring           Boolean                    @default(true)
+  receiveClientLeads       Boolean                    @default(true)
+  receiveJobLeads          Boolean                    @default(true)
   stripeCustomerId         String?
   stripeSubscriptionId     String?
   subscriptionStatus       String?
-  currentPeriodEnd         DateTime?              @db.Timestamp(6)
-  billingMode              String                 @default("free")
+  currentPeriodEnd         DateTime?                  @db.Timestamp(6)
+  billingMode              String                     @default("free")
   subscriptionMonthlyCents Int?
   notifications            LeadNotification[]
   outcomes                 LeadOutcome[]
   impressions              ProviderImpression[]
-  activeUsers              ProviderUser[]         @relation("ActiveProvider")
+  activeUsers              ProviderUser[]             @relation("ActiveProvider")
+  externalIdentities       ProviderExternalIdentity[]
   users                    ProviderUserProvider[]
 }
 
@@ -236,6 +237,40 @@ model ProviderUserProvider {
   providerUser   ProviderUser @relation(fields: [providerUserId], references: [id])
 
   @@unique([providerUserId, providerId])
+}
+
+/// Accepted identity mapping between a Best Hospice Provider and an external
+/// authoritative source. A row existing means the mapping has been accepted —
+/// this is not a review queue. Candidates, competing matches, rejections,
+/// evidence and match methods stay in the CMS candidate report until a
+/// dedicated review model exists.
+///
+/// Provider deletes are Restrict by omission, matching every other relation to
+/// Provider. Cascade would silently discard human verification work.
+model ProviderExternalIdentity {
+  id             String    @id @default(uuid())
+  providerId     String
+  /// External registry or dataset, e.g. "cms_hospice".
+  source         String
+  /// The identifier as the source publishes it. String because CMS CCNs carry
+  /// leading zeros and are not all numeric.
+  externalId     String
+  /// Which identifier externalId is, e.g. "ccn". Null means the source's
+  /// canonical identifier.
+  identifierType String?
+  /// Match score 0-1 from the candidate generator. Null when entered by hand.
+  confidence     Float?
+  verifiedAt     DateTime?
+  /// Free-text admin identifier; there is no admin user model to reference.
+  verifiedBy     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id])
+
+  @@unique([source, externalId])
+  @@index([providerId])
+  @@index([source])
 }
 
 model WaitlistRequest {
