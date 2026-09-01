@@ -143,7 +143,10 @@
 
     async function loadProviders() {
       try {
-        const data = await callApi('/api/public/providers');
+        // Account-selection bootstrap, not the public directory: an internal
+        // (internalRole) account is hidden publicly but must stay selectable
+        // here so its operator can reach the dashboard.
+        const data = await callApi('/api/provider-auth/providers');
         providers = data.providers || [];
         renderProviderOptions();
       } catch (err) {

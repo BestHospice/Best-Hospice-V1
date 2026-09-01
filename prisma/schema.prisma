@@ -39,6 +39,25 @@ model Provider {
   currentPeriodEnd         DateTime?                  @db.Timestamp(6)
   billingMode              String                     @default("free")
   subscriptionMonthlyCents Int?
+  /// Marks a provider record kept for internal operational or reference
+  /// purposes rather than as a real participating provider. NULL for every real
+  /// provider, which is why no backfill is needed.
+  ///
+  /// A string rather than a boolean so future internal account types need no new
+  /// column. First and currently only value: "cms_reference" - the account used
+  /// to exercise the CMS provider-facing pipeline end to end.
+  ///
+  /// INVARIANT: any provider with a non-null internalRole is excluded from every
+  /// public and business behaviour - client leads, job leads, the directory,
+  /// location pages, the sitemap, its own public detail page, JSON-LD and
+  /// billing - while KEEPING authenticated dashboard access, which is the whole
+  /// point of the account. See isInternalProvider() in server.js.
+  ///
+  /// This is deliberately NOT expressed through ProviderExternalIdentity, which
+  /// stays authoritative identity data meaning "this provider IS that external
+  /// provider". An identity row must never be created merely to borrow another
+  /// organisation's CMS data for testing.
+  internalRole             String?
   notifications            LeadNotification[]
   outcomes                 LeadOutcome[]
   impressions              ProviderImpression[]

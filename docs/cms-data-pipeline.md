@@ -833,6 +833,87 @@ SET` list so it can never be overwritten.
 
 ---
 
+## Internal reference accounts (`Provider.internalRole`)
+
+`Provider.internalRole` is a nullable string marking a provider record kept for
+internal operational or reference purposes rather than as a real participating
+provider. It is `NULL` for every real provider, which is why the column needed no
+backfill. A string rather than a boolean, so future internal account types need
+no new column. First and currently only value: **`cms_reference`** — the account
+used to exercise the CMS provider-facing pipeline end to end.
+
+**Invariant.** Any provider with a non-null `internalRole` is excluded from every
+public and business behaviour, while **keeping authenticated dashboard access**.
+Exercising the real provider experience is the entire point of such an account, so
+locking it out of the dashboard would defeat it.
+
+Three forms express the rule and must agree exactly. All three key off `NULL` and
+nothing else, so an empty string is treated as *internal* — the fail-safe
+direction, where a stray value excludes rather than exposes.
+
+| form | definition | used by |
+| --- | --- | --- |
+| `isInternalProvider(provider)` | `provider.internalRole != null` | JS filters |
+| `PUBLIC_PROVIDER_WHERE` | `{ internalRole: null }` | Prisma reads |
+| `INTERNAL_PROVIDER_SQL` | `"internalRole" IS NOT NULL` | hand-written SQL |
+
+`PUBLIC_PROVIDER_WHERE` is deliberately a single key rather than an `OR`, so it
+composes into an existing `where` without colliding with one.
+
+### Excluded
+
+Client lead routing · job lead fan-out · discharge-referral fan-out · the public
+directory and search APIs · city/state and `/:service/...` location pages ·
+location-page existence and counts · `sitemap.xml` and provider URLs · the public
+`/provider/:slug` detail page (404, never a redirect) · schema.org JSON-LD ·
+Stripe checkout initiation.
+
+### Retained
+
+Authenticated dashboard access · the provider–user relationship · the Market
+Intelligence page · admin and unfiltered reads · Stripe **webhook** resolution,
+which is untouched so events for real providers keep resolving normally.
+
+### Public list vs dashboard account selection
+
+`Provider.internalRole` is **Provider-level**, and the one place it must *not*
+hide an account is the flow that lets its own operator log in. Two endpoints keep
+those concerns apart:
+
+| endpoint | filtered? | returns | used by |
+| --- | --- | --- | --- |
+| `/api/public/providers` | **yes** — `PUBLIC_PROVIDER_WHERE` | `id, name, email` | `index.html`, `hospice-az.html`, `home-care-az.html`, `home-care-landing.html`, `home-care-search.html` — all for the "N providers" count badge only |
+| `/api/provider-auth/providers` | **no** — internal accounts included | `id, name` only | `provider-dashboard.html` signup/login selector |
+
+The second is an **account-selection bootstrap, not a public directory.** It is
+necessarily unauthenticated: the dashboard needs a `providerId` to send to
+`/api/provider-auth/signup-start` and `/api/provider-auth/login`, so the list must
+be fetchable before any credential exists. Authenticating it would make
+first-time signup impossible.
+
+Its response is therefore the strict minimum the `<select>` renders — `id` and
+`name`, which is **less** than the public endpoint exposes. No contact details,
+no billing or subscription data, no CMS data, no `internalRole`, no tokens.
+
+**Known tradeoff:** because the login UX selects a provider before authenticating,
+an internal account's `id` and `name` are visible to an unauthenticated caller of
+this endpoint. That is inherent to the current selector-based login design, not
+something the split introduced. It is accepted deliberately: the alternative —
+looking the provider up only after an email is entered — is a login redesign, and
+the exposure is limited to a name and an opaque UUID that grant no access on their
+own. Revisit it if provider login is ever reworked.
+
+### Not the same thing as an identity
+
+`ProviderExternalIdentity` remains **authoritative identity data**. It means
+*"this Best Hospice provider IS that external provider"* — enforced by
+`@@unique([source, externalId])`, and recorded with `confidence`, `verifiedAt` and
+`verifiedBy`. It must **never** be used simply to borrow another organisation's
+CMS data for testing. That is precisely what `internalRole` exists for. An
+internal account may later hold a genuine identity row, but the row still asserts
+real identity; the *account*, not the identity, is what is marked
+non-authoritative.
+
 ## Not implemented
 
 Named explicitly so this document is not mistaken for a description of a larger
