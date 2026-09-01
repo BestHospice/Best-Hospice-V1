@@ -17,7 +17,8 @@
     "test:cms:importer": "node scripts/test-cms-identity-importer.js",
     "test:cms:archive": "node scripts/test-cms-archive.js",
     "test:cms:datalayer": "node scripts/test-cms-data-layer.js",
-    "test:cms:ingestion": "node scripts/test-cms-hospice-ingestion.js"
+    "test:cms:ingestion": "node scripts/test-cms-hospice-ingestion.js",
+    "test:provider:internal-role": "node scripts/test-provider-internal-role.js"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"

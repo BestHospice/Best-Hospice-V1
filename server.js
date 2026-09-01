@@ -16,6 +16,35 @@ const { runNewsletterPipeline, verifyUnsubscribeToken, loadSchedule: loadNewslet
 
 const app = express();
 const prisma = new PrismaClient();
+
+// ─── INTERNAL PROVIDER ROLE ──────────────────────────────────────────────────
+// Provider.internalRole marks a record kept for internal operational or
+// reference purposes rather than as a real participating provider. NULL for
+// every real provider. First value: "cms_reference".
+//
+// INVARIANT: a provider with a non-null internalRole is excluded from every
+// public and business behaviour - client leads, job leads, the directory,
+// location pages, the sitemap, its own public detail page, JSON-LD and billing -
+// while KEEPING authenticated dashboard access. Exercising the real provider
+// experience is the entire purpose of such an account.
+//
+// The three forms below must agree exactly, so all three key off NULL and
+// nothing else. An empty string is therefore treated as INTERNAL, which is the
+// fail-safe direction: a stray value excludes rather than exposes.
+//
+// ProviderExternalIdentity is unrelated and stays authoritative: it means "this
+// provider IS that external provider". It must never be used to borrow another
+// organisation's CMS data for testing - that is what this column is for.
+const isInternalProvider = (provider) => provider != null && provider.internalRole != null;
+
+// Prisma `where` fragment for public-only reads. A single key, deliberately not
+// an OR, so it composes into an existing `where` without colliding with one.
+const PUBLIC_PROVIDER_WHERE = { internalRole: null };
+
+// Raw-SQL equivalents, for the hand-written queries that cannot use the Prisma
+// fragment. Kept adjacent to it so all three cannot drift apart.
+const PUBLIC_PROVIDER_SQL = '"internalRole" IS NULL';
+const INTERNAL_PROVIDER_SQL = '"internalRole" IS NOT NULL';
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
 app.set('trust proxy', true);
@@ -1288,6 +1317,7 @@ app.post('/api/admin/logout', (req, res) => {
 app.get('/cities.html', async (_req, res) => {
   try {
     const providers = await prisma.provider.findMany({
+      where: PUBLIC_PROVIDER_WHERE,
       select: {
         city: true,
         state: true,
@@ -1448,6 +1478,7 @@ app.get('/states/:state', async (req, res) => {
     const candidates = stateCandidatesFromSlug(stateSlug);
     const providers = await prisma.provider.findMany({
       where: {
+        ...PUBLIC_PROVIDER_WHERE,
         OR: candidates.map((candidate) => ({
           state: { equals: candidate, mode: 'insensitive' }
         }))
@@ -1619,6 +1650,7 @@ app.get('/cities/:city-:state', async (req, res) => {
     const candidates = stateCandidatesFromSlug(stateSlug);
     const providersByState = await prisma.provider.findMany({
       where: {
+        ...PUBLIC_PROVIDER_WHERE,
         OR: candidates.map((candidate) => ({
           state: { equals: candidate, mode: 'insensitive' }
         }))
@@ -2488,8 +2520,12 @@ function cityStateString(city, state) {
   return [city, stateName].filter(Boolean).join(', ');
 }
 
+// PUBLIC-ONLY by contract: every caller feeds a sitemap or a public page. Admin
+// and dashboard code queries Provider directly rather than widening this, so
+// internal accounts stay reachable to their own operators.
 async function fetchAllProviders() {
   const providers = await prisma.provider.findMany({
+    where: PUBLIC_PROVIDER_WHERE,
     select: {
       id: true,
       name: true,
@@ -2519,6 +2555,7 @@ async function providersByLocation(city, state, careType) {
   const legacyCity = city.replace(/\bTucson\b/i, 'Tuscon');
   const results = await prisma.provider.findMany({
     where: {
+      ...PUBLIC_PROVIDER_WHERE,
       OR: [
         { city: { equals: city, mode: 'insensitive' } },
         { city: { equals: legacyCity, mode: 'insensitive' } }
@@ -2583,6 +2620,10 @@ function renderSimpleFaqItems(faqs = []) {
 }
 
 function renderProviderSchema(provider) {
+  // Defense in depth. Internal accounts are already excluded from every
+  // collection that feeds structured data, but a future caller must not be able
+  // to publish schema.org markup claiming an internal record is a real business.
+  if (isInternalProvider(provider)) return null;
   return {
     '@context': 'https://schema.org',
     '@type': 'MedicalOrganization',
@@ -2781,7 +2822,10 @@ function renderPageHTML({ title, description, canonical, breadcrumbItems, body, 
   if (articleSchema) jsonLd.push(articleSchema);
   if (faqSchema) jsonLd.push(faqSchema);
   if (providerSchemas?.length) {
-    providerSchemas.forEach((p) => jsonLd.push(renderProviderSchema(p)));
+    providerSchemas.forEach((p) => {
+      const schema = renderProviderSchema(p);
+      if (schema) jsonLd.push(schema);
+    });
   }
   return `<!DOCTYPE html>
   <html lang="en">
@@ -3404,6 +3448,12 @@ app.post('/api/providers/email/checkout', async (req, res) => {
       where: { email: { equals: email, mode: 'insensitive' } }
     });
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
+    // Same rule as /api/providers/:id/checkout: an internal account never enters
+    // real billing. Both checkout entry points must be gated, not just the one
+    // keyed on id.
+    if (isInternalProvider(provider)) {
+      return res.status(403).json({ error: 'Internal accounts cannot start a subscription.' });
+    }
 
     const planPrices = {
       // STRIPE_PRICE_ID_PARTNER is honoured if set, so the env var can be
@@ -3496,6 +3546,12 @@ app.post('/api/providers/:id/checkout', async (req, res) => {
   try {
     const provider = await prisma.provider.findUnique({ where: { id: providerId } });
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
+    // Internal accounts never enter real billing. This gates only checkout
+    // initiation; Stripe webhook processing is deliberately untouched so events
+    // for existing real providers keep resolving normally.
+    if (isInternalProvider(provider)) {
+      return res.status(403).json({ error: 'Internal accounts cannot start a subscription.' });
+    }
 
     const planPrices = {
       // STRIPE_PRICE_ID_PARTNER is honoured if set, so the env var can be
@@ -3752,9 +3808,13 @@ app.post('/api/notify', rateLimit, async (req, res) => {
     // Excluded if notifications are switched off, if billing is switched off, or
     // if they are billed but Stripe does not show them current. Providers on the
     // default 'free' mode are never excluded here.
+    // An internal provider is excluded unconditionally and first: this must hold
+    // even if receiveClientLeads is later flipped back to true by hand, which is
+    // exactly the accident the internalRole column exists to survive.
     const disabledClientLeads = await prisma.$queryRawUnsafe(
       `SELECT id FROM "Provider"
-       WHERE "receiveClientLeads" = false
+       WHERE ${INTERNAL_PROVIDER_SQL}
+          OR "receiveClientLeads" = false
           OR "billingMode" = 'off'
           OR ("billingMode" = 'billed' AND COALESCE("subscriptionStatus", '') NOT IN ('active', 'trialing'))`
     );
@@ -5489,10 +5549,14 @@ app.post('/api/job-notify', rateLimit, async (req, res) => {
     if (!geo) return res.status(400).json({ error: 'Could not locate that ZIP code. Please check and try again.' });
 
     const allProviders = await prisma.$queryRawUnsafe(
-      `SELECT id, email, "secondaryContactEmail", lat, lon, "serviceRadiusKm", "serviceZipCodes", "activelyHiring", "receiveJobLeads" FROM "Provider"`
+      `SELECT id, email, "secondaryContactEmail", lat, lon, "serviceRadiusKm", "serviceZipCodes", "activelyHiring", "receiveJobLeads", "internalRole" FROM "Provider"`
     );
 
     const matchedProviders = allProviders.filter((p) => {
+      // Unconditional and first, for the same reason as client leads: an internal
+      // account must not receive real job leads even with activelyHiring and
+      // receiveJobLeads both left switched on.
+      if (isInternalProvider(p)) return false;
       if (p.activelyHiring === false) return false;
       if (p.receiveJobLeads === false) return false;
       const serviceZips = String(p.serviceZipCodes || '').split(',').map((z) => z.trim()).filter(Boolean);
@@ -6496,11 +6560,41 @@ app.post('/api/provider-auth/login', authRateLimit, async (req, res) => {
   }
 });
 
-// Public list of providers for signup/login dropdown
+// PUBLIC list of providers. Every current consumer (index.html, hospice-az.html,
+// home-care-az.html, home-care-landing.html, home-care-search.html) uses it only
+// for the "N providers" count badge, so internal accounts must stay excluded or
+// they would inflate a public figure.
+//
+// This is NOT the dashboard selector. That moved to /api/provider-auth/providers
+// precisely so this endpoint could stay fail-closed.
 app.get('/api/public/providers', async (_req, res) => {
   const providers = await prisma.provider.findMany({
+    where: PUBLIC_PROVIDER_WHERE,
     orderBy: { name: 'asc' },
     select: { id: true, name: true, email: true }
+  });
+  res.json({ providers });
+});
+
+// ACCOUNT-SELECTION BOOTSTRAP for the provider dashboard. NOT a public directory.
+//
+// Deliberately unauthenticated, and it cannot be otherwise: provider-dashboard.html
+// needs a providerId to send to /api/provider-auth/signup-start and
+// /api/provider-auth/login, so the list must be fetchable before any credential
+// exists. Authenticating it would make first-time signup impossible.
+//
+// It therefore returns the strict minimum the <select> renders - id and name, and
+// nothing else. That is LESS than /api/public/providers, which also returns email.
+// No contact details, no billing or subscription data, no CMS data, no
+// internalRole, no tokens.
+//
+// Internal accounts ARE included here, and only here. That is the entire point:
+// an internalRole provider is hidden from every public surface but must remain
+// selectable by its own operator to reach its dashboard.
+app.get('/api/provider-auth/providers', async (_req, res) => {
+  const providers = await prisma.provider.findMany({
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true }
   });
   res.json({ providers });
 });
@@ -6509,6 +6603,7 @@ app.get('/api/public/providers', async (_req, res) => {
 app.get('/api/search/providers', async (_req, res) => {
   try {
     const providers = await prisma.provider.findMany({
+      where: PUBLIC_PROVIDER_WHERE,
       orderBy: { name: 'asc' },
       select: {
         id: true, name: true, email: true, phone: true, website: true,
@@ -7910,7 +8005,7 @@ async function buildSitemapUrls() {
 
   const [providers, allProviderLocations] = await Promise.all([
     fetchAllProviders(),
-    prisma.provider.findMany({ select: { city: true, state: true, careType: true } })
+    prisma.provider.findMany({ where: PUBLIC_PROVIDER_WHERE, select: { city: true, state: true, careType: true } })
   ]);
 
   for (const p of allProviderLocations) {
@@ -7984,7 +8079,7 @@ app.get('/:service(hospice-care|palliative-care|home-care)/:state([a-z]{2})', as
   try {
     const { service, state } = req.params;
     const providersRaw = await prisma.provider.findMany({
-      where: { state: { equals: state, mode: 'insensitive' }, careType: normalizeCareType(service) }
+      where: { ...PUBLIC_PROVIDER_WHERE, state: { equals: state, mode: 'insensitive' }, careType: normalizeCareType(service) }
     });
     const providers = providersRaw.map(normalizeProviderCitySpelling).sort(byName);
     const html = renderStatePage({ serviceKey: service, state, providers });
@@ -8000,7 +8095,7 @@ app.get('/:service(hospice-care|palliative-care|home-care)', async (req, res) =>
     const { service } = req.params;
     if (!SERVICE_KEYS.includes(service)) return res.status(404).send('Not found');
     const providers = await prisma.provider.findMany({
-      where: { careType: normalizeCareType(service) }, select: { state: true }
+      where: { ...PUBLIC_PROVIDER_WHERE, careType: normalizeCareType(service) }, select: { state: true }
     });
     const states = Array.from(
       new Set(
@@ -8022,8 +8117,11 @@ app.get('/provider/:slug', async (req, res) => {
     const { slug } = req.params;
     const frag = (slug || '').split('-').pop();
     const provider = await prisma.provider.findFirst({
-      where: { id: { startsWith: frag } }
+      where: { ...PUBLIC_PROVIDER_WHERE, id: { startsWith: frag } }
     });
+    // An internal account has no public page. 404 rather than redirect: the URL
+    // must not resolve to anything, and it must never point at the real CMS
+    // organisation whose data the account may later reference.
     if (!provider) return res.status(404).send('Provider not found');
     const html = renderProviderPage(provider);
     res.send(html);
@@ -8623,6 +8721,7 @@ app.post('/api/discharge-referral', async (req, res) => {
       try {
         const geo = await geocodeAddress(`${String(patient_zip).trim()}, USA`).catch(() => null);
         const allProviders = await prisma.provider.findMany({
+          where: PUBLIC_PROVIDER_WHERE,
           select: { id: true, email: true, secondaryContactEmail: true, lat: true, lon: true, serviceRadiusKm: true }
         });
         const nearbyProviders = geo

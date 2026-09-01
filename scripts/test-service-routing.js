@@ -49,7 +49,9 @@ ok(/async function providersByLocation\(city, state, careType\)/.test(SRC),
   'providersByLocation takes a careType argument');
 ok(/providersByLocation\(slugCity, stateCode, normalizeCareType\(service\)\)/.test(SRC),
   'city route passes the requested service through as careType');
-ok(/where: \{ state: \{ equals: state, mode: 'insensitive' \}, careType: normalizeCareType\(service\) \}/.test(SRC),
+// The optional PUBLIC_PROVIDER_WHERE spread is the internal-account filter; the
+// careType predicate this guard exists for must still be present alongside it.
+ok(/where: \{ (?:\.\.\.PUBLIC_PROVIDER_WHERE, )?state: \{ equals: state, mode: 'insensitive' \}, careType: normalizeCareType\(service\) \}/.test(SRC),
   'state route filters by careType');
 ok(!/careType === 'home-care'/.test(SRC),
   "no comparison of stored careType against the '-care' suffixed form");
