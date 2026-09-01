@@ -669,14 +669,127 @@ JS `Date` makes the driver serialise in local time, and `::date` then truncates
 to the previous day in any negative UTC offset — a silent off-by-one that was
 caught in rehearsal against real data.
 
-### Commands and safety
-
 ```bash
 node scripts/import-cms-hospice-data.js --list
 node scripts/import-cms-hospice-data.js --release 2026-08-19 --no-db   # archive only
 node scripts/import-cms-hospice-data.js --release 2026-08-19           # dry run, zero writes
 node scripts/import-cms-hospice-data.js --release 2026-08-19 --write
+
+# derive the release-scoped production authorization (never touches a database)
+node scripts/import-cms-hospice-data.js --release 2026-08-19 --print-production-authorization
+
+# a production-classified target additionally requires that exact token;
+# --write is still required separately for any write to happen
+node scripts/import-cms-hospice-data.js --release 2026-08-19 \
+  --production-authorization <64-hex> --write
 ```
+
+### Production authorization
+
+Production is **refused by default and stays refused by default**. There is no
+`--force-prod`, `--allow-prod`, `--skip-prod-guard`, `--unsafe` or `--override`,
+and none may ever be added.
+
+Database targets are classified into three kinds from the connection string
+alone — raw, percent-decoded, and parsed hostname/path/query:
+
+| kind | matched by | behaviour |
+| --- | --- | --- |
+| `SHADOW` | `besthospice_shadow_2`, `besthospice_shadow_2_user`, `dpg-d60g7h0gjchc73f306j0-a`, plus the display name `besthospice-shadow-2` | **always refused. There is no authorization path, ever.** |
+| `PRODUCTION` | `besthospice_db`, `besthospice_db_user`, `dpg-d5hhmb4hg0os7380cecg-a` | refused unless a release-scoped authorization is supplied |
+| `HOSTED_UNKNOWN` | any `render.com`, RDS, Supabase or Neon host, **or any Render internal host id** (`^dpg-[a-z0-9]{6,}(-[a-z])?$` on the parsed hostname) | **always refused. No authorization path** — an unidentified managed database cannot be proven safe |
+| `NON_PRODUCTION` | a disposable local database | unchanged; no authorization required or accepted |
+
+Order is `SHADOW` → `PRODUCTION` → `HOSTED_UNKNOWN` → `NON_PRODUCTION`. Shadow is
+matched first because it lives on the same provider as production and must never
+fall through into an authorizable class. Keeping `HOSTED_UNKNOWN` separate is what
+stops the authorization from becoming a general-purpose key to any remote
+database.
+
+Two properties make this reliable:
+
+- **Identifiers are the strings that actually appear in a connection URL** —
+  database name, role name and Render host id — not the Render dashboard display
+  name, which never appears in one.
+- **Identifiers match on boundaries, not as bare substrings.** `besthospice_db1`
+  is *not* the production database `besthospice_db`, so a production
+  authorization can never reach it; a Render database that is not positively
+  recognised classifies as `HOSTED_UNKNOWN` and has no authorization path. The
+  host-id rule is applied only to the parsed hostname, so a local database merely
+  *named* something like `dpg-scratch-a` stays `NON_PRODUCTION`.
+
+#### The authorization is a one-time, release-scoped token
+
+    --production-authorization <64 lowercase hex characters>
+
+The expected value is `sha256` of exactly these bytes, newline-terminated:
+
+```
+cms-hospice-production-ingest
+source=cms_hospice
+releaseKey=<exact releaseKey>
+manifestSha256=<exact manifestSha256 of that archive's manifest.json>
+```
+
+It is **not a secret and not authentication.** Anyone holding the archive can
+recompute it, and it is useless against an operator who already has production
+credentials. **Possession of the production database credential remains the
+privileged thing, and it sits outside this threat model entirely** — anyone
+holding it can bypass this script altogether with `psql`. Treat the credential
+accordingly; the token protects nothing about it. That is not the threat this
+addresses. What it prevents is an
+accidental production run, a stale command re-executed later, a line copy-pasted
+from a different release, and — most importantly — the existence of any reusable
+bypass at all: a token is worthless for any other release, manifest or source, so
+no single flag can ever authorize "production" in general.
+
+Reproduce it independently at any time:
+
+```bash
+printf 'cms-hospice-production-ingest\nsource=cms_hospice\nreleaseKey=%s\nmanifestSha256=%s\n' \
+  "$RELEASE" "$MANIFEST_SHA" | shasum -a 256
+```
+
+**Derive the token freshly from the validated archive at the moment of
+execution.** Do not copy one out of a runbook, a ticket, a chat message or an old
+terminal transcript — a stale token is exactly the failure this interlock exists
+to catch, and re-deriving it costs one command. Derive it from a validated
+archive:
+
+```bash
+node scripts/import-cms-hospice-data.js --release 2026-08-19 --print-production-authorization
+```
+
+`--print-production-authorization` validates the Archive V2 contract first, never
+contacts a database, never constructs a Prisma client, never mutates anything, and
+refuses to emit a token for an archive that would not pass ingestion validation.
+It cannot be combined with `--write` or with `--production-authorization`.
+
+#### What authorization does and does not do
+
+Authorization permits the **connection** to a production-classified target. It is
+not a write switch:
+
+- **Authorization does not imply `--write`.** The default is still a dry run; a
+  write still requires an explicit `--write` in addition to the token.
+- Every other check still runs unchanged behind it: Archive V2 validation, the
+  manifest conflict rules, chronology (`R < L` refused, including a superseded
+  release), the advisory lock, the transaction, and the postconditions.
+- A token valid for an older release does **not** relax chronology. A token valid
+  for a tampered archive does **not** relax the manifest conflict check.
+- A failed production attempt never prints the expected token, the URL, or any
+  credential.
+
+The token is checked only after the archive is fully validated, so the release
+facts it is scoped to are already immutable at that point. Order is: CLI shape →
+archive selection and V2 validation → release facts known → target classified →
+shadow/unknown refused unconditionally → production requires the exact token →
+Prisma client constructed → normal planning, chronology and write logic.
+
+The first production ingestion is a separate, explicitly authorized checkpoint
+and is not performed by any automated path.
+
+### Commands and safety
 
 Dry run is the default. `--no-db` never constructs a Prisma client, and
 `--no-db` and `--write` are **mutually exclusive** — supplying both is a usage
@@ -699,9 +812,11 @@ COMMITTED and let commit order, rather than `releaseKey`, decide the surviving
 `lastSeenReleaseId`. The lock is transaction-scoped, so it is released on commit
 or rollback with no cleanup and no lock table.
 
-The production guard from `scripts/import-cms-hospice-identities.js` is reused
-unchanged and applies to **every mode that opens a connection**, not just
-`--write`. There is no production override and no hidden bypass flag.
+The guard applies to **every mode that opens a connection**, not just `--write`.
+There is no production override and no bypass flag; the only path to a
+production-classified target is the release-scoped authorization described in
+[Production authorization](#production-authorization), which permits a
+connection and nothing more.
 
 ### Transaction
 

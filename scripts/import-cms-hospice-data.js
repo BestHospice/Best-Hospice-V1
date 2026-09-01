@@ -45,8 +45,53 @@ const RELEASE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Same guard philosophy as scripts/import-cms-hospice-identities.js. Applies to
 // every mode that opens a connection, not just --write.
-const FORBIDDEN_IDENTIFIERS = ['besthospice_db', 'dpg-d5hhmb4hg0os7380cecg-a', 'besthospice-shadow-2'];
-const FORBIDDEN_HOST_PATTERNS = /render\.com|\.rds\.amazonaws\.com|supabase\.co|neon\.tech/i;
+//
+// Three distinct classes, deliberately NOT one flat list:
+//   SHADOW          - never usable, and there is no authorization path to it.
+//   PRODUCTION      - the one database we positively recognise as ours. Refused
+//                     by default; a single release-scoped authorization exists.
+//   HOSTED_UNKNOWN  - a managed database we cannot positively identify. Also
+//                     refused with NO authorization path: we cannot prove what it
+//                     is, so the only safe answer is no. Keeping this separate is
+//                     what stops the authorization from becoming a generic key to
+//                     any remote database.
+// These are the strings that actually appear in a PostgreSQL connection URL -
+// database name, role name and Render host id - not the Render dashboard display
+// name. An earlier version listed only the display name, which never appears in a
+// connection string, so a real shadow URL was not recognised as the shadow at all.
+// The display name is kept as defence in depth.
+//
+// The user names are redundant under boundary matching (besthospice_shadow_2_user
+// already contains besthospice_shadow_2 followed by a boundary character), but
+// they are listed explicitly so the set stays correct even if the boundary rule
+// is ever tightened, and so the list reads as the real inventory.
+const SHADOW_IDENTIFIERS = [
+  'besthospice_shadow_2',                 // databaseName
+  'besthospice_shadow_2_user',            // databaseUser
+  'dpg-d60g7h0gjchc73f306j0-a',           // Render host id
+  'besthospice-shadow-2'                  // Render service/display name
+];
+const PRODUCTION_IDENTIFIERS = [
+  'besthospice_db',                       // databaseName
+  'besthospice_db_user',                  // databaseUser
+  'dpg-d5hhmb4hg0os7380cecg-a'            // Render host id
+];
+const HOSTED_HOST_PATTERNS = /render\.com|\.rds\.amazonaws\.com|supabase\.co|neon\.tech/i;
+// A Render Postgres internal hostname is a bare host id with no public suffix, so
+// the patterns above cannot see it. Applied to the parsed HOSTNAME's first label
+// only - never to arbitrary substrings - so a local database merely named
+// something like "dpg-scratch" is unaffected.
+const RENDER_HOST_ID_RE = /^dpg-[a-z0-9]{6,}(-[a-z])?$/;
+// Used only for redacting log output, never for classification.
+const FORBIDDEN_IDENTIFIERS = [...SHADOW_IDENTIFIERS, ...PRODUCTION_IDENTIFIERS];
+
+// A one-time authorization is derived from the immutable facts of the exact
+// release being ingested. It is not a secret and is not authentication - anyone
+// with the archive can recompute it. Its whole job is to make an accidental,
+// stale, or copy-pasted production run impossible: a token is worthless for any
+// other release, manifest, or source, so no reusable bypass can exist.
+const AUTHORIZATION_OPERATION = 'cms-hospice-production-ingest';
+const AUTHORIZATION_TOKEN_RE = /^[0-9a-f]{64}$/;
 
 const redact = (t) => String(t == null ? '' : t)
   .replace(/\b[a-z]+:\/\/[^\s"'`)]+/gi, '<redacted-url>')
@@ -57,7 +102,8 @@ const fail = (msg) => { console.error(`\n${redact(msg)}`); process.exit(1); };
 
 // ---- CLI ------------------------------------------------------------------
 const argv = process.argv.slice(2);
-const opts = { write: false, noDb: false, release: null, list: false, json: null };
+const opts = { write: false, noDb: false, release: null, list: false, json: null,
+  productionAuthorization: null, printAuthorization: false };
 const usage = (msg) => { console.error(`Usage error: ${msg}`); process.exit(2); };
 // A value-taking flag must be followed by a real value. Without this, a typo
 // like `--release --no-db` silently swallows the next flag, and a trailing
@@ -75,11 +121,28 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--list') opts.list = true;
   else if (a === '--release') { opts.release = takeValue('--release', i); i++; }
   else if (a === '--json') { opts.json = takeValue('--json', i); i++; }
+  else if (a === '--production-authorization') { opts.productionAuthorization = takeValue('--production-authorization', i); i++; }
+  else if (a === '--print-production-authorization') opts.printAuthorization = true;
   else usage(`Unknown flag "${a}".`);
 }
 // Contradictory: --no-db means "never touch a database", --write means "write to
 // one". Silently favouring either would ignore an explicit instruction.
 if (opts.noDb && opts.write) usage('--no-db and --write are mutually exclusive.');
+// Shape is a CLI concern and is checked before anything else happens. A token of
+// the wrong shape can never be a real one, so there is no reason to read an
+// archive or touch a database to find that out.
+if (opts.productionAuthorization !== null && !AUTHORIZATION_TOKEN_RE.test(opts.productionAuthorization)) {
+  usage('--production-authorization must be exactly 64 lowercase hexadecimal characters.');
+}
+if (opts.noDb && opts.productionAuthorization !== null) {
+  usage('--no-db never contacts a database, so --production-authorization has no meaning with it.');
+}
+if (opts.printAuthorization && opts.write) {
+  usage('--print-production-authorization never writes. Remove --write.');
+}
+if (opts.printAuthorization && opts.productionAuthorization !== null) {
+  usage('--print-production-authorization computes a token; it does not consume one.');
+}
 
 // ---- CSV ------------------------------------------------------------------
 // Hand-rolled and quote-aware. Nothing is coerced: a CCN like "A01500" or
@@ -339,21 +402,114 @@ function guardCandidates(url) {
   return [...out];
 }
 
-function assertNotProduction(url, action) {
+// Match an identifier only as a WHOLE identifier. Plain substring matching made
+// "besthospice_db1" look like the production database "besthospice_db", which
+// would have let a production authorization reach a different database. A
+// boundary is anything that is not [a-z0-9], so "_user" and "-a" suffixes still
+// match while a trailing digit does not.
+function containsIdentifier(hay, id) {
+  const esc = id.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(hay);
+}
+
+// Parsed hostnames, across every decoding of the URL. Kept separate from the
+// loose candidate set so host-shaped rules are only ever applied to a hostname.
+function targetHostnames(url) {
+  const raw = String(url == null ? '' : url).replace(/\s+/g, '');
+  const forms = [raw];
+  let d = raw;
+  for (let i = 0; i < 3; i++) {
+    try { const n = decodeURIComponent(d); if (n === d) break; d = n; forms.push(n); } catch { break; }
+  }
+  const hosts = new Set();
+  for (const f of forms) {
+    try { const u = new URL(f); if (u.hostname) hosts.add(u.hostname.toLowerCase()); } catch { /* not a URL */ }
+  }
+  return [...hosts];
+}
+const isRenderHost = (hostname) => RENDER_HOST_ID_RE.test(String(hostname).split('.')[0]);
+
+// Pure: string in, classification out. No connection, no side effects, so the
+// tests can exercise every branch without credentials. Order matters - the shadow
+// database is hosted on the same provider as production, so it must be recognised
+// first and can never fall through to an authorizable class.
+function classifyTarget(url) {
+  const cands = guardCandidates(url);
+  const hosts = targetHostnames(url);
+  const hit = (list) => list.find((id) => cands.some((c) => containsIdentifier(c, id)));
+
+  const shadow = hit(SHADOW_IDENTIFIERS);
+  if (shadow) return { kind: 'SHADOW', matched: shadow };
+  const prod = hit(PRODUCTION_IDENTIFIERS);
+  if (prod) return { kind: 'PRODUCTION', matched: prod };
+  if (cands.some((c) => HOSTED_HOST_PATTERNS.test(c))) return { kind: 'HOSTED_UNKNOWN', matched: null };
+  // An unrecognised Render database reached by its internal host id. Refused with
+  // no authorization path: we cannot prove which database it is.
+  if (hosts.some(isRenderHost)) return { kind: 'HOSTED_UNKNOWN', matched: null };
+  return { kind: 'NON_PRODUCTION', matched: null };
+}
+
+// The exact bytes hashed. Documented in docs/cms-data-pipeline.md so an operator
+// can reproduce the token independently of this script.
+function authorizationCanonical({ dbSource, releaseKey, manifestSha256 }) {
+  return `${AUTHORIZATION_OPERATION}\n`
+    + `source=${dbSource}\n`
+    + `releaseKey=${releaseKey}\n`
+    + `manifestSha256=${manifestSha256}\n`;
+}
+const authorizationToken = (facts) => sha256(Buffer.from(authorizationCanonical(facts), 'utf8'));
+
+function tokenMatches(provided, expected) {
+  const a = Buffer.from(String(provided == null ? '' : provided), 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+// `facts` are the immutable properties of the already-validated archive, so this
+// can only ever be reached once the release is fully known.
+function assertTargetAllowed(url, action, facts, token) {
   const verb = `Refusing to ${action}`;
   if (!url) fail(`${verb}: DATABASE_URL is not set.`);
-  const cands = guardCandidates(url);
-  for (const id of FORBIDDEN_IDENTIFIERS) {
-    const needle = id.toLowerCase();
-    if (cands.some((c) => c.includes(needle))) {
-      fail(`${verb}: DATABASE_URL matches a forbidden identifier ("${id}").\n`
-        + '  This importer is for disposable local databases in this phase.\n'
-        + '  Use --no-db for archive-only validation that never touches a database.');
-    }
+  const target = classifyTarget(url);
+
+  if (target.kind === 'SHADOW') {
+    fail(`${verb}: DATABASE_URL points at the shadow database ("${target.matched}").\n`
+      + '  The shadow database is never a valid ingestion target and there is no\n'
+      + '  authorization that permits it. ZERO writes.');
   }
-  if (cands.some((c) => FORBIDDEN_HOST_PATTERNS.test(c))) {
-    fail(`${verb}: DATABASE_URL points at what looks like a hosted/managed database.\n`
-      + '  Use --no-db for archive-only validation that never touches a database.');
+  if (target.kind === 'HOSTED_UNKNOWN') {
+    fail(`${verb}: DATABASE_URL points at an unrecognised hosted/managed database.\n`
+      + '  Only a disposable local database, or the one known production database\n'
+      + '  with a release-scoped authorization, is a valid target. There is no\n'
+      + '  authorization for an unrecognised host. ZERO writes.');
+  }
+  if (target.kind === 'PRODUCTION') {
+    // Never echo the expected token here. A failed attempt must not hand the
+    // operator the value that would have succeeded.
+    if (token == null) {
+      fail(`${verb}: DATABASE_URL points at the production database.\n`
+        + '  Production is refused by default. A deliberate one-time ingestion of a\n'
+        + `  specific release requires --production-authorization <64-hex>, scoped to\n`
+        + `  source=${facts.dbSource}, releaseKey=${facts.releaseKey} and that release's\n`
+        + '  exact manifestSha256.\n'
+        + '  Compute it from the validated archive with:\n'
+        + `    node scripts/import-cms-hospice-data.js --release ${facts.releaseKey} --print-production-authorization\n`
+        + '  Authorization permits the connection only. Writing still requires --write.\n'
+        + '  ZERO writes.');
+    }
+    if (!tokenMatches(token, authorizationToken(facts))) {
+      fail(`${verb}: the supplied --production-authorization does not match this release.\n`
+        + `  It must be derived from source=${facts.dbSource}, releaseKey=${facts.releaseKey}\n`
+        + "  and this archive's exact manifestSha256. A token for any other release,\n"
+        + '  manifest or source is rejected. ZERO writes.');
+    }
+    console.log('');
+    console.log('!'.repeat(72));
+    console.log(`!  PRODUCTION TARGET AUTHORIZED for ${facts.dbSource} release ${facts.releaseKey}`);
+    console.log('!  Authorization is scoped to this release and manifest only.');
+    console.log(`!  Mode: ${action === 'write' ? 'WRITE (--write supplied)' : 'READ-ONLY PLANNING (no --write)'}`);
+    console.log('!'.repeat(72));
   }
 }
 
@@ -449,6 +605,32 @@ const num = (n) => String(n).padStart(9);
       orphanRows: sa.orphanRows, orphanCcnCount: sa.orphanCcns.size, orphanCcns: [...sa.orphanCcns].sort() }
   };
 
+  // Facts are fixed by the archive that has just been fully validated. Nothing
+  // downstream can change them, which is what makes them safe to authorize against.
+  const releaseFacts = { dbSource, releaseKey: arc.releaseKey, manifestSha256: arc.manifestSha256 };
+
+  // Helper mode: derive the authorization for a validated archive. Never connects
+  // to a database, never constructs a Prisma client, never mutates anything. It
+  // exists so an operator does not have to hand-compute a SHA-256, and so a token
+  // can only be produced for an archive that already passes every V2 check.
+  if (opts.printAuthorization) {
+    console.log('');
+    console.log('='.repeat(78));
+    console.log('PRODUCTION AUTHORIZATION (archive-only — no database was contacted)');
+    console.log('='.repeat(78));
+    console.log(`  operation      : ${AUTHORIZATION_OPERATION}`);
+    console.log(`  source         : ${dbSource}`);
+    console.log(`  releaseKey     : ${arc.releaseKey}`);
+    console.log(`  manifestSha256 : ${arc.manifestSha256}`);
+    console.log('');
+    console.log(`  token          : ${authorizationToken(releaseFacts)}`);
+    console.log('');
+    console.log('  Valid for this release and manifest only. It is not a secret and not a');
+    console.log('  credential; it proves the operator intended this exact release.');
+    console.log('  It permits a production CONNECTION. Writing still requires --write.');
+    return;
+  }
+
   if (opts.noDb) {
     console.log('');
     console.log('ARCHIVE-ONLY VALIDATION (--no-db): no database was contacted and nothing was written.');
@@ -457,7 +639,8 @@ const num = (n) => String(n).padStart(9);
   }
 
   const url = process.env.DATABASE_URL;
-  assertNotProduction(url, opts.write ? 'write' : 'open a database connection');
+  assertTargetAllowed(url, opts.write ? 'write' : 'open a database connection',
+    releaseFacts, opts.productionAuthorization);
 
   const { PrismaClient } = require('@prisma/client');
   const prisma = new PrismaClient();

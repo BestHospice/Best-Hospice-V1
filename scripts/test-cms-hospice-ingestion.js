@@ -286,6 +286,220 @@ section('production safety');
   ok(!/assertNotProduction\([^)]*\)\s*;?\s*\/\/\s*skip/i.test(src), '   …guard is not conditionally disabled');
 }
 
+// ============================ PRODUCTION AUTHORIZATION ======================
+// The token is derived from public, immutable release facts. It is not a secret
+// and not authentication - it exists so an accidental, stale or copy-pasted
+// production run is impossible. Every assertion below therefore recomputes the
+// expected value independently of the importer.
+const AUTH_OP = 'cms-hospice-production-ingest';
+const authToken = (source, releaseKey, manifestSha256) =>
+  sha256(Buffer.from(`${AUTH_OP}\nsource=${source}\nreleaseKey=${releaseKey}\nmanifestSha256=${manifestSha256}\n`, 'utf8'));
+const manifestHashOf = (arc) => sha256(fs.readFileSync(path.join(arc.dir, 'manifest.json')));
+const tokenFromHelper = (arc, key, env = {}) => {
+  const r = runArc(arc, ['--release', key, '--print-production-authorization'], env);
+  const m = (r.stdout + r.stderr).match(/^\s*token\s*:\s*([0-9a-f]{64})\s*$/m);
+  return { r, token: m && m[1] };
+};
+
+section('production authorization — token derivation');
+{
+  const arc = buildArchive({ key:'2026-08-19', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+  const prodUrl = 'postgresql://u:secretpw@dpg-d5hhmb4hg0os7380cecg-a.x:5432/besthospice_db';
+
+  // The helper must never touch a database, even with a production URL present.
+  const { r, token } = tokenFromHelper(arc, '2026-08-19', { DATABASE_URL: prodUrl });
+  const out = r.stdout + r.stderr;
+  ok(r.status === 0, '54. --print-production-authorization succeeds on a valid V2 archive', r.stderr.slice(0,200));
+  ok(/^[0-9a-f]{64}$/.test(token || ''), '   …prints exactly 64 lowercase hex characters', String(token));
+  ok(/no database was contacted/i.test(out), '   …and states no database was contacted');
+  ok(!/PrismaClient|ECONNREFUSED|does not exist on the database server/.test(out),
+     '55. helper constructs no Prisma client even with a production DATABASE_URL set');
+  ok(!out.includes('secretpw') && !out.includes(prodUrl), '   …and leaks no credential');
+
+  const expected = authToken(DB_SOURCE, '2026-08-19', manifestHashOf(arc));
+  ok(token === expected, '56. token equals an INDEPENDENTLY recomputed sha256 of the canonical string', `${token} vs ${expected}`);
+  const again = tokenFromHelper(arc, '2026-08-19').token;
+  ok(again === token, '   …and is deterministic across runs');
+
+  // Sensitivity: changing any single fact must change the token.
+  const arcOther = buildArchive({ key:'2026-05-01', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+  const tOther = tokenFromHelper(arcOther, '2026-05-01').token;
+  ok(tOther && tOther !== token, '57. token is release-sensitive');
+  const arcTamper = buildArchive({ key:'2026-08-19', facilities:[facility('031598',{'Facility Name':'OTHER'})], zips:[zrow('031598','85016')] });
+  const tTamper = tokenFromHelper(arcTamper, '2026-08-19').token;
+  ok(tTamper && tTamper !== token, '   …manifest-sensitive');
+  ok(authToken('cms_home_health', '2026-08-19', manifestHashOf(arc)) !== token, '   …source-sensitive');
+  ok(authToken(DB_SOURCE, '2026-08-19', manifestHashOf(arc)) === token, '   …and stable for the same facts');
+
+  // A token can only be produced for an archive that already passes validation.
+  const v1 = buildArchive({ key:'2026-08-19', facilities:[facility('031598')], zips:[zrow('031598','85016')],
+    mutate: (mf) => { delete mf.schemaVersion; delete mf.status; } });
+  const rv1 = runArc(v1, ['--release','2026-08-19','--print-production-authorization']);
+  ok(rv1.status !== 0 && !/token\s*:/.test(rv1.stdout),
+     '58. helper refuses to derive a token for a non-V2 archive');
+}
+
+section('production authorization — target classification');
+{
+  const arc = buildArchive({ key:'2026-08-19', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+  const good = authToken(DB_SOURCE, '2026-08-19', manifestHashOf(arc));
+  const wrongRelease  = authToken(DB_SOURCE, '2026-05-01', manifestHashOf(arc));
+  const wrongManifest = authToken(DB_SOURCE, '2026-08-19', 'f'.repeat(64));
+  const wrongSource   = authToken('cms_home_health', '2026-08-19', manifestHashOf(arc));
+
+  const P  = 'postgresql://u:secretpw@localhost:5432/besthospice_db';
+  const P2 = 'postgresql://u:secretpw@dpg-d5hhmb4hg0os7380cecg-a.oregon-postgres.render.com:5432/x';
+  const PE = 'postgresql://u:secretpw@localhost:5432/besthospice%5Fdb';
+  const SH = 'postgresql://u:secretpw@localhost:5432/besthospice-shadow-2';
+  const SH2= 'postgresql://u:secretpw@besthospice-shadow-2.oregon-postgres.render.com:5432/x';
+  const UNK= 'postgresql://u:secretpw@a.neon.tech:5432/z';
+
+  const attempt = (url, extra) => {
+    const r = runArc(arc, ['--release','2026-08-19', ...extra], { DATABASE_URL: url });
+    return { r, out: r.stdout + r.stderr };
+  };
+  const refused = (url, extra, label, needle) => {
+    const { r, out } = attempt(url, extra);
+    ok(r.status !== 0, label, `status ${r.status}`);
+    if (needle) ok(needle.test(out), `   …${needle.source.slice(0,44)}`);
+    ok(!/PRODUCTION TARGET AUTHORIZED/.test(out), '   …never prints the authorization banner');
+    ok(!out.includes('secretpw') && !out.includes(url), '   …no credential leaked');
+    ok(!out.includes(good), '   …and never discloses the expected token');
+  };
+
+  refused(P,  [],                                     '59. production + NO authorization refused', /points at the production database/);
+  refused(P,  ['--write'],                            '60. production + --write + no authorization refused', /points at the production database/);
+  refused(P,  ['--production-authorization', wrongRelease],  '61. production + wrong-RELEASE token refused', /does not match this release/);
+  refused(P,  ['--production-authorization', wrongManifest], '62. production + wrong-MANIFEST token refused', /does not match this release/);
+  refused(P,  ['--production-authorization', wrongSource],   '63. production + cms_home_health token refused', /does not match this release/);
+  refused(P2, [],                                     '64. production HOST id + no authorization refused', /points at the production database/);
+  refused(PE, [],                                     '65. percent-encoded production + no authorization refused', /points at the production database/);
+
+  // Shadow and unrecognised hosted databases have NO authorization path at all.
+  refused(SH,  ['--production-authorization', good], '66. shadow + CORRECT production token STILL refused', /shadow database/);
+  refused(SH2, ['--production-authorization', good], '   …shadow by host name too', /shadow database/);
+  refused(UNK, ['--production-authorization', good], '67. unrecognised hosted db + correct token STILL refused', /unrecognised hosted/);
+  {
+    const { out } = attempt(SH, ['--production-authorization', good]);
+    ok(/no\s+\n?\s*authorization that permits it|there is no/i.test(out),
+       '   …and says plainly that no authorization permits the shadow database');
+  }
+
+  // Non-production is completely unaffected: no token required, same old failure.
+  const { r: rl } = attempt('postgresql://u:secretpw@localhost:5432/some_disposable_db', []);
+  ok(!/production|authorization/i.test((rl.stdout+rl.stderr).split('\n')[1] || ''),
+     '68. a non-production URL still needs no authorization at all');
+
+  // Shape errors are decided before anything reads an archive or a database.
+  for (const [args, label] of [
+    [['--production-authorization'],                        'missing value'],
+    [['--production-authorization','--write'],              'next flag swallowed'],
+    [['--production-authorization','NOTHEX'],               'non-hex token'],
+    [['--production-authorization', good.slice(0,63)],      '63-character token'],
+    [['--production-authorization', good.toUpperCase()],    'uppercase hex token'],
+    [['--no-db','--production-authorization', good],        '--no-db with a token'],
+    [['--print-production-authorization','--write'],        'helper with --write'],
+    [['--print-production-authorization','--production-authorization', good], 'helper consuming a token'],
+  ]) {
+    const r = runArc(arc, ['--release','2026-08-19', ...args], { DATABASE_URL: P });
+    ok(r.status === 2, `69. usage error (exit 2): ${label}`, `status ${r.status}`);
+    ok(/^Usage error:/m.test(r.stdout + r.stderr), `    …reported as a usage error (${label})`);
+  }
+
+  // No generic bypass may exist.
+  const src = fs.readFileSync(SCRIPT, 'utf8');
+  ok(!/--force-prod|--allow-prod|--skip-prod-guard|--unsafe|--override\b/.test(src),
+     '70. no generic production bypass flag exists');
+  ok(/SHADOW_IDENTIFIERS/.test(src) && /HOSTED_HOST_PATTERNS/.test(src),
+     '   …shadow and unrecognised hosts are classified separately from production');
+  ok(!/SHADOW[\s\S]{0,400}productionAuthorization/.test(src.slice(src.indexOf('function assertTargetAllowed'))),
+     '   …the shadow branch has no authorization path');
+}
+
+section('production authorization — realistic connection-string shapes');
+{
+  const arc = buildArchive({ key:'2026-08-19', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+  const good = authToken(DB_SOURCE, '2026-08-19', manifestHashOf(arc));
+
+  // Realistic URL shapes built from Render metadata. Passwords are FAKE and every
+  // case below is refused by the guard before a Prisma client is constructed, so
+  // no connection is ever attempted.
+  const FAKE = 'FAKEFAKEFAKE';
+  const PROD_HOST = 'dpg-d5hhmb4hg0os7380cecg-a';
+  const SHAD_HOST = 'dpg-d60g7h0gjchc73f306j0-a';
+  const DB1_HOST  = 'dpg-d5mll40gjchc738qg230-a';
+  const ext = (h) => `${h}.virginia-postgres.render.com`;
+
+  // `probeToken` marks the shapes that may be re-run WITH a correct token. Every
+  // refused class is safe to probe because the guard fires before a Prisma client
+  // exists, so no connection is possible. The one authorizable class is probed
+  // ONLY via the internal host form, which does not resolve outside Render - the
+  // external production hostname is real and must never be dialled from a test.
+  const shapes = [
+    ['production external',    `postgresql://besthospice_db_user:${FAKE}@${ext(PROD_HOST)}/besthospice_db`,            /points at the production database/, false],
+    ['production internal',    `postgresql://besthospice_db_user:${FAKE}@${PROD_HOST}/besthospice_db`,                  /points at the production database/, true],
+    ['shadow external',        `postgresql://besthospice_shadow_2_user:${FAKE}@${ext(SHAD_HOST)}/besthospice_shadow_2`, /points at the shadow database/, true],
+    ['shadow internal',        `postgresql://besthospice_shadow_2_user:${FAKE}@${SHAD_HOST}/besthospice_shadow_2`,      /points at the shadow database/, true],
+    ['shadow display name',    `postgresql://u:${FAKE}@localhost:5432/besthospice-shadow-2`,                            /points at the shadow database/, true],
+    ['unknown Render internal',`postgresql://fake:fake@dpg-aaaaaaaaaaaaaaaaaaaa-a/example`,                             /unrecognised hosted/, true],
+    ['db1 external',           `postgresql://besthospice_db1_user:${FAKE}@${ext(DB1_HOST)}/besthospice_db1`,            /unrecognised hosted/, true],
+    ['db1 internal',           `postgresql://besthospice_db1_user:${FAKE}@${DB1_HOST}/besthospice_db1`,                 /unrecognised hosted/, true],
+    ['percent-encoded shadow', `postgresql://u:${FAKE}@localhost:5432/besthospice%5Fshadow%5F2`,                        /points at the shadow database/, true],
+  ];
+  for (const [label, url, expected, probeToken] of shapes) {
+    // Without a token first…
+    let r = runArc(arc, ['--release','2026-08-19','--write'], { DATABASE_URL: url });
+    let out = r.stdout + r.stderr;
+    ok(r.status !== 0, `71. ${label} refused with no authorization`, `status ${r.status}`);
+    ok(expected.test(out), `    …classified correctly (${expected.source.slice(0,34)})`);
+    ok(!out.includes(FAKE) && !out.includes(url), '    …no credential leaked');
+
+    if (!probeToken) continue;
+
+    // …and with a CORRECT production token. Only the real production database may
+    // ever be authorized; shadow, db1 and unknown Render hosts must stay refused.
+    r = runArc(arc, ['--release','2026-08-19','--production-authorization', good, '--write'], { DATABASE_URL: url });
+    out = r.stdout + r.stderr;
+    const isProd = /production database/.test(String(expected));
+    if (isProd) {
+      // Authorization is granted; the run then fails on DNS because the internal
+      // Render hostname does not resolve here. That is the intended outcome.
+      ok(/PRODUCTION TARGET AUTHORIZED/.test(out), `72. ${label} IS authorizable (the one known production db)`);
+      ok(!/Refusing to/.test(out), '    …authorized rather than refused');
+    } else {
+      ok(r.status !== 0 && !/PRODUCTION TARGET AUTHORIZED/.test(out),
+         `72. ${label} is NOT authorizable even with a correct production token`, `status ${r.status}`);
+      ok(expected.test(out), '    …and still reports the same refusal reason');
+    }
+    ok(!out.includes(FAKE), '    …no credential leaked');
+  }
+
+  // Exact identity must survive normalization: besthospice_db1 is NOT besthospice_db.
+  const src = fs.readFileSync(SCRIPT, 'utf8');
+  ok(/function containsIdentifier/.test(src) && /\[\^a-z0-9\]/.test(src),
+     '73. identifiers are matched on boundaries, not as bare substrings');
+  ok(/RENDER_HOST_ID_RE/.test(src) && /isRenderHost/.test(src),
+     '   …and Render internal host ids are detected on the parsed hostname');
+  ok(/besthospice_shadow_2/.test(src) && /dpg-d60g7h0gjchc73f306j0-a/.test(src),
+     '74. the real shadow database name and host id are classified as SHADOW');
+  {
+    // Check the LISTS, not the whole file: db1 is named in an explanatory comment,
+    // which is not the same as being an authorizable identifier.
+    const lists = (src.match(/const (SHADOW|PRODUCTION)_IDENTIFIERS = \[[\s\S]*?\];/g) || []).join('\n');
+    ok(lists.length > 0, '75. identifier lists are present');
+    ok(!/besthospice_db1|db1/.test(lists), '   …and db1 appears in NO authorizable identifier list');
+    ok(/besthospice_shadow_2/.test(lists) && /dpg-d60g7h0gjchc73f306j0-a/.test(lists),
+       '   …while the real shadow name and host id ARE listed');
+  }
+  // A local database merely NAMED like a Render host must stay non-production.
+  {
+    const r = runArc(arc, ['--release','2026-08-19'], { DATABASE_URL: 'postgresql://me@localhost:5432/dpg-scratch-a' });
+    const out = r.stdout + r.stderr;
+    ok(!/production database|shadow database|unrecognised hosted/.test(out),
+       '76. a LOCAL database merely named like a Render host id stays non-production');
+  }
+}
+
 // ============================ DATABASE SEMANTICS ============================
 const DB = process.env.TEST_DATABASE_URL;
 (async () => {
@@ -581,6 +795,122 @@ const DB = process.env.TEST_DATABASE_URL;
       const iChron = tx.indexOf('tx.cmsRelease.findUnique');
       ok(iLock > -1 && iChron > -1 && iLock < iChron,
          '   …acquired as the FIRST statement, before the chronology re-check');
+    }
+
+    // ---------- AUTHORIZED PRODUCTION-CLASSIFIED TARGET ----------
+    // No production credential and no test-only guard seam. The classifier is
+    // purely string-based, so a LOCAL database literally named "besthospice_db"
+    // is classified PRODUCTION by the real guard while being entirely disposable.
+    // Every branch below therefore runs through the genuine code path.
+    section('authorized production-classified target');
+    {
+      const prodName = 'besthospice_db';
+      const prodUrl = DB.replace(/\/[^/?]+(\?|$)/, `/${prodName}$1`);
+      let ready = false;
+      try {
+        await prisma.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${prodName}"`);
+        await prisma.$executeRawUnsafe(`CREATE DATABASE "${prodName}"`);
+        const mig = spawnSync('npx', ['prisma','migrate','deploy','--schema','prisma/schema.prisma'],
+          { encoding:'utf8', cwd: ROOT, env: { ...process.env, DATABASE_URL: prodUrl } });
+        ready = mig.status === 0;
+        if (!ready) console.log(`  (migrate deploy failed: ${String(mig.stderr).slice(0,160)})`);
+      } catch (e) { console.log(`  (could not create the production-classified database: ${e.message.slice(0,120)})`); }
+
+      if (!ready) {
+        console.log('  SKIPPED — could not provision a production-classified local database');
+      } else {
+        const arc = buildArchive({ key:'2026-08-19',
+          facilities:[facility('031598'), facility('A01500')],
+          zips:[zrow('031598','85016'), zrow('031598','85017'), zrow('A01500','85018')] });
+        const good = authToken(DB_SOURCE, '2026-08-19', manifestHashOf(arc));
+        const pc = new PrismaClient({ datasources: { db: { url: prodUrl } } });
+        const pcounts = async () => ({
+          rel: await pc.cmsRelease.count(), fac: await pc.cmsFacility.count(),
+          sa: await pc.cmsFacilityServiceArea.count() });
+        try {
+          ok(JSON.stringify(await pcounts()) === '{"rel":0,"fac":0,"sa":0}', 'P0. production-classified target starts empty');
+
+          // The classifier really does treat it as production: no token, refused.
+          let rp = runArc(arc, ['--release','2026-08-19','--write'], { DATABASE_URL: prodUrl });
+          ok(rp.status !== 0 && /points at the production database/.test(rp.stdout+rp.stderr),
+             'P1. the real guard classifies this local target as PRODUCTION');
+          ok(JSON.stringify(await pcounts()) === '{"rel":0,"fac":0,"sa":0}', '   …and wrote nothing');
+
+          // 5. correct token + DRY RUN -> connects, plans, writes nothing.
+          rp = runArc(arc, ['--release','2026-08-19','--production-authorization', good], { DATABASE_URL: prodUrl });
+          ok(rp.status === 0, 'P2. correct authorization + dry run succeeds', rp.stderr.slice(0,200));
+          ok(/PRODUCTION TARGET AUTHORIZED/.test(rp.stdout), '   …prints the authorization banner');
+          ok(/READ-ONLY PLANNING \(no --write\)/.test(rp.stdout), '   …and states the mode is read-only planning');
+          ok(/DRY RUN — ZERO WRITES/.test(rp.stdout), '   …still a dry run');
+          ok(/facilities        : CREATE 2/.test(rp.stdout), '   …and produced a real plan');
+          ok(JSON.stringify(await pcounts()) === '{"rel":0,"fac":0,"sa":0}',
+             'P3. authorization alone writes NOTHING — it never implies --write');
+
+          // 6. correct token + --write -> the ordinary write path, all checks intact.
+          rp = runArc(arc, ['--release','2026-08-19','--production-authorization', good, '--write'], { DATABASE_URL: prodUrl });
+          ok(rp.status === 0, 'P4. correct authorization + --write reaches the normal write path', rp.stderr.slice(0,300));
+          ok(/WRITE \(--write supplied\)/.test(rp.stdout), '   …banner states WRITE mode');
+          ok(/WRITE MODE ACTIVE/.test(rp.stdout) && /INGESTED release 2026-08-19/.test(rp.stdout), '   …and ingested in one transaction');
+          const pc1 = await pcounts();
+          ok(pc1.rel === 1 && pc1.fac === 2 && pc1.sa === 3, '   …with the expected rows', JSON.stringify(pc1));
+
+          // Every ordinary invariant still applies behind the authorization.
+          rp = runArc(arc, ['--release','2026-08-19','--production-authorization', good, '--write'], { DATABASE_URL: prodUrl });
+          ok(rp.status === 0 && /release           : UNCHANGED/.test(rp.stdout) && /No transaction opened/.test(rp.stdout),
+             'P5. idempotency still holds behind authorization');
+          ok(JSON.stringify(await pcounts()) === JSON.stringify(pc1), '   …zero duplicate rows');
+
+          const tampered = buildArchive({ key:'2026-08-19', facilities:[facility('031598',{'City/Town':'ELSEWHERE'})], zips:[zrow('031598','85016')] });
+          const tamperTok = authToken(DB_SOURCE, '2026-08-19', manifestHashOf(tampered));
+          rp = runArc(tampered, ['--release','2026-08-19','--production-authorization', tamperTok, '--write'], { DATABASE_URL: prodUrl });
+          ok(rp.status !== 0 && /manifestSha256 differs/.test(rp.stdout+rp.stderr),
+             'P6. manifest CONFLICT still refuses even with a token valid for that archive');
+          ok(JSON.stringify(await pcounts()) === JSON.stringify(pc1), '   …zero writes');
+
+          const older = buildArchive({ key:'2026-05-01', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+          const olderTok = authToken(DB_SOURCE, '2026-05-01', manifestHashOf(older));
+          rp = runArc(older, ['--release','2026-05-01','--production-authorization', olderTok, '--write'], { DATABASE_URL: prodUrl });
+          ok(rp.status !== 0 && /CHRONOLOGY VIOLATION/.test(rp.stdout+rp.stderr),
+             'P7. chronology still refuses an older release even with a correct token for it');
+          ok(JSON.stringify(await pcounts()) === JSON.stringify(pc1), '   …zero writes');
+        } finally {
+          await pc.$disconnect().catch(()=>{});
+          await prisma.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${prodName}"`).catch(()=>{});
+        }
+      }
+    }
+
+    // ---------- NON-PRODUCTION + UNNECESSARY TOKEN ----------
+    // A token is meaningless against a non-production target. It must be ignored
+    // outright: it may not make the target look production-like, may not print an
+    // approval banner, and may not change --write semantics.
+    section('non-production with an unnecessary token');
+    await reset();
+    {
+      const arc = buildArchive({ key:'2026-05-01', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+      const correct = authToken(DB_SOURCE, '2026-05-01', manifestHashOf(arc));
+      const bogus = 'a'.repeat(64);
+
+      for (const [label, tok] of [['a correct-for-this-release token', correct], ['a well-formed but wrong token', bogus]]) {
+        await reset();
+        let r = runArc(arc, ['--release','2026-05-01','--production-authorization', tok], { DATABASE_URL: DB });
+        let out = r.stdout + r.stderr;
+        ok(r.status === 0, `N1. non-production dry run succeeds with ${label}`, r.stderr.slice(0,200));
+        ok(!/PRODUCTION TARGET AUTHORIZED/.test(out), '   …prints no authorization banner');
+        ok(!/production database|shadow database|unrecognised hosted/.test(out), '   …the target is not treated as production-like');
+        ok(/DRY RUN — ZERO WRITES/.test(out), '   …--write semantics unchanged: still a dry run');
+        const c0 = await counts();
+        ok(c0.rel === 0 && c0.fac === 0 && c0.sa === 0, '   …and wrote nothing', JSON.stringify(c0));
+
+        // The token also does not block or alter an ordinary authorized-by-default write.
+        r = runArc(arc, ['--release','2026-05-01','--production-authorization', tok, '--write'], { DATABASE_URL: DB });
+        ok(r.status === 0 && /INGESTED release 2026-05-01/.test(r.stdout),
+           `N2. non-production --write behaves normally with ${label}`, r.stderr.slice(0,200));
+        ok(!/PRODUCTION TARGET AUTHORIZED/.test(r.stdout+r.stderr), '   …still no authorization banner');
+        const c1 = await counts();
+        ok(c1.rel === 1 && c1.fac === 1 && c1.sa === 1, '   …with the ordinary rows', JSON.stringify(c1));
+      }
+      await reset();
     }
 
     // ---------- DRY RUN CANNOT WRITE ----------
