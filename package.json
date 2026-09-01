@@ -14,7 +14,8 @@
     "test:seo": "node scripts/test-seo-templates.js",
     "test:seo:live": "node scripts/test-seo-templates.js --live https://www.besthospice.com",
     "test:cms:importer": "node scripts/test-cms-identity-importer.js",
-    "test:cms:archive": "node scripts/test-cms-archive.js"
+    "test:cms:archive": "node scripts/test-cms-archive.js",
+    "test:cms:datalayer": "node scripts/test-cms-data-layer.js"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"

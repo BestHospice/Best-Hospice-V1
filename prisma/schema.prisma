@@ -273,6 +273,146 @@ model ProviderExternalIdentity {
   @@index([source])
 }
 
+/// One ingested CMS dataset-family release. Everything loaded from CMS points at
+/// the release it came from, so database state is always traceable to specific
+/// archived bytes.
+///
+/// `source` uses the EXTERNAL IDENTITY namespace ("cms_hospice",
+/// "cms_home_health"), not the archive-family names ("hospice", "home-health").
+/// The archive pipeline translates via sources[] in data/cms-dataset-registry.json.
+/// See docs/cms-data-pipeline.md.
+///
+/// Per-file detail (sourceUrl, per-dataset sha256, row counts, headers) stays in
+/// the archive manifest. Only the release-level facts that database rows depend
+/// on are duplicated here.
+model CmsRelease {
+  id             String   @id @default(uuid())
+  /// "cms_hospice" | "cms_home_health"
+  source         String
+  /// Max `modified` date across the datasets resolved for this family in ONE
+  /// archive capture. Derived by scripts/cms-archive.js releaseKeyOf():
+  /// max(modified) over the non-skipped datasets. It is an ARCHIVE-CAPTURE
+  /// identifier, not a single CMS dataset's release date - home-health
+  /// "2026-06-10" contains four datasets modified 2026-05-27 and one modified
+  /// 2026-06-10.
+  releaseKey     String
+  /// When the archive captured this release (manifest.capturedAt).
+  capturedAt     DateTime
+  /// When this release was loaded into the database.
+  ingestedAt     DateTime @default(now())
+  /// Datasets present in the archived release.
+  datasetCount   Int
+  /// sha256 over the RAW BYTES of the release's manifest.json exactly as the
+  /// archiver wrote it - not canonicalised JSON. That manifest carries
+  /// `sha256Raw` for every dataset file in the release, so this single value
+  /// transitively pins every archived byte behind this row.
+  manifestSha256 String?
+
+  facilitiesFirstSeen   CmsFacility[]            @relation("CmsFacilityFirstSeen")
+  facilitiesLastSeen    CmsFacility[]            @relation("CmsFacilityLastSeen")
+  serviceAreasFirstSeen CmsFacilityServiceArea[] @relation("CmsServiceAreaFirstSeen")
+  serviceAreasLastSeen  CmsFacilityServiceArea[] @relation("CmsServiceAreaLastSeen")
+
+  @@unique([source, releaseKey])
+  /// Target for the composite foreign keys below. Guarantees a facility or
+  /// service area can only reference a release of its OWN source.
+  @@unique([id, source])
+}
+
+/// One CMS-certified facility, independent of whether it is a Best Hospice
+/// Provider. The national universe is the point: most of these rows are
+/// competitors, not customers.
+///
+/// Current-state only. This row is updated in place as CMS republishes, with
+/// firstSeenRelease / lastSeenRelease bracketing observation. Per-release
+/// snapshots of changing attributes are deferred to a future CmsFacilityHistory,
+/// and quality measures to a future CmsMeasure. Neither exists yet.
+///
+/// (source, ccn) is the natural key and is deliberately shaped to match
+/// ProviderExternalIdentity (source, externalId). That join is LOGICAL only -
+/// there is no foreign key between them, because an accepted identity must not
+/// depend on whether CMS data has been ingested. See docs/cms-data-pipeline.md.
+model CmsFacility {
+  id     String @id @default(uuid())
+  /// "cms_hospice" | "cms_home_health"
+  source String
+  /// CMS Certification Number, exactly as published. String, never numeric:
+  /// 24% of hospice CCNs are alphanumeric (A01500) and thousands carry leading
+  /// zeros in both families.
+  ccn    String
+
+  /// 100% populated in both families.
+  name    String
+  address String
+  city    String
+  state   String
+  /// 5-character string. Leading zeros are significant.
+  zip     String
+
+  /// Hospice publishes County/Parish; the home-health file has no county column.
+  county            String?
+  /// Formats differ by family - hospice "(602) 855-3500", home health "6028553500".
+  /// Stored verbatim; normalisation is an ingestion concern, not a storage one.
+  phone             String?
+  /// Vocabularies differ by family - hospice "For-Profit", home health
+  /// "PROPRIETARY". Stored verbatim; no cross-family mapping is implied.
+  ownershipType     String?
+  /// CMS publishes MM/DD/YYYY, date-only, so this is @db.Date rather than a
+  /// timestamp: there is no time component to invent and no timezone to get
+  /// wrong. Null where CMS wrote a blank or "-" sentinel.
+  certificationDate DateTime? @db.Date
+
+  firstSeenReleaseId String
+  lastSeenReleaseId  String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  /// Restrict by omission, as everywhere else in this schema: deleting a release
+  /// must never erase the facilities observed in it.
+  firstSeenRelease CmsRelease               @relation("CmsFacilityFirstSeen", fields: [firstSeenReleaseId, source], references: [id, source])
+  lastSeenRelease  CmsRelease               @relation("CmsFacilityLastSeen", fields: [lastSeenReleaseId, source], references: [id, source])
+  serviceAreas     CmsFacilityServiceArea[]
+
+  @@unique([source, ccn])
+  /// Target for CmsFacilityServiceArea's composite foreign key.
+  @@unique([id, source])
+  @@index([source, state])
+  @@index([source, zip])
+  @@index([firstSeenReleaseId])
+  @@index([lastSeenReleaseId])
+}
+
+/// A ZIP code CMS reports this facility as serving. ~915k rows at current
+/// national scale (hospice ~350k, home health ~566k).
+///
+/// Answers "which facilities serve ZIP X" (the competitor-overlap query) and
+/// "which ZIPs does facility Y serve".
+model CmsFacilityServiceArea {
+  id         String @id @default(uuid())
+  facilityId String
+  /// Denormalised from the facility on purpose. It is what makes the composite
+  /// foreign keys below possible, so the database guarantees this row, its
+  /// facility and its releases all belong to one source. It also lets the hot
+  /// competitor-overlap query hit (source, zip) without joining CmsFacility.
+  source     String
+  /// 5-character string. Leading zeros are significant.
+  zip        String
+
+  firstSeenReleaseId String
+  lastSeenReleaseId  String
+  createdAt          DateTime @default(now())
+
+  facility         CmsFacility @relation(fields: [facilityId, source], references: [id, source])
+  firstSeenRelease CmsRelease  @relation("CmsServiceAreaFirstSeen", fields: [firstSeenReleaseId, source], references: [id, source])
+  lastSeenRelease  CmsRelease  @relation("CmsServiceAreaLastSeen", fields: [lastSeenReleaseId, source], references: [id, source])
+
+  @@unique([facilityId, zip])
+  /// The competitor-overlap query: "which facilities of this kind serve ZIP X".
+  /// Always source-scoped in practice - hospices are compared with hospices.
+  @@index([source, zip])
+  @@index([lastSeenReleaseId])
+}
+
 model WaitlistRequest {
   id           String   @id @default(uuid())
   zip          String
