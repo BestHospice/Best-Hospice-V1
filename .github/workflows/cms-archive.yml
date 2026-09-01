@@ -1,17 +1,21 @@
 name: CMS release archive
 
-# CMS overwrites its hospice datasets in place. Any measure that compares one
-# release to the next can only ever use history we kept at the time, so a missed
-# quarter is unrecoverable. Between 2026-05-01 and 2026-08-19, 242 hospices left
-# the data and 59 entered - none of which is visible without both snapshots.
+# CMS overwrites its datasets in place. Any measure that compares one release to
+# the next can only ever use history we kept at the time, so a missed quarter is
+# unrecoverable. Between 2026-05-01 and 2026-08-19, 242 hospices left the data
+# and 59 entered - none of which is visible without both snapshots.
 #
 # Stored as release assets rather than commits, deliberately:
 #   - assets do not enter the git tree, so Render's deploy clone stays small
 #   - nothing is pushed to main, so no monthly no-op deploy is triggered
 #
-# Runs monthly rather than quarterly because CMS's publish dates drift (13 April
-# then 19 August, roughly four months). The job no-ops when the current release
-# has already been captured, so extra runs cost one API call.
+# Runs monthly rather than quarterly because CMS's publish dates drift. The job
+# no-ops when the current release has already been captured, so extra runs cost
+# one API call.
+#
+# hospice and home-health run as INDEPENDENT matrix jobs. They publish separate
+# tags and fail separately: a home-health failure must never be reported as a
+# successful hospice archive, or vice versa.
 
 on:
   schedule:
@@ -24,37 +28,47 @@ permissions:
 
 jobs:
   archive:
-    name: Capture the current CMS hospice release
+    name: Archive ${{ matrix.source }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false        # one source failing must not cancel the other
+      matrix:
+        source: [hospice, home-health]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
 
+      - name: Registry and drift-detection tests
+        run: node scripts/test-cms-archive.js
+
       - name: Resolve the current release key
         id: key
-        run: echo "key=$(node scripts/cms-archive.js --print-key)" >> "$GITHUB_OUTPUT"
+        run: echo "key=$(node scripts/cms-archive.js --source ${{ matrix.source }} --print-key)" >> "$GITHUB_OUTPUT"
 
       - name: Has this release already been captured?
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="cms-${{ steps.key.outputs.key }}"
+          TAG="cms-${{ matrix.source }}-${{ steps.key.outputs.key }}"
+          # The hospice archive predates per-source tags; accept the old tag too
+          # so an already-captured release is not downloaded a second time.
+          LEGACY="cms-${{ steps.key.outputs.key }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "$TAG is already archived; nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"; echo "$TAG is already archived."
+          elif [ "${{ matrix.source }}" = "hospice" ] && gh release view "$LEGACY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"; echo "$LEGACY (legacy tag) is already archived."
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "$TAG is new; will download and archive."
+            echo "exists=false" >> "$GITHUB_OUTPUT"; echo "$TAG is new; will download and archive."
           fi
 
-      - name: Download and compress the release
+      - name: Download, validate schema and compress
         if: steps.check.outputs.exists == 'false'
         env:
           CMS_ARCHIVE_DIR: ${{ github.workspace }}/cms-archive
-        run: node scripts/cms-archive.js
+        run: node scripts/cms-archive.js --source ${{ matrix.source }}
 
       - name: Publish as a release
         if: steps.check.outputs.exists == 'false'
@@ -62,29 +76,57 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           KEY="${{ steps.key.outputs.key }}"
-          DIR="${{ github.workspace }}/cms-archive/$KEY"
+          SRC="${{ matrix.source }}"
+          DIR="${{ github.workspace }}/cms-archive/$SRC/$KEY"
           ls -la "$DIR"
           # Notes go via a file so YAML indentation does not leak into them.
           {
-            echo "Snapshot of the CMS Provider Data Catalog hospice datasets, release $KEY, captured $(date -u +%Y-%m-%d)."
+            echo "Snapshot of the CMS Provider Data Catalog **$SRC** datasets, release $KEY, captured $(date -u +%Y-%m-%d)."
             echo
-            echo "CMS overwrites these files in place, so this is the only record of this release. Six gzipped CSVs plus manifest.json, which carries per-file sha256, source URLs and dataset ids."
+            echo "CMS overwrites these files in place, so this is the only record of this release."
+            echo "manifest.json carries per-file sha256, row counts, full CSV headers, source URLs and dataset ids."
             echo
             echo "To restore:"
             echo '```'
-            echo "gunzip -c provider.csv.gz > reports/cms-raw/provider.csv   # and the other five"
-            echo "node scripts/cms-ingest.js"
+            echo "gunzip -c <dataset>.csv.gz > reports/cms-raw/<dataset>.csv"
             echo '```'
           } > notes.md
-          gh release create "cms-$KEY" "$DIR"/* \
-            --title "CMS hospice datasets $KEY" \
+          gh release create "cms-$SRC-$KEY" "$DIR"/* \
+            --title "CMS $SRC datasets $KEY" \
             --notes-file notes.md
 
       - name: Summary
+        if: always()
         run: |
-          if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
-            echo "### No new CMS release (${{ steps.key.outputs.key }} already archived)" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "### Archived CMS release ${{ steps.key.outputs.key }}" >> "$GITHUB_STEP_SUMMARY"
-            echo "Published as release \`cms-${{ steps.key.outputs.key }}\`" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          SRC="${{ matrix.source }}"
+          KEY="${{ steps.key.outputs.key }}"
+          {
+            echo "### CMS archive — $SRC"
+            if [ "${{ job.status }}" != "success" ]; then
+              echo "**FAILED** for \`$SRC\`. The other source is reported separately and is unaffected."
+            elif [ "${{ steps.check.outputs.exists }}" = "true" ]; then
+              echo "No new release. \`$KEY\` was already archived."
+            else
+              echo "| field | value |"
+              echo "| --- | --- |"
+              echo "| source | \`$SRC\` |"
+              echo "| releaseKey | \`$KEY\` |"
+              echo "| tag | \`cms-$SRC-$KEY\` |"
+              echo "| schema validation | passed (archive aborts on any header drift) |"
+              echo "| checksums | sha256 recorded per dataset in manifest.json |"
+              echo
+              echo "Datasets, row counts and status:"
+              echo '```'
+              node -e '
+                const fs=require("fs"),p=process.env.MF;
+                const m=JSON.parse(fs.readFileSync(p,"utf8"));
+                console.log("status: "+m.status+"  ("+m.datasetCount+"/"+m.expectedDatasetCount+" datasets)");
+                for(const[k,f]of Object.entries(m.files))console.log(`  ${k.padEnd(18)} ${String(f.rowCount).padStart(8)} rows  ${f.headers.length} cols  ${f.datasetId}`);
+                for(const s of m.skipped||[])console.log("  SKIPPED "+s.logicalKey+": "+String(s.reason).split("\n")[0]);
+                for(const d of m.rowCountDeltas||[])console.log("  delta "+d);
+              '
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          MF: ${{ github.workspace }}/cms-archive/${{ matrix.source }}/${{ steps.key.outputs.key }}/manifest.json
