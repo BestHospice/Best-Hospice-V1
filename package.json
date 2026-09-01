@@ -10,12 +10,14 @@
     "prisma:generate": "prisma generate",
     "generate:static-seo": "node scripts/generate-static-seo-pages.js",
     "cms:identity:import": "node scripts/import-cms-hospice-identities.js",
+    "cms:hospice:import": "node scripts/import-cms-hospice-data.js",
     "postinstall": "prisma generate --schema prisma/schema.prisma",
     "test:seo": "node scripts/test-seo-templates.js",
     "test:seo:live": "node scripts/test-seo-templates.js --live https://www.besthospice.com",
     "test:cms:importer": "node scripts/test-cms-identity-importer.js",
     "test:cms:archive": "node scripts/test-cms-archive.js",
-    "test:cms:datalayer": "node scripts/test-cms-data-layer.js"
+    "test:cms:datalayer": "node scripts/test-cms-data-layer.js",
+    "test:cms:ingestion": "node scripts/test-cms-hospice-ingestion.js"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"

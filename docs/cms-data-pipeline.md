@@ -511,14 +511,183 @@ include `-`, which home health uses widely. Ingestion will need it.
 
 ---
 
+## Phase B — hospice ingestion
+
+`scripts/import-cms-hospice-data.js` loads one **archived** hospice release into
+`CmsRelease`, `CmsFacility` and `CmsFacilityServiceArea`. Quality, CAHPS and
+benchmark datasets are **not** ingested; `CmsMeasure` remains deferred.
+
+### Archived data only, and Archive V2 only
+
+The input is always an archive on disk under `reports/cms-archive/`. A live CMS
+endpoint is never an ingestion source — that is the archiver's job, and keeping
+the two separate is what makes ingestion reproducible.
+
+**Database ingestion requires an Archive V2 manifest.** `source`, `status`,
+`datasetCount` and per-file `headers` must be **recorded facts**. A legacy
+pre-V2 manifest is **refused**:
+
+```
+Archive V2 manifest required for CMS ingestion. This archive is missing recorded
+manifest fact(s): schemaVersion >= 2, source, status, datasetCount, ...
+  Re-archive this release with the current archiver:
+    node scripts/cms-archive.js --source hospice
+  The importer will not infer archive metadata.
+```
+
+Phase B has exactly one archive contract. The importer never reconstructs,
+infers or repairs archive metadata — that is precisely what Archive V2 exists to
+guarantee, and having two contracts would undermine it.
+
+**Legacy V1 archives are preserved on disk as historical evidence** and remain
+readable by the archiver for history purposes. They are simply not valid
+ingestion input. `reports/cms-archive/2026-05-01` is such an archive.
+
+When both layouts hold the same release key, the V2 archive under
+`reports/cms-archive/hospice/<key>/` is the one selected.
+
+#### Re-archiving an existing release
+
+`2026-08-19` originally existed only as a V1 archive. It was re-captured with
+the current archiver into a temporary directory and **all six raw dataset
+sha256 values matched the preserved V1 archive byte-for-byte**, proving CMS
+still serves identical bytes. The archiver-produced V2 manifest was then
+installed at `reports/cms-archive/hospice/2026-08-19/`; the V1 archive at
+`reports/cms-archive/2026-08-19/` was left byte-untouched. No manifest was
+hand-authored.
+
+### Namespace mapping
+
+Archive family **`hospice`** maps to database source **`cms_hospice`** via
+`sources[]` in the registry. The two strings are never compared directly.
+
+### Archive validation — fail closed
+
+Before anything is read into memory: manifest exists and parses · `releaseKey`
+matches the archive directory and is `YYYY-MM-DD` · source is hospice · the
+release is complete · `general` and `zip` are present with their `.csv.gz` on
+disk · every used file decompresses · **every used file's sha256 matches
+`sha256Raw`** · every header matches the registry contract exactly.
+
+**Legacy (pre-V2) manifests** are accepted only when the facts V2 records can be
+independently *derived and verified* from content: `source` from every
+`datasetId` matching the hospice registry, completeness from every required
+dataset being present with a verified checksum, `datasetCount` from the manifest
+file list. Each derivation is printed as a `NOTE`. Nothing is repaired or
+written back. The `2026-05-01` archive predates `datasetId` recording entirely,
+so its source cannot be verified and it is **refused** — which is correct.
+
+### releaseKey and manifestSha256
+
+`releaseKey` keeps Archive V2 semantics exactly: the max `modified` across the
+datasets in one capture, not a single dataset's publication date.
+`manifestSha256` is sha256 over the **raw bytes** of `manifest.json`, hashed
+before any parse or re-serialisation — a 64-character lowercase hex digest.
+Hashing a re-serialised parse gives a different value, and a test asserts both
+that the digest matches `^[a-f0-9]{64}$` and that it equals `shasum -a 256` of
+the file.
+
+### Chronological ingestion
+
+Current-state semantics depend on `lastSeenReleaseId` being the newest release,
+so ingestion is ordered:
+
+| situation | behaviour |
+| --- | --- |
+| no existing release for the source | allowed |
+| same `(source, releaseKey)` | idempotent re-run, subject to the conflict rules |
+| requested key later than the latest | allowed |
+| requested key **earlier** than the latest | **refused** — no backfill, no override |
+
+Keys are `YYYY-MM-DD`, so lexical ordering is chronological; the format is
+validated rather than assumed.
+
+### Idempotency and conflict
+
+A re-run of the same release must present the same archive. If the stored
+`manifestSha256`, `capturedAt` or `datasetCount` disagree, it is a **CONFLICT**
+and zero rows are written. If the stored `manifestSha256` is **NULL** the re-run
+also fails: a null hash cannot prove the archive is the one already ingested,
+and blessing different bytes silently is worse than an explicit failure. A true
+no-op re-run reports `UNCHANGED` and **opens no transaction at all**.
+
+### First/last seen
+
+New rows get `firstSeen = lastSeen = this release`. Rows seen again keep
+`firstSeenReleaseId`, move `lastSeenReleaseId` forward, and take the new
+release's descriptive values. **Nothing is ever deleted**: a facility or service
+area absent from a newer release keeps its old `lastSeenReleaseId`, which is
+precisely how disappearance is recorded. A changed name or address never creates
+a second row — `(source, ccn)` is the identity.
+
+### Orphan hospice ZIP rows
+
+CMS publishes `general` and `zip` with different `modified` dates, so the ZIP
+file references certifications the facility file does not contain. In the
+`2026-08-19` release that is **242 distinct CCNs across 7,329 rows, 2.10% of the
+ZIP dataset**. Those rows are skipped and counted, with distinct orphan CCNs
+listed in the JSON report. No placeholder facility is created, nothing is
+attached to another facility, and no fuzzy matching happens. This does **not**
+fail the release. No percentage threshold is enforced — the structural checks
+(header contract, checksums, CCN format) are the real guard, and an arbitrary
+band would fail legitimately volatile releases.
+
+### Missing-value normalisation
+
+`-` is a CMS sentinel and is normalised to null, alongside blank,
+`Not Available`, `Not Applicable` and `N/A`. In the real `2026-08-19` hospice
+file it appears in 6,057 `Address Line 2`, 61 `County/Parish` and 60
+`Telephone Number` values. It is applied **only to nullable descriptive
+fields** — never to an identifier — and no identity column in the observed data
+ever holds a sentinel-looking value. Rows missing a required identity or
+location field are skipped and reported, never fabricated.
+
+`certificationDate` is passed to Postgres as a `YYYY-MM-DD` **string**. Passing a
+JS `Date` makes the driver serialise in local time, and `::date` then truncates
+to the previous day in any negative UTC offset — a silent off-by-one that was
+caught in rehearsal against real data.
+
+### Commands and safety
+
+```bash
+node scripts/import-cms-hospice-data.js --list
+node scripts/import-cms-hospice-data.js --release 2026-08-19 --no-db   # archive only
+node scripts/import-cms-hospice-data.js --release 2026-08-19           # dry run, zero writes
+node scripts/import-cms-hospice-data.js --release 2026-08-19 --write
+```
+
+Dry run is the default. `--no-db` never constructs a Prisma client. Omitting
+`--release` selects the latest local archive deterministically and prints it
+prominently, but `--release` is preferred for any real execution.
+
+The production guard from `scripts/import-cms-hospice-identities.js` is reused
+unchanged and applies to **every mode that opens a connection**, not just
+`--write`. There is no production override and no hidden bypass flag.
+
+### Transaction
+
+Parse and validate happen entirely outside the transaction. Inside one Prisma
+transaction: preconditions are re-checked, the release is created or reused,
+facilities and service areas are upserted in batches, and postconditions are
+asserted before commit. Any failure rolls back the release together with all
+facility and service-area changes — no `CmsRelease` row is left behind.
+
+Bulk upserts use parameterised `INSERT … ON CONFLICT` inside the Prisma
+transaction. At ~342k service-area rows per release, per-row client calls would
+be untenable; `firstSeenReleaseId` is deliberately absent from every `DO UPDATE
+SET` list so it can never be overwritten.
+
+---
+
 ## Not implemented
 
 Named explicitly so this document is not mistaken for a description of a larger
 system than exists:
 
-- **No database ingestion.** `CmsRelease`, `CmsFacility` and
-  `CmsFacilityServiceArea` exist as tables, but nothing writes to them. There is
-  no ingestion code and no CMS data in any database.
+- **No home-health ingestion.** Only hospice is ingested. `CmsFacility` and
+  `CmsFacilityServiceArea` hold `cms_hospice` rows only.
+- **No CMS data in production.** Ingestion has run against disposable local
+  databases only.
 - **No `CmsMeasure`** and **no `CmsFacilityHistory`.** Both are deferred.
 - No home-health identity matching. No Provider currently holds a
   `cms_home_health` identity.
