@@ -467,6 +467,25 @@ const num = (n) => String(n).padStart(9);
       where: { source_releaseKey: { source: dbSource, releaseKey: arc.releaseKey } } });
     const latest = await prisma.cmsRelease.findFirst({ where: { source: dbSource }, orderBy: { releaseKey: 'desc' } });
 
+    // Chronology is decided by the LATEST ingested release for this source, never
+    // by whether the requested release happens to exist. A release that is already
+    // ingested but has since been superseded is an out-of-order ingestion attempt,
+    // not an idempotent re-run: replaying it would drag lastSeenReleaseId backwards
+    // and restore stale descriptive values. This runs before the plan is printed,
+    // so a DB-backed dry run refuses it too.
+    if (latest && latest.releaseKey > arc.releaseKey) {
+      console.log('');
+      fail(`CHRONOLOGY VIOLATION: release ${arc.releaseKey} is OLDER than the latest ingested `
+        + `${dbSource} release ${latest.releaseKey}.\n`
+        + (existing
+          ? `  ${arc.releaseKey} is already ingested, but ${latest.releaseKey} has SUPERSEDED it.\n`
+            + '  A superseded release is NOT an idempotent re-run — replaying it would move\n'
+            + '  lastSeenReleaseId backwards and restore stale descriptive values.\n'
+          : '')
+        + '  Phase A current-state semantics depend on lastSeenReleaseId being the newest\n'
+        + '  release, so backfilling an older release is refused. ZERO writes.');
+    }
+
     let releaseAction = 'CREATE';
     if (existing) {
       releaseAction = 'UNCHANGED';
@@ -488,12 +507,6 @@ const num = (n) => String(n).padStart(9);
         console.log('RELEASE CONFLICT — the archive does not match the release already ingested:');
         bad.forEach((b) => console.log(`  - ${b}`));
       }
-    } else if (latest && latest.releaseKey > arc.releaseKey) {
-      console.log('');
-      fail(`CHRONOLOGY VIOLATION: release ${arc.releaseKey} is OLDER than the latest ingested `
-        + `${dbSource} release ${latest.releaseKey}.\n`
-        + '  Phase A current-state semantics depend on lastSeenReleaseId being the newest\n'
-        + '  release, so backfilling an older release is refused. ZERO writes.');
     }
 
     // ---- classify facilities and service areas ----
@@ -605,7 +618,11 @@ const num = (n) => String(n).padStart(9);
       const cur = await tx.cmsRelease.findUnique({
         where: { source_releaseKey: { source: dbSource, releaseKey: arc.releaseKey } } });
       const newest = await tx.cmsRelease.findFirst({ where: { source: dbSource }, orderBy: { releaseKey: 'desc' } });
-      if (!cur && newest && newest.releaseKey > arc.releaseKey) throw new Error('chronology violation detected inside the transaction');
+      // Authoritative for writes, and deliberately NOT conditioned on `cur`: an
+      // already-ingested but superseded release must be refused here too.
+      if (newest && newest.releaseKey > arc.releaseKey) {
+        throw new Error(`chronology violation detected inside the transaction: ${arc.releaseKey} is older than ${newest.releaseKey}`);
+      }
       if (cur && cur.manifestSha256 && cur.manifestSha256 !== arc.manifestSha256) throw new Error('manifest changed inside the transaction');
 
       const rel = cur || await tx.cmsRelease.create({ data: {

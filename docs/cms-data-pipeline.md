@@ -590,14 +590,32 @@ the file.
 ### Chronological ingestion
 
 Current-state semantics depend on `lastSeenReleaseId` being the newest release,
-so ingestion is ordered:
+so ingestion is ordered. Chronology is decided by comparing the requested
+release **R** against the **latest already-ingested release L for that source** —
+never by whether a `CmsRelease` row for R happens to exist:
 
 | situation | behaviour |
 | --- | --- |
 | no existing release for the source | allowed |
-| same `(source, releaseKey)` | idempotent re-run, subject to the conflict rules |
-| requested key later than the latest | allowed |
-| requested key **earlier** than the latest | **refused** — no backfill, no override |
+| `R > L` | allowed — normal later-release ingestion |
+| `R == L` | idempotent re-run, subject to the conflict rules |
+| `R < L` | **refused** — no backfill, no override |
+
+**An already-ingested historical release that has since been superseded is still
+`R < L`, and is refused.** It is an out-of-order ingestion attempt, not an
+idempotent re-run: replaying it would move `lastSeenReleaseId` backwards and
+restore stale descriptive values, silently breaking the current-state invariant.
+"Same release" therefore means *R equals the latest ingested release*, not merely
+*a row for R exists somewhere*.
+
+The rule is enforced at two checkpoints, neither conditioned on R already
+existing: once during planning — so a DB-backed **dry run refuses it too** and
+never labels it an idempotent re-run — and once inside the mutation transaction
+immediately after the advisory lock, which is authoritative for writes. A refusal
+is a non-zero exit with zero writes: no facility changes, no service-area
+changes, no `lastSeen` changes, no descriptive-field changes.
+
+`--no-db` cannot know database chronology and remains archive-validation-only.
 
 Keys are `YYYY-MM-DD`, so lexical ordering is chronological; the format is
 validated rather than assumed.
@@ -615,7 +633,9 @@ no-op re-run reports `UNCHANGED` and **opens no transaction at all**.
 
 New rows get `firstSeen = lastSeen = this release`. Rows seen again keep
 `firstSeenReleaseId`, move `lastSeenReleaseId` forward, and take the new
-release's descriptive values. **Nothing is ever deleted**: a facility or service
+release's descriptive values. `lastSeenReleaseId` **only ever moves forward** —
+the chronology rule above is what guarantees it, by refusing any release older
+than the latest ingested one, including one that was ingested previously. **Nothing is ever deleted**: a facility or service
 area absent from a newer release keeps its old `lastSeenReleaseId`, which is
 precisely how disappearance is recorded. A changed name or address never creates
 a second row — `(source, ccn)` is the identity.

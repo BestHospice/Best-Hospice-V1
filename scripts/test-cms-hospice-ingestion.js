@@ -383,6 +383,119 @@ const DB = process.env.TEST_DATABASE_URL;
     ok(r.status === 0, '37. later release accepted');
     ok((await prisma.cmsRelease.count()) === 3, '   three releases now recorded');
 
+    // ---------- SUPERSEDED RELEASE MAY NOT BE REPLAYED ----------
+    // Regression: an already-ingested release that a later release has superseded
+    // is an OUT-OF-ORDER attempt, not an idempotent re-run. Replaying it used to
+    // drag lastSeenReleaseId backwards and restore stale descriptive values.
+    section('superseded release refusal');
+    await reset();
+    const supA = buildArchive({ key:'2026-05-01',
+      facilities:[facility('031598', { 'City/Town':'PHOENIX', 'Facility Name':'A NAME' })],
+      zips:[zrow('031598','85016'), zrow('031598','85017')] });
+    const supB = buildArchive({ key:'2026-08-19',
+      facilities:[facility('031598', { 'City/Town':'TUCSON', 'Facility Name':'B NAME' })],
+      zips:[zrow('031598','85016'), zrow('031598','85020')] });
+
+    ok(runArc(supA, ['--release','2026-05-01','--write'], { DATABASE_URL: DB }).status === 0, 'S1. release A ingested');
+    const supRelA = await prisma.cmsRelease.findFirst({ where: { releaseKey: '2026-05-01' } });
+    let supFac = await prisma.cmsFacility.findFirst({ where: { ccn: '031598' } });
+    ok(supFac.lastSeenReleaseId === supRelA.id && supFac.city === 'PHOENIX', '   …A is current');
+
+    ok(runArc(supB, ['--release','2026-08-19','--write'], { DATABASE_URL: DB }).status === 0, 'S2. later release B ingested');
+    const supRelB = await prisma.cmsRelease.findFirst({ where: { releaseKey: '2026-08-19' } });
+    supFac = await prisma.cmsFacility.findFirst({ where: { ccn: '031598' } });
+    ok(supFac.lastSeenReleaseId === supRelB.id && supFac.city === 'TUCSON' && supFac.name === 'B NAME',
+       '   …B is now current and descriptive fields are B values');
+
+    // Full snapshot of everything the replay could corrupt.
+    const snapshot = async () => ({
+      counts: await counts(),
+      releases: (await prisma.cmsRelease.findMany({ orderBy:{releaseKey:'asc'},
+        select:{ id:true, releaseKey:true, manifestSha256:true, datasetCount:true } })),
+      // updatedAt is deliberately INCLUDED: a refused run must not touch it either.
+      facilities: await prisma.cmsFacility.findMany({ orderBy:{ccn:'asc'} }),
+      serviceAreas: await prisma.cmsFacilityServiceArea.findMany({ orderBy:[{zip:'asc'}],
+        select:{ facilityId:true, zip:true, firstSeenReleaseId:true, lastSeenReleaseId:true } })
+    });
+    const supBefore = await snapshot();
+
+    // (a) --write must be refused
+    r = runArc(supA, ['--release','2026-05-01','--write'], { DATABASE_URL: DB });
+    let out = r.stdout + r.stderr;
+    ok(r.status !== 0, 'S3. replaying superseded release A with --write exits non-zero', `status ${r.status}`);
+    ok(/CHRONOLOGY VIOLATION/.test(out), '   …with a clear older-than-latest chronology error');
+    ok(/SUPERSEDED/.test(out), '   …explicitly naming it as superseded, not an idempotent re-run');
+    ok(/2026-08-19/.test(out) && /2026-05-01/.test(out), '   …naming both the requested and the latest release');
+    // The plan line "chronology : same release (idempotent re-run)" must never be
+    // reached. The error text is allowed to say it is NOT an idempotent re-run.
+    ok(!/same release \(idempotent re-run\)/.test(out), '   …and the plan never labels it an idempotent re-run');
+    ok(!/PLAN {2}\(/.test(out), '   …refused before any plan is printed');
+
+    const afterWrite = await snapshot();
+    ok(JSON.stringify(supBefore.counts) === JSON.stringify(afterWrite.counts),
+       'S4. CmsRelease / CmsFacility / CmsFacilityServiceArea counts unchanged', JSON.stringify(afterWrite.counts));
+    ok(JSON.stringify(supBefore) === JSON.stringify(afterWrite),
+       '   …entire relevant DB state byte-identical to the pre-attempt snapshot');
+    const facAfter = await prisma.cmsFacility.findFirst({ where: { ccn: '031598' } });
+    ok(facAfter.firstSeenReleaseId === supRelA.id, '   …facility firstSeen unchanged (still A)');
+    ok(facAfter.lastSeenReleaseId === supRelB.id, '   …facility lastSeen still B, not rewound');
+    ok(facAfter.city === 'TUCSON' && facAfter.name === 'B NAME', '   …descriptive fields still B values');
+    const sa16 = await prisma.cmsFacilityServiceArea.findFirst({ where:{ facilityId: facAfter.id, zip:'85016' } });
+    ok(sa16.lastSeenReleaseId === supRelB.id, '   …shared service-area lastSeen not rewound');
+    const sa17 = await prisma.cmsFacilityServiceArea.findFirst({ where:{ facilityId: facAfter.id, zip:'85017' } });
+    ok(sa17.lastSeenReleaseId === supRelA.id, '   …A-only service area keeps its historical A lastSeen');
+    const madeCurrentUnderA = await prisma.cmsFacility.count({ where:{ lastSeenReleaseId: supRelA.id } });
+    ok(madeCurrentUnderA === 0, '   …no facility was made current under A');
+
+    // (b) the DB-backed DRY RUN must refuse it too, and must not call it idempotent
+    r = runArc(supA, ['--release','2026-05-01'], { DATABASE_URL: DB });
+    out = r.stdout + r.stderr;
+    ok(r.status !== 0, 'S5. DB-backed dry run of a superseded release is also refused', `status ${r.status}`);
+    ok(/CHRONOLOGY VIOLATION/.test(out), '   …with the same chronology error');
+    ok(!/same release \(idempotent re-run\)/.test(out), '   …and does NOT report it as an idempotent re-run');
+    ok(JSON.stringify(await snapshot()) === JSON.stringify(supBefore), '   …still zero writes');
+
+    // (c) --no-db cannot know DB chronology and stays archive-validation-only
+    r = runArc(supA, ['--release','2026-05-01','--no-db'], { DATABASE_URL: DB });
+    ok(r.status === 0 && /no database was contacted/.test(r.stdout),
+       'S6. --no-db remains archive-validation-only and is unaffected by DB chronology');
+
+    // (d) the genuine idempotent path — rerunning the LATEST release — still works
+    r = runArc(supB, ['--release','2026-08-19','--write'], { DATABASE_URL: DB });
+    ok(r.status === 0, 'S7. exact rerun of the LATEST release B still succeeds');
+    ok(/release           : UNCHANGED/.test(r.stdout), '   …reported UNCHANGED');
+    ok(/No transaction opened/.test(r.stdout), '   …and opens no transaction');
+    ok(JSON.stringify(await snapshot()) === JSON.stringify(supBefore), '   …with zero row changes');
+
+    // (e) same latest release, different manifest, still CONFLICTs
+    const supBTampered = buildArchive({ key:'2026-08-19',
+      facilities:[facility('031598', { 'City/Town':'TUCSON', 'Facility Name':'TAMPERED' })],
+      zips:[zrow('031598','85016'), zrow('031598','85020')] });
+    r = runArc(supBTampered, ['--release','2026-08-19','--write'], { DATABASE_URL: DB });
+    ok(r.status !== 0 && /manifestSha256 differs/.test(r.stdout+r.stderr),
+       'S8. latest release B with a changed manifest still CONFLICTs');
+    ok(JSON.stringify(await snapshot()) === JSON.stringify(supBefore), '   …with zero writes');
+
+    // (f) a never-ingested older release is still refused, and says so plainly
+    const supNever = buildArchive({ key:'2026-02-01', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+    r = runArc(supNever, ['--release','2026-02-01','--write'], { DATABASE_URL: DB });
+    out = r.stdout + r.stderr;
+    ok(r.status !== 0 && /CHRONOLOGY VIOLATION/.test(out), 'S9. never-ingested older release still refused');
+    ok(!/SUPERSEDED/.test(out), '   …and is not mislabelled as superseded');
+    ok(JSON.stringify(await snapshot()) === JSON.stringify(supBefore), '   …with zero writes');
+
+    // (g) the in-transaction check is the authoritative one and is unconditional
+    {
+      const src3 = fs.readFileSync(SCRIPT,'utf8');
+      const tx3 = src3.slice(src3.indexOf('await prisma.$transaction(async (tx) => {'));
+      ok(!/if \(!cur && newest/.test(tx3),
+         'S10. the in-transaction chronology check is no longer conditioned on !cur');
+      const iLock3 = tx3.indexOf('pg_advisory_xact_lock');
+      const iChron3 = tx3.indexOf('newest.releaseKey > arc.releaseKey');
+      ok(iLock3 > -1 && iChron3 > -1 && iLock3 < iChron3,
+         '    …and the advisory lock is still acquired before it');
+    }
+
     // ---------- SOURCE CONSISTENCY ----------
     section('source consistency');
     const rels = await prisma.cmsRelease.findMany();
