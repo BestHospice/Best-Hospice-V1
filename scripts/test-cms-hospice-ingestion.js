@@ -189,6 +189,70 @@ section('identifiers and normalization');
   ok(/State/.test(why), '   …reporting the missing state');
 }
 
+// ============================ CLI CONTRACT ==================================
+section('cli contract');
+{
+  const arc = buildArchive({ key:'2026-08-19', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+  const prod = 'postgresql://u:secretpw@h:5432/besthospice_db';
+  const bad = [
+    [['--release'],                          '--release with no value'],
+    [['--release','--no-db'],                '--release swallowing the next flag'],
+    [['--json'],                             '--json with no value'],
+    [['--json','--write'],                   '--json swallowing the next flag'],
+    [['--nope'],                             'an unknown flag'],
+    [['--release','2026-08-19','--no-db','--write'], '--no-db together with --write'],
+  ];
+  for (const [args, label] of bad) {
+    // A production URL is set deliberately: a usage error must be decided before
+    // anything looks at a database at all.
+    const r = runArc(arc, args, { DATABASE_URL: prod });
+    const out = r.stdout + r.stderr;
+    ok(r.status === 2, `46. ${label} exits 2`, `status ${r.status}`);
+    ok(/^Usage error:/m.test(out), `    …reported as a usage error (${label})`);
+    ok(!/ARCHIVE\n|RELEASE|PrismaClient|ECONNREFUSED/.test(out),
+       `    …and no archive is read and no database client is built (${label})`);
+    ok(!out.includes('secretpw'), `    …no credential leaked (${label})`);
+  }
+  const r = runArc(arc, ['--release','2026-08-19','--json', path.join(TMP,'cli.json'), '--no-db']);
+  ok(r.status === 0, '47. a well-formed value-taking flag pair still works');
+  const rep = JSON.parse(fs.readFileSync(path.join(TMP,'cli.json'),'utf8'));
+  ok(Array.isArray(rep.serviceAreas.orphanCcns), '   …and the JSON report carries the orphan CCN list');
+  // The doc claims the orphan CCN list is JSON-only; prove the console omits it.
+  const withOrphans = buildArchive({ key:'2026-08-19', facilities:[facility('031598')],
+    zips:[zrow('031598','85016'), zrow('777777','85016')] });
+  const r3 = runArc(withOrphans, ['--release','2026-08-19','--no-db']);
+  ok(/distinct orphan CCNs/.test(r3.stdout), '48. console reports the orphan CCN COUNT');
+  ok(!/\b777777\b/.test(r3.stdout), '   …but never lists the orphan CCNs themselves without --json');
+}
+
+// ============================ CALENDAR DATES ================================
+section('calendar dates');
+{
+  const dates = [['02/29/2024', true, '2024-02-29'], ['02/29/2023', false], ['02/30/2024', false],
+                 ['04/31/2023', false], ['12/31/2024', true, '2024-12-31'], ['13/01/2024', false],
+                 ['00/10/2024', false], ['01/00/2024', false], ['8/5/2011', false]];
+  // Run under two very different offsets. A date rule that depends on the host
+  // timezone would disagree between them.
+  for (const TZ of ['UTC', 'Pacific/Kiritimati']) {
+    const arc = buildArchive({ key:'2026-08-19',
+      facilities: dates.map(([d], i) => facility(String(31000 + i).padStart(6,'0'), { 'Certification Date': d })),
+      zips: dates.map(([], i) => zrow(String(31000 + i).padStart(6,'0'), '85016')) });
+    const out = path.join(TMP, `dates-${TZ.replace(/\W/g,'')}.json`);
+    const r = runArc(arc, ['--release','2026-08-19','--no-db','--json', out], { TZ });
+    ok(r.status === 0, `49. calendar-date fixture validates under TZ=${TZ}`, r.stderr.slice(0,200));
+    const rep = JSON.parse(fs.readFileSync(out,'utf8'));
+    const wantValid = dates.filter(d => d[1]).length;
+    ok(rep.facilities.valid === wantValid,
+       `   …${wantValid} real calendar dates accepted under TZ=${TZ}`, JSON.stringify(rep.facilities));
+    ok(rep.facilities.invalid === dates.length - wantValid,
+       `   …${dates.length - wantValid} impossible/malformed dates rejected under TZ=${TZ}`);
+    const why = rep.facilities.invalidSamples.map(x => x.why).join(' | ');
+    for (const [d, valid] of dates) if (!valid) {
+      ok(new RegExp(d.replace(/\//g,'\\/')).test(why), `   …"${d}" named as unparseable under TZ=${TZ}`);
+    }
+  }
+}
+
 // ============================ PRODUCTION GUARD ==============================
 section('production safety');
 {
@@ -196,7 +260,14 @@ section('production safety');
   const urls = [['production db name','postgresql://u:secretpw@h:5432/besthospice_db'],
                 ['production host id','postgresql://u:secretpw@dpg-d5hhmb4hg0os7380cecg-a.x:5432/y'],
                 ['shadow db','postgresql://u:secretpw@localhost:5432/besthospice-shadow-2'],
-                ['hosted host','postgresql://u:secretpw@a.neon.tech:5432/z']];
+                ['hosted host','postgresql://u:secretpw@a.neon.tech:5432/z'],
+                // Representations a plain substring test on the raw string missed.
+                ['percent-encoded db name','postgresql://u:secretpw@localhost:5432/besthospice%5Fdb'],
+                ['mixed case host id','postgresql://u:secretpw@DPG-D5HHMB4HG0OS7380CECG-A.x:5432/y'],
+                ['identifier in query params','postgresql://u:secretpw@localhost:5432/x?options=besthospice_db'],
+                ['whitespace padded','  postgresql://u:secretpw@localhost:5432/besthospice_db  '],
+                ['not a parseable url','definitely not a url besthospice-shadow-2 secretpw'],
+                ['fully encoded url','postgres%3A%2F%2Fu%3Asecretpw%40h%2Fbesthospice_db']];
   for (const [label,url] of urls) {
     for (const mode of [[],['--write']]) {
       const r = runArc(arc, ['--release','2026-08-19',...mode], { DATABASE_URL: url });
@@ -209,6 +280,8 @@ section('production safety');
   ok(r2.status === 0 && /no database was contacted/.test(r2.stdout),
      '44. --no-db never touches a database even with a production URL set');
   const src = fs.readFileSync(SCRIPT,'utf8');
+  ok(/guardCandidates/.test(src) && /decodeURIComponent/.test(src) && /new URL\(/.test(src),
+     '   …the guard inspects raw, decoded and parsed forms of the URL');
   ok(!/force.?prod|allow.?prod|skip.?guard|--unsafe/i.test(src), '45. no undocumented production bypass exists');
   ok(!/assertNotProduction\([^)]*\)\s*;?\s*\/\/\s*skip/i.test(src), '   …guard is not conditionally disabled');
 }
@@ -340,6 +413,62 @@ const DB = process.env.TEST_DATABASE_URL;
        '   …release, facility AND service-area changes ALL rolled back', `${JSON.stringify(pre)} vs ${JSON.stringify(post)}`);
     ok(!(await prisma.cmsRelease.findFirst({ where: { releaseKey: '2026-09-01' } })), '   …no orphan CmsRelease left behind');
     await prisma.$executeRawUnsafe(`ALTER TABLE "CmsFacilityServiceArea" DROP CONSTRAINT tmp_fail`);
+
+    // ---------- CONCURRENCY ----------
+    section('concurrent ingestion');
+    await reset();
+    const cBase = buildArchive({ key:'2026-05-01', facilities:[facility('031598')], zips:[zrow('031598','85016')] });
+    ok(runArc(cBase, ['--release','2026-05-01','--write'], { DATABASE_URL: DB }).status === 0,
+       'concurrency baseline release ingested');
+    // Two DIFFERENT later releases launched together. Without the per-source
+    // advisory lock both pass the chronology re-check under READ COMMITTED
+    // (neither can see the other's uncommitted CmsRelease) and commit order, not
+    // releaseKey, decides the surviving lastSeenReleaseId.
+    const cA = buildArchive({ key:'2026-09-01', facilities:[facility('031598',{'City/Town':'A_CITY'})],
+      zips:[zrow('031598','85016'), zrow('031598','85030')] });
+    const cB = buildArchive({ key:'2026-10-01', facilities:[facility('031598',{'City/Town':'B_CITY'})],
+      zips:[zrow('031598','85016'), zrow('031598','85040')] });
+    const { spawn } = require('child_process');
+    const launch = (arc, key) => new Promise(res => {
+      const c = spawn(process.execPath, [SCRIPT, '--release', key, '--write'],
+        { encoding:'utf8', env: { ...process.env, CMS_ARCHIVE_DIR: arc.root, DATABASE_URL: DB } });
+      let out = '';
+      c.stdout.on('data', d => { out += d; }); c.stderr.on('data', d => { out += d; });
+      c.on('close', code => res({ code, out }));
+    });
+    const [rA, rB] = await Promise.all([launch(cA,'2026-09-01'), launch(cB,'2026-10-01')]);
+    const okCount = [rA, rB].filter(x => x.code === 0).length;
+    ok(okCount >= 1, '50. at least one concurrent ingestion succeeds', `A=${rA.code} B=${rB.code}`);
+    const relsC = await prisma.cmsRelease.findMany({ orderBy: { releaseKey: 'asc' } });
+    ok(relsC.length === 1 + okCount, '   …exactly one CmsRelease per successful run, no partial releases',
+       relsC.map(x=>x.releaseKey).join(','));
+    // Whatever interleaving occurred, the invariant must hold: lastSeen points at
+    // the NEWEST release actually committed, never at an older one.
+    const newestKey = relsC[relsC.length - 1].releaseKey;
+    const newestRel = relsC[relsC.length - 1];
+    const fC = await prisma.cmsFacility.findFirst({ where: { ccn: '031598' } });
+    ok(fC.lastSeenReleaseId === newestRel.id,
+       '51. facility lastSeenReleaseId is the NEWEST committed release, not the last committer',
+       `lastSeen=${(relsC.find(x=>x.id===fC.lastSeenReleaseId)||{}).releaseKey} newest=${newestKey}`);
+    ok(fC.city === (newestKey === '2026-10-01' ? 'B_CITY' : 'A_CITY'),
+       '   …and descriptive fields come from that newest release', `city=${fC.city}`);
+    const saNewest = await prisma.cmsFacilityServiceArea.findFirst({ where: { facilityId: fC.id, zip: '85016' } });
+    ok(saNewest.lastSeenReleaseId === newestRel.id, '52. shared service area also carries the newest release');
+    const xsC = await prisma.$queryRawUnsafe(
+      `SELECT count(*)::int AS n FROM "CmsFacilityServiceArea" s
+         JOIN "CmsRelease" r ON r.id = s."lastSeenReleaseId"
+        WHERE r."releaseKey" > $1`, newestKey);
+    ok(xsC[0].n === 0, '   …no row references a release newer than the newest committed one');
+    ok(/advisory_xact_lock/.test(fs.readFileSync(SCRIPT,'utf8')),
+       '53. serialisation uses a transaction-scoped advisory lock (no lock table, no app mutex)');
+    {
+      const src2 = fs.readFileSync(SCRIPT,'utf8');
+      const tx = src2.slice(src2.indexOf('await prisma.$transaction(async (tx) => {'));
+      const iLock = tx.indexOf('pg_advisory_xact_lock');
+      const iChron = tx.indexOf('tx.cmsRelease.findUnique');
+      ok(iLock > -1 && iChron > -1 && iLock < iChron,
+         '   …acquired as the FIRST statement, before the chronology re-check');
+    }
 
     // ---------- DRY RUN CANNOT WRITE ----------
     section('dry run');

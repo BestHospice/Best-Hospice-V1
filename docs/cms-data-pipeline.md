@@ -625,8 +625,10 @@ a second row — `(source, ccn)` is the identity.
 CMS publishes `general` and `zip` with different `modified` dates, so the ZIP
 file references certifications the facility file does not contain. In the
 `2026-08-19` release that is **242 distinct CCNs across 7,329 rows, 2.10% of the
-ZIP dataset**. Those rows are skipped and counted, with distinct orphan CCNs
-listed in the JSON report. No placeholder facility is created, nothing is
+ZIP dataset**. Those rows are skipped, and the orphan row count and distinct
+orphan CCN count are always printed to the console. The **full list of distinct
+orphan CCNs is written only to the JSON report**, and only when `--json <path>`
+is supplied — it is never printed to the console. No placeholder facility is created, nothing is
 attached to another facility, and no fuzzy matching happens. This does **not**
 fail the release. No percentage threshold is enforced — the structural checks
 (header contract, checksums, CCN format) are the real guard, and an arbitrary
@@ -656,9 +658,26 @@ node scripts/import-cms-hospice-data.js --release 2026-08-19           # dry run
 node scripts/import-cms-hospice-data.js --release 2026-08-19 --write
 ```
 
-Dry run is the default. `--no-db` never constructs a Prisma client. Omitting
-`--release` selects the latest local archive deterministically and prints it
-prominently, but `--release` is preferred for any real execution.
+Dry run is the default. `--no-db` never constructs a Prisma client, and
+`--no-db` and `--write` are **mutually exclusive** — supplying both is a usage
+error (exit 2), not a silently resolved contradiction. `--release` and `--json`
+each require a value; a missing value, or a value that looks like another flag,
+is a usage error (exit 2) rather than a silent fallback. Omitting `--release`
+selects the latest local archive deterministically and prints it prominently,
+but `--release` is preferred for any real execution.
+
+Planning never loads the existing `CmsFacilityServiceArea` table into memory.
+Intended `(ccn, zip)` pairs are streamed to Postgres in chunks and classified by
+a join against `unnest()`, so peak memory is one chunk regardless of how large
+the table grows. A dry run still opens no transaction and creates no temporary
+objects.
+
+Ingestion is serialised per source by `pg_advisory_xact_lock`, taken as the very
+first statement of the mutation transaction — before the chronology re-check.
+Two concurrent later releases would otherwise both pass chronology under READ
+COMMITTED and let commit order, rather than `releaseKey`, decide the surviving
+`lastSeenReleaseId`. The lock is transaction-scoped, so it is released on commit
+or rollback with no cleanup and no lock table.
 
 The production guard from `scripts/import-cms-hospice-identities.js` is reused
 unchanged and applies to **every mode that opens a connection**, not just

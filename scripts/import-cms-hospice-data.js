@@ -58,15 +58,28 @@ const fail = (msg) => { console.error(`\n${redact(msg)}`); process.exit(1); };
 // ---- CLI ------------------------------------------------------------------
 const argv = process.argv.slice(2);
 const opts = { write: false, noDb: false, release: null, list: false, json: null };
+const usage = (msg) => { console.error(`Usage error: ${msg}`); process.exit(2); };
+// A value-taking flag must be followed by a real value. Without this, a typo
+// like `--release --no-db` silently swallows the next flag, and a trailing
+// `--release` silently falls back to "latest".
+const takeValue = (flag, i) => {
+  const v = argv[i + 1];
+  if (v === undefined) usage(`${flag} requires a value.`);
+  if (v.startsWith('--')) usage(`${flag} requires a value, but got the flag "${v}".`);
+  return v;
+};
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--write') opts.write = true;
   else if (a === '--no-db') opts.noDb = true;
   else if (a === '--list') opts.list = true;
-  else if (a === '--release') opts.release = argv[++i];
-  else if (a === '--json') opts.json = argv[++i];
-  else { console.error(`Unknown flag: ${a}`); process.exit(2); }
+  else if (a === '--release') { opts.release = takeValue('--release', i); i++; }
+  else if (a === '--json') { opts.json = takeValue('--json', i); i++; }
+  else usage(`Unknown flag "${a}".`);
 }
+// Contradictory: --no-db means "never touch a database", --write means "write to
+// one". Silently favouring either would ignore an explicit instruction.
+if (opts.noDb && opts.write) usage('--no-db and --write are mutually exclusive.');
 
 // ---- CSV ------------------------------------------------------------------
 // Hand-rolled and quote-aware. Nothing is coerced: a CCN like "A01500" or
@@ -98,8 +111,17 @@ const certDate = (v) => {
   const s = val(v); if (!s) return null;
   const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) return undefined;                       // undefined = malformed, distinct from absent
-  const d = new Date(`${m[3]}-${m[1]}-${m[2]}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) ? undefined : d;
+  const [mm, dd, yyyy] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const d = new Date(Date.UTC(yyyy, mm - 1, dd));
+  // JS rolls impossible dates forward (02/30 -> Mar 1), which would store a date
+  // CMS never published. Require the UTC components to survive construction
+  // unchanged, so only real calendar dates are accepted. Leap days work: 2024
+  // survives, 2023 does not.
+  if (Number.isNaN(d.getTime())
+    || d.getUTCFullYear() !== yyyy || d.getUTCMonth() !== mm - 1 || d.getUTCDate() !== dd) {
+    return undefined;
+  }
+  return d;
 };
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -292,16 +314,47 @@ function buildServiceAreas(rows, knownCcns) {
 }
 
 // ---- production guard -----------------------------------------------------
+// Every representation of the URL an operator could plausibly supply. Substring
+// matching on the raw string alone missed percent-encoded identifiers such as
+// "besthospice%5Fdb". A malformed URL simply yields fewer candidates - it never
+// skips the check.
+function guardCandidates(url) {
+  const out = new Set();
+  const add = (v) => { if (typeof v === 'string' && v) out.add(v.toLowerCase().replace(/\s+/g, '')); };
+  const raw = String(url == null ? '' : url);
+  add(raw);
+  let decoded = raw;
+  for (let i = 0; i < 3; i++) {                 // tolerate double-encoding
+    try { const d = decodeURIComponent(decoded); if (d === decoded) break; decoded = d; add(d); }
+    catch { break; }
+  }
+  for (const candidate of [raw, decoded]) {
+    try {
+      const u = new URL(candidate);
+      add(u.hostname); add(u.pathname); add(u.search);
+      try { add(decodeURIComponent(u.hostname)); } catch { /* keep the encoded form */ }
+      try { add(decodeURIComponent(u.pathname)); } catch { /* keep the encoded form */ }
+    } catch { /* malformed: the raw and decoded strings are still checked */ }
+  }
+  return [...out];
+}
+
 function assertNotProduction(url, action) {
   const verb = `Refusing to ${action}`;
   if (!url) fail(`${verb}: DATABASE_URL is not set.`);
-  const hay = String(url).toLowerCase();
-  const hit = FORBIDDEN_IDENTIFIERS.find((id) => hay.includes(id.toLowerCase()));
-  if (hit) fail(`${verb}: DATABASE_URL matches a forbidden identifier ("${hit}").\n`
-    + '  This importer is for disposable local databases in this phase.\n'
-    + '  Use --no-db for archive-only validation that never touches a database.');
-  if (FORBIDDEN_HOST_PATTERNS.test(hay)) fail(`${verb}: DATABASE_URL points at what looks like a hosted/managed database.\n`
-    + '  Use --no-db for archive-only validation that never touches a database.');
+  const cands = guardCandidates(url);
+  for (const id of FORBIDDEN_IDENTIFIERS) {
+    const needle = id.toLowerCase();
+    if (cands.some((c) => c.includes(needle))) {
+      fail(`${verb}: DATABASE_URL matches a forbidden identifier ("${id}").\n`
+        + '  This importer is for disposable local databases in this phase.\n'
+        + '  Use --no-db for archive-only validation that never touches a database.');
+    }
+  }
+  if (cands.some((c) => FORBIDDEN_HOST_PATTERNS.test(c))) {
+    fail(`${verb}: DATABASE_URL points at what looks like a hosted/managed database.\n`
+      + '  Use --no-db for archive-only validation that never touches a database.');
+  }
 }
 
 const pad = (s, n) => String(s).padEnd(n);
@@ -333,6 +386,10 @@ const num = (n) => String(n).padStart(9);
   const arc = validateArchive(reg, cand);
   const fac = buildFacilities(arc.data.general);
   const sa = buildServiceAreas(arc.data.zip, new Set(fac.facilities.keys()));
+  const generalRowCount = arc.data.general.length;
+  const zipRowCount = arc.data.zip.length;
+  arc.data.general = null;          // the parsed CSV arrays are no longer needed;
+  arc.data.zip = null;              // release them before any database work begins
 
   console.log('');
   console.log('='.repeat(78));
@@ -353,7 +410,7 @@ const num = (n) => String(n).padStart(9);
   console.log('='.repeat(78));
   console.log('FACILITIES (general)');
   console.log('='.repeat(78));
-  console.log(`  total rows                : ${num(arc.data.general.length)}`);
+  console.log(`  total rows                : ${num(generalRowCount)}`);
   console.log(`  valid facilities          : ${num(fac.facilities.size)}`);
   console.log(`  identical duplicate CCNs  : ${num(fac.identicalDupes)}  (collapsed)`);
   console.log(`  CONFLICTING duplicate CCNs: ${num(fac.conflicts.length)}`);
@@ -370,12 +427,12 @@ const num = (n) => String(n).padStart(9);
   console.log('='.repeat(78));
   console.log('SERVICE AREAS (zip)');
   console.log('='.repeat(78));
-  console.log(`  total rows                : ${num(arc.data.zip.length)}`);
+  console.log(`  total rows                : ${num(zipRowCount)}`);
   console.log(`  valid rows                : ${num(sa.pairs.size + sa.identicalDupes)}`);
   console.log(`  unique facility+ZIP pairs : ${num(sa.pairs.size)}`);
   console.log(`  identical duplicate pairs : ${num(sa.identicalDupes)}  (collapsed)`);
   console.log(`  malformed rows            : ${num(sa.invalid.length)}`);
-  console.log(`  ORPHAN rows (unknown CCN) : ${num(sa.orphanRows)}  (${(100 * sa.orphanRows / Math.max(1, arc.data.zip.length)).toFixed(2)}% of zip rows)`);
+  console.log(`  ORPHAN rows (unknown CCN) : ${num(sa.orphanRows)}  (${(100 * sa.orphanRows / Math.max(1, zipRowCount)).toFixed(2)}% of zip rows)`);
   console.log(`  distinct orphan CCNs      : ${num(sa.orphanCcns.size)}`);
   console.log(`      CMS publishes general and zip with different modified dates, so some`);
   console.log(`      certifications appear in one and not the other. Orphans are skipped and`);
@@ -385,9 +442,9 @@ const num = (n) => String(n).padStart(9);
     archive: { path: path.relative(ROOT, arc.dir), layout: arc.layout, family: ARCHIVE_FAMILY, dbSource,
       releaseKey: arc.releaseKey, capturedAt: arc.capturedAt.toISOString(),
       manifestSha256: arc.manifestSha256, datasetCount: arc.datasetCount, datasetIds: arc.datasetIds },
-    facilities: { totalRows: arc.data.general.length, valid: fac.facilities.size,
+    facilities: { totalRows: generalRowCount, valid: fac.facilities.size,
       identicalDuplicates: fac.identicalDupes, invalid: fac.invalid.length, invalidSamples: fac.invalid.slice(0, 20) },
-    serviceAreas: { totalRows: arc.data.zip.length, uniquePairs: sa.pairs.size,
+    serviceAreas: { totalRows: zipRowCount, uniquePairs: sa.pairs.size,
       identicalDuplicates: sa.identicalDupes, malformed: sa.invalid.length,
       orphanRows: sa.orphanRows, orphanCcnCount: sa.orphanCcns.size, orphanCcns: [...sa.orphanCcns].sort() }
   };
@@ -463,19 +520,47 @@ const num = (n) => String(n).padStart(9);
     }
     const absentFacilities = dbFacilities.filter((f) => !fac.facilities.has(f.ccn)).length;
 
-    const dbSas = dbFacilities.length
-      ? await prisma.cmsFacilityServiceArea.findMany({ where: { source: dbSource },
-          select: { facilityId: true, zip: true, lastSeenReleaseId: true } })
-      : [];
-    const idToCcn = new Map(dbFacilities.map((f) => [f.id, f.ccn]));
-    const dbPairs = new Map(dbSas.map((s) => [`${idToCcn.get(s.facilityId)}|${s.zip}`, s.lastSeenReleaseId]));
+    // Service-area classification is set-based in PostgreSQL. Loading the existing
+    // ~342k rows into JS and building a same-sized Map peaked at 1.24 GB on a
+    // populated database. Instead the intended pairs are streamed to the server in
+    // chunks and classified by a join against unnest(), so peak JS memory is one
+    // chunk regardless of table size. This is not N+1: ~69 queries for 342k pairs.
+    // No transaction, no temp table - a dry run still opens nothing and writes
+    // nothing.
+    const SA_CLASSIFY_CHUNK = 5000;
     let sCreate = 0, sUpdate = 0, sUnchanged = 0;
-    for (const k of sa.pairs.keys()) {
-      if (!dbPairs.has(k)) sCreate++;
-      else if (relId && dbPairs.get(k) === relId) sUnchanged++;
-      else sUpdate++;
+    {
+      const it = sa.pairs.values();
+      let ccns = [], zips = [], done = false;
+      const flush = async () => {
+        if (!ccns.length) return;
+        const [row] = await prisma.$queryRawUnsafe(
+          `SELECT
+             count(*) FILTER (WHERE e.id IS NULL)::int                                    AS creates,
+             count(*) FILTER (WHERE e.id IS NOT NULL
+                                AND e."lastSeenReleaseId" IS DISTINCT FROM $3::text)::int AS updates,
+             count(*) FILTER (WHERE e.id IS NOT NULL
+                                AND e."lastSeenReleaseId" = $3::text)::int                AS unchanged
+           FROM unnest($1::text[], $2::text[]) AS t(ccn, zip)
+           LEFT JOIN "CmsFacility" f
+             ON f.source = $4::text AND f.ccn = t.ccn
+           LEFT JOIN "CmsFacilityServiceArea" e
+             ON e."facilityId" = f.id AND e.zip = t.zip`,
+          ccns, zips, relId, dbSource);
+        sCreate += row.creates; sUpdate += row.updates; sUnchanged += row.unchanged;
+        ccns = []; zips = [];
+      };
+      while (!done) {
+        const n = it.next();
+        if (n.done) { done = true; } else { ccns.push(n.value.ccn); zips.push(n.value.zip); }
+        if (done || ccns.length >= SA_CLASSIFY_CHUNK) await flush();
+      }
     }
-    const absentSas = [...dbPairs.keys()].filter((k) => !sa.pairs.has(k)).length;
+    // Intended pairs are unique and (facilityId, zip) is unique, so each existing
+    // row matches at most one intended pair. Everything not matched is therefore
+    // absent - no second full scan of the table is needed to count it.
+    const totalDbSas = await prisma.cmsFacilityServiceArea.count({ where: { source: dbSource } });
+    const absentSas = totalDbSas - (sUpdate + sUnchanged);
 
     console.log('');
     console.log('='.repeat(78));
@@ -509,7 +594,14 @@ const num = (n) => String(n).padStart(9);
 
     const t0 = Date.now();
     await prisma.$transaction(async (tx) => {
-      // Re-check preconditions inside the transaction.
+      // FIRST statement: serialise ingestion per source. Without this, two
+      // different later releases can both pass the chronology check under READ
+      // COMMITTED (neither sees the other's uncommitted CmsRelease) and the
+      // surviving lastSeenReleaseId ends up decided by commit order rather than
+      // releaseKey. Transaction-scoped, so it releases on commit or rollback.
+      await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `cms-ingest:${dbSource}`);
+
+      // Re-check preconditions AFTER the lock is held.
       const cur = await tx.cmsRelease.findUnique({
         where: { source_releaseKey: { source: dbSource, releaseKey: arc.releaseKey } } });
       const newest = await tx.cmsRelease.findFirst({ where: { source: dbSource }, orderBy: { releaseKey: 'desc' } });
