@@ -1179,6 +1179,38 @@ service. The internal CMS reference account renders through the identical
 authenticated path as any real provider, and nothing in the UI is special-cased
 to it.
 
+### Progressive disclosure (Phase 2B)
+
+My Market is presented as a **compact module card** consistent with the other
+Market Intelligence cards, not as a permanently expanded report.
+
+- **Collapsed** — title, one-line description, and for resolved providers a live
+  summary built from the API response, e.g. *"48 service ZIPs · 10 overlapping
+  hospices"*. Those numbers always come from the response; none is hard-coded.
+- **Expanded** — the full panel: freshness, market metrics, CMS profile,
+  overlapping hospices with both overlap percentages, ZIP density, and the
+  methodology note. Nothing was removed to shorten the page; the goal is
+  progressive disclosure, not information reduction.
+- **Collapse** — a "Hide market insights" control returns the page to the compact
+  dashboard without a reload, and returns focus to the expand control.
+
+**The endpoint is fetched once, at page initialisation.** Expanding and
+collapsing only toggle visibility of already-rendered DOM — there is no refetch
+and no recalculation, however many times the panel is opened.
+
+**Accordion contract.** `INTEL_ACCORDION` is a small generic registry: a module
+registers its panel and trigger(s), and opening one closes any other, so only one
+detailed intelligence module is open at a time. My Market is the only module
+registered today. Coming Soon cards register nothing and are deliberately inert —
+no placeholder panels exist for future modules.
+
+**Unresolved providers stay fail-closed.** No summary line, no expand control, no
+"0 ZIPs" or "0 competitors" — just the existing plain-language message. Raw
+backend status codes are never rendered.
+
+Other modules are untouched: Competitors, Quality, Opportunities and Reports keep
+their existing capability states.
+
 ### Note on release dates
 
 `releaseKey` is a plain `YYYY-MM-DD` calendar date. The UI parses its parts

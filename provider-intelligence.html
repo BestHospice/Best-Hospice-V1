@@ -55,6 +55,18 @@
     .mi-state.available { background:#ecfdf5; color:#047857; }
     .mi-state.coming_soon { background:#eff6ff; color:#1d4ed8; }
 
+    /* ---- My Market compact card (matches .mi-card language) ---- */
+    .mm-card { margin-bottom:18px; }
+    .mm-summary { font-weight:600; color:#0f2744; font-size:14px; }
+    .mm-toggle { margin-top:6px; align-self:flex-start; display:inline-flex; align-items:center; gap:8px;
+                 background:#0f2744; color:#fff; border:1px solid #0f2744; border-radius:999px;
+                 padding:8px 14px; font-size:13px; font-weight:700; cursor:pointer; }
+    .mm-toggle:hover { background:#16355c; }
+    .mm-toggle:focus-visible { outline:3px solid #93c5fd; outline-offset:2px; }
+    .mm-collapse { background:#f1f5f9; color:#0f2744; border-color:#e2e8f0; margin-top:16px; }
+    .mm-collapse:hover { background:#e2e8f0; }
+    .mm-chev { font-size:12px; line-height:1; }
+
     /* ---- CMS My Market ---- */
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
                clip:rect(0 0 0 0); white-space:nowrap; border:0; }
@@ -96,6 +108,7 @@
     .cms-note { margin:20px 0 0; font-size:.82rem; color:#64748b; line-height:1.6;
                 border-top:1px solid #e2e8f0; padding-top:12px; }
     @media (max-width:600px) {
+      .mm-toggle { width:100%; justify-content:center; }
       .cms-market { padding:14px; }
       .cms-metrics { grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); }
       .cms-metric .v { font-size:1.3rem; }
@@ -170,14 +183,26 @@
           <div class="mi-panel" data-section="My Market">
             <p class="mi-lede" id="mi-market-lede"></p>
 
-            <section class="cms-market" id="cms-market" aria-labelledby="cms-market-h">
+            <!-- Compact module card. Progressive disclosure: the detailed report
+                 lives in #mm-detail and stays collapsed until asked for. -->
+            <div class="mi-card mm-card" id="mm-card">
+              <h3>My Market</h3>
+              <p>Understand your CMS-reported service footprint and competitive overlap.</p>
+              <p class="mm-summary" id="mm-summary" hidden></p>
+              <p class="cms-status" id="cms-market-status" role="status">Loading your market data&hellip;</p>
+              <button type="button" class="mm-toggle" id="mm-toggle"
+                      aria-expanded="false" aria-controls="mm-detail" hidden>
+                <span id="mm-toggle-label">View market insights</span>
+                <span class="mm-chev" aria-hidden="true">&#8595;</span>
+              </button>
+            </div>
+
+            <section class="cms-market" id="mm-detail" aria-labelledby="cms-market-h" hidden>
               <div class="cms-market-head">
                 <h3 id="cms-market-h">Your CMS Service Footprint</h3>
                 <p class="cms-sub">Understand your CMS-reported service footprint and competitive overlap.</p>
                 <p class="cms-fresh" id="cms-fresh" hidden></p>
               </div>
-
-              <p class="cms-status" id="cms-market-status" role="status">Loading your market data&hellip;</p>
 
               <div id="cms-market-body" hidden>
                 <div class="cms-metrics" id="cms-metrics"></div>
@@ -213,6 +238,11 @@
                 indicate overlapping service footprints, not patient volume, market share, referral
                 relationships, or quality.
               </p>
+
+              <button type="button" class="mm-toggle mm-collapse" id="mm-collapse"
+                      aria-expanded="true" aria-controls="mm-detail">
+                <span class="mm-chev" aria-hidden="true">&#8593;</span> Hide market insights
+              </button>
             </section>
 
             <div class="mi-grid" id="mi-market-grid"></div>
@@ -350,6 +380,63 @@
     });
   }
 
+  // ---- intelligence detail accordion -------------------------------------
+  // Generic on purpose. Register a module with its trigger(s) and detail panel;
+  // opening one closes any other. My Market is the only registered module today,
+  // and Coming Soon cards deliberately register nothing, so they stay inert.
+  const INTEL_ACCORDION = (function () {
+    const modules = new Map();
+
+    function setState(key, open) {
+      const m = modules.get(key);
+      if (!m) return;
+      m.panel.hidden = !open;
+      m.triggers.forEach((t) => {
+        t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (t.dataset.labelOpen && t.dataset.labelClosed) {
+          const span = t.querySelector('[data-toggle-label]') || t;
+          span.textContent = open ? t.dataset.labelOpen : t.dataset.labelClosed;
+        }
+      });
+    }
+
+    return {
+      register(key, panel, triggers) {
+        modules.set(key, { panel, triggers });
+        setState(key, false);
+      },
+      isOpen(key) {
+        const m = modules.get(key);
+        return !!m && m.panel.hidden === false;
+      },
+      // Only one detail module open at a time.
+      open(key) {
+        modules.forEach((_m, k) => setState(k, k === key));
+        const m = modules.get(key);
+        if (!m) return;
+        // Restrained: only scroll if the panel is not already on screen.
+        const r = m.panel.getBoundingClientRect ? m.panel.getBoundingClientRect() : null;
+        if (r && (r.top < 0 || r.top > (window.innerHeight || 0))) {
+          m.panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }
+      },
+      close(key, focusEl) {
+        setState(key, false);
+        // Do not strand the user below an empty region.
+        if (focusEl && focusEl.focus) focusEl.focus();
+        if (focusEl && focusEl.scrollIntoView) {
+          const r = focusEl.getBoundingClientRect ? focusEl.getBoundingClientRect() : null;
+          if (r && (r.top < 0 || r.top > (window.innerHeight || 0))) {
+            focusEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }
+        }
+      },
+      toggle(key, focusEl) {
+        if (this.isOpen(key)) this.close(key, focusEl); else this.open(key);
+      }
+    };
+  })();
+
   // ---- CMS My Market ----------------------------------------------------
   // Provider-facing copy for every backend state. Raw status codes never reach
   // the screen; each maps to plain language, and none fabricates a zero metric
@@ -392,12 +479,18 @@
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
   }
 
+  // Unresolved: the compact card shows the plain-language reason and NO summary
+  // numbers, and there is nothing to expand.
   function cmsMarketMessage(status) {
     const el = document.getElementById('cms-market-status');
     el.hidden = false;
     el.classList.remove('is-error');
     el.textContent = CMS_MARKET_MESSAGES[status] || CMS_MARKET_FALLBACK;
     document.getElementById('cms-market-body').hidden = true;
+    const sum = document.getElementById('mm-summary');
+    sum.hidden = true; sum.textContent = '';
+    document.getElementById('mm-toggle').hidden = true;
+    INTEL_ACCORDION.close('myMarket');
   }
 
   function renderMetrics(market) {
@@ -475,6 +568,20 @@
     paint();
   }
 
+  function initMyMarketAccordion() {
+    const panel = document.getElementById('mm-detail');
+    const toggle = document.getElementById('mm-toggle');
+    const collapse = document.getElementById('mm-collapse');
+    if (!panel || !toggle) return;
+    toggle.dataset.labelClosed = 'View market insights';
+    toggle.dataset.labelOpen = 'Hide market insights';
+    const labelSpan = document.getElementById('mm-toggle-label');
+    if (labelSpan) labelSpan.setAttribute('data-toggle-label', '');
+    INTEL_ACCORDION.register('myMarket', panel, [toggle, collapse].filter(Boolean));
+    toggle.addEventListener('click', () => INTEL_ACCORDION.toggle('myMarket', toggle));
+    if (collapse) collapse.addEventListener('click', () => INTEL_ACCORDION.close('myMarket', toggle));
+  }
+
   async function loadCmsMarket(caps) {
     const statusEl = document.getElementById('cms-market-status');
     const cap = (caps && caps.cmsMarketOverlap) || { status: 'not_applicable' };
@@ -504,6 +611,18 @@
 
     statusEl.hidden = true;
     document.getElementById('cms-market-body').hidden = false;
+
+    // Compact live summary, straight from the same response. No second request
+    // and no recalculation.
+    const mk = data.market || {};
+    const bits = [];
+    if (typeof mk.providerZipCount === 'number') bits.push(num(mk.providerZipCount) + ' service ZIPs');
+    if (typeof mk.overlappingFacilityCount === 'number') {
+      bits.push(num(mk.overlappingFacilityCount) + ' overlapping hospices');
+    }
+    const sum = document.getElementById('mm-summary');
+    if (bits.length) { sum.textContent = bits.join(' \u00b7 '); sum.hidden = false; }
+    document.getElementById('mm-toggle').hidden = false;
   }
 
   // ---- section navigation ----
@@ -597,6 +716,7 @@
       renderAll(data.capabilities || {});
       buildNav();
       // Fire and forget: a market failure must not blank the whole page.
+      initMyMarketAccordion();
       loadCmsMarket(data.capabilities || {});
       status.classList.add('hidden');
       document.getElementById('mi-shell').classList.remove('hidden');
