@@ -30,10 +30,13 @@ const capsSrc = [
   grab(/const CMS_QUALITY_PROVIDER_TYPES = new Set\([^)]*\);/, 'CMS_QUALITY_PROVIDER_TYPES'),
   grab(/const KNOWN_INTELLIGENCE_TYPES = \{[\s\S]*?\n\};/, 'KNOWN_INTELLIGENCE_TYPES'),
   grab(/const TYPE_LABELS = \{[^}]*\};/, 'TYPE_LABELS'),
+  grab(/const CMS_QUALITY_INTELLIGENCE_ENABLED = [^\n]*/, 'quality release gate'),
   grab(/function providerIntelligenceCapabilities\(provider\) \{[\s\S]*?\n\}/, 'capability fn')
 ].join('\n');
+// `process` is injected so the REAL gate expression is evaluated against a
+// controlled environment. Empty env = gate absent = the production default.
 const { providerIntelligenceCapabilities: caps, INTELLIGENCE_MODULES: MODS } =
-  new Function(`${capsSrc}\nreturn { providerIntelligenceCapabilities, INTELLIGENCE_MODULES };`)();
+  new Function('process', `${capsSrc}\nreturn { providerIntelligenceCapabilities, INTELLIGENCE_MODULES };`)({ env: {} });
 
 console.log('capability model:');
 const VALID = new Set(['available', 'coming_soon', 'not_applicable']);
@@ -55,7 +58,12 @@ for (const type of ['assisted_living', 'adult_day_care', '', null, undefined]) {
   ok(c.cmsQuality.status === 'not_applicable',
     `unmodelled type ${JSON.stringify(type)} gets no CMS quality`);
 }
-ok(caps({ careType: 'hospice' }).cmsQuality.status === 'coming_soon', 'hospice gets CMS quality as coming_soon');
+// Quality Intelligence V1 ships behind CMS_QUALITY_INTELLIGENCE_ENABLED, which
+// defaults OFF. With the gate absent the capability is byte-identical to what it
+// was before the feature existed. The gate-ON behaviour is covered in
+// scripts/test-provider-quality-ui.js.
+ok(caps({ careType: 'hospice' }).cmsQuality.status === 'coming_soon',
+  'hospice gets CMS quality as coming_soon while the release gate is off');
 ok(caps({ careType: 'home' }).cmsQuality.status === 'not_applicable', 'home care gets no CMS quality');
 ok(caps({ careType: 'hospice' }).bestHospiceLeadAnalytics.status === 'available',
   'our own lead analytics are available now');

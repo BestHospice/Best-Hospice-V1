@@ -102,8 +102,14 @@ section('authenticated endpoint wiring');
 section('Market Intelligence capabilities unchanged');
 {
   const caps = SRC.match(/function providerIntelligenceCapabilities[\s\S]*?\n\}/)[0];
-  ok(/cmsQuality: cmsState/.test(caps) && /cmsRatings: cmsState/.test(caps) && /cahps: cmsState/.test(caps),
-     '17. cmsQuality / cmsRatings / cahps still bind to cmsState');
+  // cmsQuality moved to cmsCovered in Quality Intelligence V1, the same way
+  // cmsMarketOverlap did. cmsRatings and cahps are still unbuilt as their own
+  // modules and must still bind to cmsState.
+  ok(/cmsQuality: CMS_QUALITY_INTELLIGENCE_ENABLED/.test(caps),
+     '17. cmsQuality binds to the release gate, falling back to cmsState when OFF');
+  ok(/\n      : cmsState,/.test(caps), '   …and the OFF branch is cmsState verbatim');
+  ok(/cmsRatings: cmsState/.test(caps) && /cahps: cmsState/.test(caps),
+     '   …and cmsRatings / cahps still bind to cmsState');
   const cmsState = caps.match(/const cmsState = [\s\S]*?;\n/);
   ok(cmsState && !/'available'/.test(cmsState[0]), '18. cmsState still cannot yield available');
   for (const m of ['competitorBenchmarking', 'geographicDemand', 'marketOpportunity', 'reports']) {

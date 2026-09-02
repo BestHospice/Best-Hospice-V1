@@ -179,14 +179,25 @@ section('no CMS coupling was introduced');
   const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   ok(!/prisma\.providerExternalIdentity|externalIdentities\s*:/.test(code),
      '25. server.js still has zero ProviderExternalIdentity CODE usage (comments excepted)');
-  ok(!/CmsFacility|CmsRelease|CmsFacilityServiceArea/.test(SRC),
-     '26. server.js still reads no CMS table');
+  // Scoped to what a CONSUMER looks like - a Prisma accessor or a quoted SQL
+  // table name - and evaluated on the comment-stripped source, for the same
+  // reason as assertion 25. server.js legitimately NAMES these models in
+  // comments (the Quality release gate explains which migration it is waiting
+  // for), and it passes `prisma` into cms-hospice-market.js and
+  // cms-hospice-quality.js, which are the only modules that query them.
+  ok(!/prisma\.(cmsFacility|cmsRelease|cmsFacilityServiceArea|cmsMeasureDefinition|cmsFacilityMeasure)\b/i.test(code)
+     && !/"Cms[A-Za-z]+"/.test(code),
+     '26. server.js still queries no CMS table directly — not even the two new quality tables');
   const caps = SRC.match(/function providerIntelligenceCapabilities[\s\S]*?\n\}/)[0];
-  // The three CMS modules must all still bind to cmsState, and cmsState itself
-  // must only ever produce coming_soon or not_applicable. bestHospiceLeadAnalytics
-  // is legitimately 'available' — it is our own referral data, not CMS.
-  ok(/cmsQuality: cmsState/.test(caps) && /cmsRatings: cmsState/.test(caps) && /cahps: cmsState/.test(caps),
-     '27. cmsQuality / cmsRatings / cahps all still bind to cmsState');
+  // cmsRatings and cahps must still bind to cmsState, and cmsState itself must
+  // only ever produce coming_soon or not_applicable. cmsMarketOverlap and
+  // cmsQuality are legitimately available for hospices - those datasets are
+  // ingested - and bestHospiceLeadAnalytics is our own referral data, not CMS.
+  ok(/cmsQuality: CMS_QUALITY_INTELLIGENCE_ENABLED/.test(caps),
+     '27. cmsQuality binds to the release gate, falling back to cmsState when OFF');
+  ok(/\n      : cmsState,/.test(caps), '   …and the OFF branch is cmsState verbatim');
+  ok(/cmsRatings: cmsState/.test(caps) && /cahps: cmsState/.test(caps),
+     '   …and cmsRatings / cahps still bind to cmsState');
   const cmsState = caps.match(/const cmsState = [\s\S]*?;\n/);
   ok(cmsState && !/'available'/.test(cmsState[0]),
      '   …and cmsState can only yield coming_soon or not_applicable');

@@ -15,6 +15,7 @@ const cron = require('node-cron');
 const { runNewsletterPipeline, verifyUnsubscribeToken, loadSchedule: loadNewsletterSchedule, ensureNewsletterIssuesTable } = require('./newsletter-pipeline');
 const { resolveProviderCmsContext } = require('./cms-provider-resolver');
 const { buildProviderCmsMarket } = require('./cms-hospice-market');
+const { buildProviderCmsQuality } = require('./cms-hospice-quality');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -366,6 +367,24 @@ const BLOG_VERIFICATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 const LEAD_STATUS_SIGNING_SECRET = process.env.LEAD_STATUS_SIGNING_SECRET || PROVIDER_JWT_SECRET;
 const LEAD_STATUS_NUDGE_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
 const LEAD_STATUS_NUDGE_ENABLED = process.env.LEAD_STATUS_NUDGE_ENABLED === 'true';
+// ─── QUALITY INTELLIGENCE RELEASE GATE ───────────────────────────────────────
+// Quality Intelligence V1 ships DARK. The code can reach production before the
+// CmsMeasureDefinition / CmsFacilityMeasure migration has been applied and the
+// quality release has been ingested, and in that window the quality endpoint
+// would correctly but MISLEADINGLY tell a real hospice that Medicare has not
+// published its measures. This gate removes that provider-facing window: until
+// it is switched on, the Quality panel looks exactly as it did before the
+// feature existed.
+//
+// FAILS CLOSED. Only the exact string 'true' enables it, matching
+// LEAD_STATUS_NUDGE_ENABLED above. Absent, 'false', 'TRUE', '1', 'on', 'yes' and
+// anything else all leave it OFF, so a missing, misspelled or unexpected setting
+// can only ever hide the module - never expose it early.
+//
+// Read once at boot rather than per request, so a single process cannot serve
+// two different answers about whether the feature exists. Render restarts the
+// service when an environment variable changes, which is the activation step.
+const CMS_QUALITY_INTELLIGENCE_ENABLED = process.env.CMS_QUALITY_INTELLIGENCE_ENABLED === 'true';
 const LEAD_OUTCOME_VALUES = ['new', 'contacted', 'qualified', 'admitted', 'not_a_fit', 'no_response'];
 const LEAD_OUTCOME_LABELS = {
   new: 'Received',
@@ -5936,6 +5955,40 @@ app.get('/api/provider-intelligence/my-market', requireProviderAuth, async (req,
   }
 });
 
+// Provider CMS quality intelligence. Same isolation contract as my-market and
+// cms-context: the provider is resolved from the bearer token ONLY, and there is
+// no providerId in the path, query or body, so one provider cannot read another's
+// quality report.
+//
+// Read-only, and CMS-published measures only. It returns no Best Hospice account
+// information about any provider - not the caller's own billing or contact
+// details, and nothing at all about the overlapping hospices beyond the CMS
+// facility identity My Market already exposes.
+//
+// Every unresolved case comes back as a structured status rather than an error or
+// a zero: an unmatched, ambiguous or unmeasured hospice must render a reason, not
+// a fabricated report.
+app.get('/api/provider-intelligence/quality', requireProviderAuth, async (req, res) => {
+  try {
+    // Defence in depth behind the release gate. requireProviderAuth has already
+    // run, so this weakens no authentication - it only refuses to serve a module
+    // that has not been activated yet, even to a caller holding a valid token.
+    //
+    // 404 rather than a structured quality response: while the gate is off the
+    // feature genuinely is not live, and returning a fail-closed status such as
+    // no_quality_data would imply it is and would be the misleading message this
+    // gate exists to prevent.
+    if (!CMS_QUALITY_INTELLIGENCE_ENABLED) return res.status(404).json({ error: 'Not found' });
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await buildProviderCmsQuality(prisma, ctx.providerId);
+    res.json(result);
+  } catch (err) {
+    console.error('Provider CMS quality failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── PROVIDER MARKET INTELLIGENCE ────────────────────────────────────────────
 // Capability model for the intelligence shell. Every module reports one of
 // three states, and the difference between them matters:
@@ -6008,7 +6061,27 @@ function providerIntelligenceCapabilities(provider) {
     cmsMarketOverlap: cmsCovered
       ? { status: 'available', reason: 'Built from your CMS-reported hospice service area.' }
       : { status: 'not_applicable', reason: `Medicare does not publish a hospice service area for ${typePhrase}.` },
-    cmsQuality: cmsState,
+    // The second CMS dataset we can resolve per provider, behind the release gate.
+    //
+    // GATE OFF is the default and yields cmsState verbatim - byte-identical to
+    // what this module reported before Quality Intelligence V1 existed, for
+    // every care type. Nothing else in the capability model changes, so the
+    // Quality panel shows the same Coming soon card it always did.
+    //
+    // GATE ON has the same PRECONDITION meaning as cmsMarketOverlap: it says
+    // this care type maps to a CMS source whose quality measures we ingest, NOT
+    // that CMS published measures for this particular hospice. The quality
+    // endpoint remains the authority and still returns a fail-closed status for
+    // an unmatched, ambiguous or unmeasured provider, in which case the UI
+    // renders a reason and no numbers.
+    cmsQuality: CMS_QUALITY_INTELLIGENCE_ENABLED
+      ? (cmsCovered
+        ? { status: 'available', reason: 'Built from CMS-published hospice quality measures for your CCN.' }
+        : { status: 'not_applicable', reason: `Medicare does not publish hospice quality measures for ${typePhrase}.` })
+      : cmsState,
+    // Deliberately unchanged. The star-rating and CAHPS CARDS still describe
+    // work we have not built as its own module; the family-caregiver survey
+    // appears inside Quality Intelligence only, and only when CMS published it.
     cmsRatings: cmsState,
     cahps: cmsState,
     competitorBenchmarking: {
