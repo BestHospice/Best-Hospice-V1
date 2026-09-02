@@ -5950,6 +5950,7 @@ app.get('/api/provider-intelligence/my-market', requireProviderAuth, async (req,
 // real provider, and what a future ingestion phase flips rather than replaces.
 const INTELLIGENCE_MODULES = [
   'bestHospiceLeadAnalytics',
+  'cmsMarketOverlap',
   'cmsQuality',
   'cmsRatings',
   'cahps',
@@ -5997,6 +5998,16 @@ function providerIntelligenceCapabilities(provider) {
       status: 'available',
       reason: 'Drawn from your own referral activity on Best Hospice.'
     },
+    // The first CMS dataset we can actually resolve per provider.
+    //
+    // "available" here is a PRECONDITION, not a promise that data exists: it says
+    // only that this care type maps to a CMS source we ingest. The My Market
+    // endpoint remains the authority. A hospice with no verified identity, an
+    // ambiguous identity, a missing facility or no service area still receives a
+    // fail-closed state from it and the UI renders no metrics.
+    cmsMarketOverlap: cmsCovered
+      ? { status: 'available', reason: 'Built from your CMS-reported hospice service area.' }
+      : { status: 'not_applicable', reason: `Medicare does not publish a hospice service area for ${typePhrase}.` },
     cmsQuality: cmsState,
     cmsRatings: cmsState,
     cahps: cmsState,

@@ -20,7 +20,8 @@
     "test:cms:ingestion": "node scripts/test-cms-hospice-ingestion.js",
     "test:provider:internal-role": "node scripts/test-provider-internal-role.js",
     "test:cms:resolver": "node scripts/test-cms-provider-resolver.js",
-    "test:cms:market": "node scripts/test-cms-hospice-market.js"
+    "test:cms:market": "node scripts/test-cms-hospice-market.js",
+    "test:provider:my-market-ui": "node scripts/test-provider-my-market-ui.js"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
