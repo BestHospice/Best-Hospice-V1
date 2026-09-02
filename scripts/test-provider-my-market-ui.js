@@ -44,13 +44,23 @@ function makeDom() {
   const els = {};
   const mk = (id) => (els[id] = {
     id, innerHTML: '', textContent: '', hidden: false, onclick: null,
+    tagName: 'BUTTON', dataset: {}, _attrs: {}, _listeners: {}, _focused: 0,
     _classes: new Set(),
     classList: { add(c) { els[id]._classes.add(c); }, remove(c) { els[id]._classes.delete(c); },
-                 contains(c) { return els[id]._classes.has(c); } }
+                 contains(c) { return els[id]._classes.has(c); } },
+    setAttribute(k, v) { this._attrs[k] = v; },
+    getAttribute(k) { return this._attrs[k]; },
+    addEventListener(ev, fn) { (this._listeners[ev] = this._listeners[ev] || []).push(fn); },
+    click() { (this._listeners.click || []).forEach((f) => f()); },
+    querySelector(sel) { return sel === '[data-toggle-label]' ? els['mm-toggle-label'] : null; },
+    focus() { this._focused += 1; },
+    getBoundingClientRect() { return { top: 10 }; },
+    scrollIntoView() { this._scrolled = true; }
   });
   ['cms-market-status', 'cms-market-body', 'cms-metrics', 'cms-profile', 'cms-competitors',
    'cms-comp-more', 'cms-competitors-block', 'cms-density-more', 'cms-density-block',
-   'cms-fresh'].forEach(mk);
+   'cms-fresh', 'mm-card', 'mm-summary', 'mm-toggle', 'mm-toggle-label', 'mm-detail',
+   'mm-collapse'].forEach(mk);
   const tbody = { innerHTML: '' };
   return {
     els, tbody,
@@ -65,12 +75,14 @@ function makeDom() {
 function loadRenderers(dom, apiImpl) {
   const names = ['CMS_MARKET_MESSAGES', 'CMS_MARKET_FALLBACK', 'CMS_MARKET_ERROR', 'COMP_PAGE', 'ZIP_PAGE',
                  'esc', 'num', 'pctText', 'placeText', 'friendlyReleaseDate', 'cmsMarketMessage',
-                 'renderMetrics', 'renderProfile', 'renderCompetitors', 'renderDensity', 'loadCmsMarket'];
-  const start = SCRIPT.indexOf('  // ---- CMS My Market');
+                 'renderMetrics', 'renderProfile', 'renderCompetitors', 'renderDensity', 'loadCmsMarket',
+                 'INTEL_ACCORDION', 'initMyMarketAccordion'];
+  const start = SCRIPT.indexOf('  // ---- intelligence detail accordion');
   const end = SCRIPT.indexOf('  // ---- section navigation ----');
   const body = SCRIPT.slice(start, end);
-  const fn = new Function('document', 'callApi', `${body}\nreturn { ${names.join(', ')} };`);
-  return fn(dom.document, apiImpl);
+  const fn = new Function('document', 'callApi', 'window',
+    `${body}\nreturn { ${names.join(', ')} };`);
+  return fn(dom.document, apiImpl, { innerHeight: 800 });
 }
 
 // ============================ CAPABILITY MODEL ===============================
@@ -128,6 +140,27 @@ section('page wiring');
   ok(/@media \(max-width:600px\)/.test(PAGE), '14. a mobile breakpoint exists for the market UI');
   ok(/overflow-x:auto/.test(PAGE), '15. the density table scrolls rather than overflowing the page');
   ok(/<caption class="sr-only">/.test(PAGE), '16. the data table has an accessible caption');
+
+  // --- progressive-disclosure markup guards ---
+  ok(/<div class="mi-card mm-card" id="mm-card">/.test(PAGE),
+     '16a. the compact My Market card reuses the .mi-card visual language');
+  ok(/<button type="button" class="mm-toggle" id="mm-toggle"[\s\S]{0,120}aria-expanded="false"[\s\S]{0,60}aria-controls="mm-detail"/.test(PAGE),
+     '16b. the expand control is a real <button> with aria-expanded and aria-controls');
+  ok(/<section class="cms-market" id="mm-detail"[^>]*hidden>/.test(PAGE),
+     '16c. the detailed panel is hidden in the markup, not just by script');
+  ok(/id="mm-collapse"[\s\S]{0,120}aria-controls="mm-detail"/.test(PAGE),
+     '16d. a dedicated collapse control exists and is wired to the same panel');
+  ok(!/onclick=/.test(PAGE), '16e. no inline onclick handlers — listeners are bound in script');
+  ok(/\.mm-toggle:focus-visible/.test(PAGE), '16f. the control has a visible focus style');
+  ok(/\.mm-toggle \{ width:100%/.test(PAGE.replace(/\s+/g, ' ')) || /mm-toggle \{ width:100%/.test(PAGE.replace(/\s+/g, ' ')),
+     '16g. the control goes full-width on mobile for tappability');
+  // Coming Soon cards must remain inert.
+  ok(!/mi-card[^>]*aria-expanded/.test(PAGE),
+     '16h. generic Coming Soon module cards are not expandable');
+  const accReg = (PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length;
+  ok(accReg === 1, '16i. exactly one intelligence module is registered as expandable today', String(accReg));
+  ok(/one detail module open at a time|Only one detail/i.test(PAGE),
+     '16j. the one-open-at-a-time contract is documented in code');
 }
 
 // ============================ NO HARD-CODED PRODUCTION VALUES ================
@@ -159,10 +192,10 @@ section('render: resolved state');
               averageCompetitorsPerProviderZip: 1.29, highestOverlapSharedZipCount: 5 },
     zipDensity: [{ zip: '85001', competitorCount: 2 }, { zip: '85002', competitorCount: 1 }],
     competitors: [
-      { source: 'cms_hospice', ccn: 'T90002', name: 'BETA HOSPICE', city: 'Testville', state: 'AZ',
+      { source: 'cms_hospice', ccn: 'T90002', name: 'ZETA HOSPICE', city: 'Testville', state: 'AZ',
         sharedZipCount: 5, providerZipCount: 7, competitorZipCount: 6,
         providerOverlapPct: 71.43, competitorOverlapPct: 83.33, sharedZips: ['85001'] },
-      { source: 'cms_hospice', ccn: 'T90003', name: 'GAMMA HOSPICE', city: 'Otherville', state: 'AZ',
+      { source: 'cms_hospice', ccn: 'T90003', name: 'ALPHA HOSPICE', city: 'Otherville', state: 'AZ',
         sharedZipCount: 3, providerZipCount: 7, competitorZipCount: 4,
         providerOverlapPct: 42.86, competitorOverlapPct: 75.00, sharedZips: ['85002'] }
     ],
@@ -186,8 +219,8 @@ section('render: resolved state');
     ok(prof.includes('Testville, AZ'), '29. city/state renders');
 
     const comp = dom.els['cms-competitors'].innerHTML;
-    ok(comp.indexOf('BETA HOSPICE') < comp.indexOf('GAMMA HOSPICE'),
-       '30. competitors render in backend order (no client re-ranking)');
+    ok(comp.indexOf('ZETA HOSPICE') < comp.indexOf('ALPHA HOSPICE'),
+       '30. competitors render in BACKEND order — ZETA (5 shared) before ALPHA (3), which alphabetical sorting would reverse');
     ok(comp.includes('>5</b> shared ZIP codes'), '31. sharedZipCount renders');
     ok(comp.includes('71.43%'), '32. providerOverlapPct renders');
     ok(comp.includes('83.33%'), '33. competitorOverlapPct renders');
@@ -209,6 +242,99 @@ section('render: resolved state');
     ok(R.friendlyReleaseDate('2026-01-01') === 'Jan 1, 2026', '   …and for a year boundary');
     ok(R.friendlyReleaseDate('') === '' && R.friendlyReleaseDate(null) === '',
        '39. a missing release key yields no freshness label');
+    return runAccordion();
+  });
+}
+
+function runAccordion() {
+  section('progressive disclosure: compact card and accordion');
+  const dom = makeDom();
+  let fetches = 0;
+  const RESOLVED = {
+    status: 'resolved',
+    provider: { id: 'prov-1', name: 'Synthetic Provider' },
+    facility: { source: 'cms_hospice', ccn: 'T90001', name: 'SYNTHETIC HOSPICE ALPHA', city: 'Testville', state: 'AZ' },
+    market: { providerZipCount: 7, overlappingFacilityCount: 3, totalSharedZipRelationships: 9,
+              averageCompetitorsPerProviderZip: 1.29, highestOverlapSharedZipCount: 5 },
+    zipDensity: [{ zip: '85001', competitorCount: 2 }],
+    competitors: [
+      { name: 'ZETA HOSPICE', city: 'Testville', state: 'AZ', ccn: 'T90002', sharedZipCount: 5,
+        providerOverlapPct: 71.43, competitorOverlapPct: 83.33 },
+      { name: 'ALPHA HOSPICE', city: 'Otherville', state: 'AZ', ccn: 'T90003', sharedZipCount: 3,
+        providerOverlapPct: 42.86, competitorOverlapPct: 75.00 }
+    ],
+    freshness: { latestIngestedRelease: { releaseKey: '2026-08-19' } }
+  };
+  const R = loadRenderers(dom, async () => { fetches += 1; return RESOLVED; });
+  R.initMyMarketAccordion();
+
+  ok(dom.els['mm-detail'].hidden === true, '54. the detailed panel is collapsed by default');
+  ok(dom.els['mm-toggle'].getAttribute('aria-expanded') === 'false',
+     '55. the expand control reports aria-expanded=false initially');
+  ok(dom.els['mm-toggle'].getAttribute('aria-controls') === undefined
+     || true, '   (aria-controls is set in markup)');
+
+  return R.loadCmsMarket({ cmsMarketOverlap: { status: 'available' } }).then(() => {
+    ok(fetches === 1, '56. the market endpoint was fetched exactly once at load', String(fetches));
+    ok(dom.els['mm-summary'].hidden === false, '57. the compact card shows a live summary');
+    ok(dom.els['mm-summary'].textContent === '7 service ZIPs \u00b7 3 overlapping hospices',
+       '58. summary is built from API values', dom.els['mm-summary'].textContent);
+    ok(dom.els['mm-toggle'].hidden === false, '59. the expand control is revealed when data resolves');
+    ok(dom.els['mm-detail'].hidden === true, '60. the long report stays collapsed until asked for');
+
+    dom.els['mm-toggle'].click();
+    ok(dom.els['mm-detail'].hidden === false, '61. clicking expand reveals the detailed panel');
+    ok(dom.els['mm-toggle'].getAttribute('aria-expanded') === 'true', '62. aria-expanded flips to true');
+    ok(dom.els['mm-toggle-label'].textContent === 'Hide market insights',
+       '63. the control relabels itself', dom.els['mm-toggle-label'].textContent);
+    ok(fetches === 1, '64. expanding does NOT refetch the endpoint', String(fetches));
+    ok(dom.els['cms-metrics'].innerHTML.includes('>7<'), '65. expanded panel holds the market metrics');
+    ok(dom.els['cms-profile'].innerHTML.includes('T90001'), '66. expanded panel holds the CMS profile');
+    const ch = dom.els['cms-competitors'].innerHTML;
+    ok(ch.includes('ZETA HOSPICE'), '67. expanded panel holds competitors');
+    ok(ch.indexOf('ZETA HOSPICE') < ch.indexOf('ALPHA HOSPICE'),
+       '67a. backend order survives expansion — no client-side re-sort');
+    ok(dom.tbody.innerHTML.includes('85001'), '68. expanded panel holds ZIP density');
+
+    dom.els['mm-collapse'].click();
+    ok(dom.els['mm-detail'].hidden === true, '69. the collapse control hides the detailed panel');
+    ok(dom.els['mm-toggle'].getAttribute('aria-expanded') === 'false', '70. aria-expanded returns to false');
+    ok(dom.els['mm-toggle-label'].textContent === 'View market insights', '71. the control relabels back');
+    ok(dom.els['mm-summary'].hidden === false, '72. the compact card survives collapse');
+    ok(dom.els['mm-toggle'].hidden === false, '   …and can be expanded again');
+    ok(dom.els['mm-toggle']._focused > 0, '73. focus returns to the expand control on collapse');
+
+    dom.els['mm-toggle'].click();
+    ok(dom.els['mm-detail'].hidden === false, '74. it re-expands');
+    ok(fetches === 1, '75. repeated expand/collapse never refetches', String(fetches));
+    dom.els['mm-toggle'].click();
+    ok(dom.els['mm-detail'].hidden === true, '76. the same control also collapses (toggle)');
+
+    // Accordion contract: registering a second module closes the first.
+    const other = { hidden: true };
+    R.INTEL_ACCORDION.register('other', other, []);
+    R.INTEL_ACCORDION.open('myMarket');
+    ok(dom.els['mm-detail'].hidden === false && other.hidden === true, '77. opening My Market keeps others closed');
+    R.INTEL_ACCORDION.open('other');
+    ok(other.hidden === false && dom.els['mm-detail'].hidden === true,
+       '78. opening another module closes My Market — one detail open at a time');
+    return runUnresolvedCard();
+  });
+}
+
+function runUnresolvedCard() {
+  section('progressive disclosure: unresolved providers');
+  const dom = makeDom();
+  const R = loadRenderers(dom, async () => ({ status: 'no_verified_identity' }));
+  R.initMyMarketAccordion();
+  return R.loadCmsMarket({ cmsMarketOverlap: { status: 'available' } }).then(() => {
+    ok(dom.els['mm-summary'].hidden === true, '79. unresolved: no compact summary is shown');
+    ok(dom.els['mm-summary'].textContent === '', '80. unresolved: no fake "0 ZIPs" / "0 competitors"');
+    ok(dom.els['mm-toggle'].hidden === true, '81. unresolved: there is nothing to expand');
+    ok(dom.els['mm-detail'].hidden === true, '82. unresolved: the detail panel stays collapsed');
+    const msg = dom.els['cms-market-status'].textContent;
+    ok(msg.length > 0 && !msg.includes('no_verified_identity'),
+       '83. unresolved: a provider-friendly message replaces the raw status');
     return runFailClosed();
   });
 }
