@@ -30,13 +30,16 @@ const section = (t) => console.log(`\n--- ${t} ---`);
 
 // ---- capability model, executed from server.js source ----------------------
 const grab = (rx, label) => { const m = SRC.match(rx); if (!m) throw new Error('missing ' + label); return m[0]; };
-const capsFn = new Function(
+// `process` is injected with an empty env so the Quality release gate evaluates
+// to its production default (OFF). This suite must see the pre-Quality world.
+const capsFn = new Function('process',
   [grab(/const INTELLIGENCE_MODULES = \[[\s\S]*?\n\];/, 'modules'),
    grab(/const CMS_QUALITY_PROVIDER_TYPES = new Set\([^)]*\);/, 'cms types'),
    grab(/const KNOWN_INTELLIGENCE_TYPES = \{[\s\S]*?\n\};/, 'known types'),
    grab(/const TYPE_LABELS = \{[^}]*\};/, 'labels'),
+   grab(/const CMS_QUALITY_INTELLIGENCE_ENABLED = [^\n]*/, 'quality release gate'),
    grab(/function providerIntelligenceCapabilities\(provider\) \{[\s\S]*?\n\}/, 'fn')].join('\n')
-  + '\nreturn { providerIntelligenceCapabilities, INTELLIGENCE_MODULES };')();
+  + '\nreturn { providerIntelligenceCapabilities, INTELLIGENCE_MODULES };')({ env: {} });
 const caps = capsFn.providerIntelligenceCapabilities;
 
 // ---- minimal DOM stub ------------------------------------------------------
@@ -99,6 +102,9 @@ section('capability model');
   }
   // Nothing else may move.
   const h = caps({ careType: 'hospice' });
+  // cmsQuality is back in this list: with the release gate off it must report
+  // coming_soon, exactly as it did before Quality Intelligence V1. The gate-ON
+  // behaviour is asserted in scripts/test-provider-quality-ui.js.
   for (const [mod, want] of [['competitorBenchmarking', 'coming_soon'], ['cmsQuality', 'coming_soon'],
                              ['cmsRatings', 'coming_soon'], ['cahps', 'coming_soon'],
                              ['marketOpportunity', 'coming_soon'], ['geographicDemand', 'coming_soon'],
@@ -157,8 +163,13 @@ section('page wiring');
   // Coming Soon cards must remain inert.
   ok(!/mi-card[^>]*aria-expanded/.test(PAGE),
      '16h. generic Coming Soon module cards are not expandable');
+  // Two expandable modules exist since Quality Intelligence V1: My Market and
+  // Quality. This assertion stays load-bearing - a third registration, or a
+  // Coming Soon card accidentally becoming expandable, fails it.
   const accReg = (PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length;
-  ok(accReg === 1, '16i. exactly one intelligence module is registered as expandable today', String(accReg));
+  ok(accReg === 2, '16i. exactly two intelligence modules are registered as expandable today', String(accReg));
+  ok(/INTEL_ACCORDION\.register\('myMarket'/.test(PAGE) && /INTEL_ACCORDION\.register\('quality'/.test(PAGE),
+     '   …and they are myMarket and quality');
   ok(/one detail module open at a time|Only one detail/i.test(PAGE),
      '16j. the one-open-at-a-time contract is documented in code');
 }

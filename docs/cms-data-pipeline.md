@@ -1218,6 +1218,272 @@ explicitly and formats with `timeZone: 'UTC'` — letting the browser parse the
 string and render in local time would show the previous day for anyone west of
 UTC, the same off-by-one that was caught during ingestion.
 
+## Quality Intelligence V1 — CMS hospice quality, benchmarked against overlapping hospices
+
+The second provider-visible Market Intelligence module. It answers one question:
+*how does my hospice's CMS-measured quality compare with the hospices that
+actually overlap my service area?* It is deliberately not a CMS data dump.
+
+### The peer set is My Market's, not a second definition
+
+A market peer is another CMS hospice sharing at least one CMS-reported service
+ZIP code with the provider — the same definition `cms-hospice-market.js` already
+implements. `cms-hospice-quality.js` obtains the peer set by **calling**
+`buildProviderCmsMarket()`, so there is one market definition in the codebase and
+identity still resolves through `cms-provider-resolver.js`. The dependency chain
+is strictly leaf-ward:
+
+```
+cms-hospice-quality.js -> cms-hospice-market.js -> cms-provider-resolver.js
+```
+
+### Directionality lives in one place
+
+`data/cms-hospice-quality-measures.json` is the source of truth for whether a
+higher or a lower published value is better care. Each entry cites the CMS
+document the direction comes from. The ingester seeds it into
+`CmsMeasureDefinition.direction`; the service reads it back from there. **Nothing
+infers direction from a measure code, a measure name, or the shape of the data**,
+at ingestion, query or render time.
+
+Ten measures are surfaced in V1, across seven dimensions:
+
+| Measure code | Dimension | Direction | Kind |
+|---|---|---|---|
+| `H_012_00_OBSERVED` | careIndex | higher_better | index 0–10 |
+| `H_011_01_OBSERVED` | finalDays | higher_better | percent |
+| `H_008_01_OBSERVED` | admissionAssessment | higher_better | percent |
+| `H_012_02_OBSERVED` | nursingContinuity | **lower_better** | percent |
+| `H_012_03_OBSERVED` | liveDischarge | **lower_better** | percent |
+| `H_012_04_OBSERVED` | liveDischarge | **lower_better** | percent |
+| `H_012_09_OBSERVED` | staffing | higher_better | percent |
+| `H_012_10_OBSERVED` | staffing | higher_better | percent |
+| `SUMMARY_STAR_RATING` | familyExperience *(conditional)* | higher_better | 1–5 stars |
+| `RECOMMEND_TBV` | familyExperience *(conditional)* | higher_better | percent |
+
+### CMS's own percentile fields are NOT quality percentiles
+
+CMS publishes `H_012_xx_PERCENTILE` alongside each Hospice Care Index indicator.
+Measured across the 2026-08-19 archive, Spearman's rho between the observed value
+and the published percentile is **exactly 1.0000 for all ten indicators**: the
+percentile is a plain monotone rank of the raw value with no directional
+correction applied. So for a lower-is-better indicator such as gaps in nursing
+visits, a *higher* CMS percentile means *worse* care.
+
+Those fields are therefore not modelled, not ingested, and not surfaced. The
+ingester refuses a registry entry whose measure code ends in `_PERCENTILE`. Every
+comparison the product shows is computed from the provider's own
+overlapping-hospice peer set instead.
+
+### Suppression is data, and it is never zero
+
+CMS withholds a measure for small samples and other documented reasons. A
+withheld measure is stored as a row with `suppressed = true`,
+`valueNumeric = NULL` and `valueRaw` holding CMS's exact text, so "CMS published
+nothing" stays distinguishable from "we never ingested this". It is excluded from
+every peer denominator, never imputed, and never ranked. In the 2026-08-19
+release, **20,175 of 66,690** stored cells are suppressed.
+
+### The five value shapes the parser must survive
+
+`cms-quality-parse.js` is a pure leaf module. These are the shapes actually
+present in the archive, with counts:
+
+| Shape | Rows | Handling |
+|---|---|---|
+| plain numeric | 297,278 | parsed |
+| `Not Available` | 107,117 | suppressed, NULL — **not zero** |
+| `Yes` / `No` | 21,376 | descriptive measures only; **fails closed** on a surfaced measure |
+| thousands separators (`1,152`) | ~19k | commas stripped in valid thousands positions only |
+| `Not Available(12)` | 1,352 | suppressed, and the glued footnote is recovered |
+| `Not Applicable` | 13,338 | suppressed (CAHPS structural non-values) |
+
+Footnotes are multi-valued (`2,5`, `1,5`, `6,7`) and are stored as `TEXT[]`, never
+an integer. Measurement periods appear in **two** formats — `01/01/2023 -
+12/31/2024` in the provider file and `10/01/2023-09/30/2025`, with no spaces, in
+CAHPS — and are parsed to plain `YYYY-MM-DD` **strings**, never JS `Date` objects,
+for the same reason certification dates are: the pg driver serialises a `Date` in
+local time, which truncates `::date` to the previous day at any negative UTC
+offset.
+
+Periods are stored **per measurement**, not per release, because they genuinely
+differ within one release: HCI covers 01/01/2023–12/31/2024, the composite process
+measure 10/01/2024–09/30/2025, and CAHPS 10/01/2023–09/30/2025.
+
+### Database models
+
+`CmsMeasureDefinition` — the measure dictionary. `@@unique([source, measureCode])`
+is the natural key and the FK target; `@@unique([id, source])` follows the
+schema's composite-FK convention.
+
+`CmsFacilityMeasure` — one CMS-published measurement per facility, measure and
+release. Unlike `CmsFacility` and `CmsFacilityServiceArea`, which are current
+state updated in place, **this table is per-release history**: `releaseId` is part
+of `@@unique([facilityId, measureCode, releaseId])`. Three composite foreign keys
+all carry `source`, so the database guarantees a measurement, its facility, its
+definition and its release all belong to one source. An undefined measure code
+cannot be stored at all — the FK to `CmsMeasureDefinition` refuses it.
+
+`@@index([source, releaseId, measureCode, facilityId])` is the market-comparison
+index: the peer query asks for one measure, in one release, across a set of
+facilities, in exactly that column order.
+
+### Ingestion
+
+`scripts/import-cms-hospice-quality.js` reads `provider` and `cahps_provider`
+from an Archive V2 release on disk. Dry run is the default.
+
+It **never creates a `CmsRelease`**. The facility roster must already be ingested
+by `scripts/import-cms-hospice-data.js`, and the stored release's
+`manifestSha256` must match this archive byte-for-byte — otherwise quality data
+from one archive could be attached to a roster from another. One writer owns the
+release row.
+
+Fail-closed order: Archive V2 manifest facts recorded (never inferred) → every
+used file's sha256 matches the manifest → every header matches both the manifest
+and the tracked registry → every declared measure code is present **and CMS's own
+Measure Name for it matches the recorded name exactly** → every cell parses into a
+documented shape. A CMS measure rename is an error, not a silent relabelling,
+because a redefinition can invert what "better" means.
+
+Production is refused by default. The authorization token hashes
+`operation=cms-hospice-quality-ingest` along with the source, release key and
+manifest hash, so **a facility-ingestion token cannot authorize a quality
+ingestion**. There is no `--force`, `--allow-production`, `--unsafe` or
+`--skip-guard`, and the target classifier lives in the shared
+`cms-ingest-guard.js` with a test asserting its identifier lists are identical to
+the facility importer's.
+
+```bash
+# archive-only validation; contacts no database
+node scripts/import-cms-hospice-quality.js --release 2026-08-19 --no-db
+
+# dry run against a disposable local database
+DATABASE_URL=postgresql://…/local_disposable \
+  node scripts/import-cms-hospice-quality.js --release 2026-08-19
+
+# write
+DATABASE_URL=postgresql://…/local_disposable \
+  node scripts/import-cms-hospice-quality.js --release 2026-08-19 --write
+
+# derive the release-scoped production authorization (never touches a database)
+node scripts/import-cms-hospice-quality.js --release 2026-08-19 \
+  --print-production-authorization
+```
+
+Local ingestion of release 2026-08-19: **10 definitions, 66,690 measurements**
+(6,669 facilities × 10 measures), 20,175 suppressed, 0 orphan CCNs, in one
+transaction. A rerun reports `CREATE 0 UPDATE 0 UNCHANGED 66690` and opens no
+transaction.
+
+### Comparison rules
+
+- A **comparable peer** for a measure is an overlapping facility with
+  `suppressed = false AND valueNumeric IS NOT NULL` for that measure in the same
+  release.
+- **Minimum 5 comparable peers.** Below that the provider's own CMS value is
+  still returned, but the peer median, range and directional counts are
+  *withheld from the response entirely* — not merely flagged — because anything a
+  caller can read it can render.
+- `verdict` is **positional**: `above_peer_median` / `below_peer_median` /
+  `at_peer_median` describe where the provider's number sits relative to the peer
+  median, plus `insufficient_peers` and `not_published`. It does **not** mean
+  better or worse.
+- `favorable` is the **direction-aware** field and the only one that means
+  better. For a lower-is-better measure, `below_peer_median` is
+  `favorable: true`. The UI styles and words the comparison from `favorable`,
+  never from `verdict`.
+- `favorablePeerCount` is already oriented, so "higher than X of N" and "lower
+  than X of N" are both literally true of the numbers.
+- There is **no proprietary Best Hospice composite quality score** in V1.
+
+### Query budget
+
+Quality resolution is **12 constant round trips** — My Market's 9, plus three:
+the newest release that actually has measurements, the provider's own measures
+LEFT JOINed to the surfaced definitions, and one set-based peer aggregate grouped
+in PostgreSQL. Measured on the 2026-08-19 data locally: 12 round trips at 10
+peers, 12 at 25 peers, 12 at 311 peers (46–82 ms).
+
+Note that the newest release *with measurements* is not necessarily the newest
+release: the roster and the quality files are separately authorized steps, so
+quality can legitimately lag by one release.
+
+### Release gate — `CMS_QUALITY_INTELLIGENCE_ENABLED`
+
+Quality Intelligence ships **dark**. The code can reach production before the
+`CmsMeasureDefinition` / `CmsFacilityMeasure` migration has been applied and the
+quality release ingested. In that window the endpoint would fail closed
+*correctly* but tell a real hospice *"Medicare has not published the quality
+measures we report for your organization"* — true of the empty table, misleading
+about the cause. The gate removes that provider-facing window.
+
+| | |
+|---|---|
+| **Setting** | `CMS_QUALITY_INTELLIGENCE_ENABLED` |
+| **Accepted value (ON)** | the exact string `true` |
+| **Everything else** | OFF — absent, `false`, `TRUE`, `True`, `1`, `on`, `yes`, `""`, `" true"`, `"true "`, anything |
+| **Default** | OFF |
+| **Read** | once at boot, in exactly one place |
+
+It matches the existing `LEAD_STATUS_NUDGE_ENABLED === 'true'` convention, and it
+is an **opt-in**, never an opt-out: there is no `!== 'false'` and no `|| true`
+fallback, so a missing, misspelled or unexpected value can only ever *hide* the
+module — never expose it early.
+
+Three code consumers, no more:
+
+1. the declaration;
+2. `providerIntelligenceCapabilities()` — when OFF, `cmsQuality` returns
+   `cmsState` **verbatim**, byte-identical (status *and* reason string) to what
+   this module reported before Quality Intelligence V1 existed, for every care
+   type. It is then indistinguishable from the other unbuilt CMS cards;
+3. the endpoint — returns **404** while OFF, *after* `requireProviderAuth` has
+   run, so authentication is not weakened and a caller holding a valid token
+   still cannot reach an unactivated module. 404 rather than a structured
+   status, because while the gate is off the feature genuinely is not live.
+
+The gate can change **only** `cmsQuality`. My Market and every other capability
+are byte-identical in both positions, which is asserted directly.
+
+On the client, `#q-card` starts `hidden` in the markup and is revealed only once
+the capability model says the module is available. When it is not, the compact
+card and the report are removed entirely — **not** replaced with a status
+message — leaving exactly the Coming soon module card the Quality panel always
+showed. A script failure before that point therefore also leaves the pre-feature
+panel.
+
+**Activation order.** Turn this on only after all three of:
+
+1. the `20260902213000_add_cms_quality_measures` migration is applied
+   successfully in production;
+2. the quality release is ingested successfully (expect 10 definitions and
+   66,690 measurements for release 2026-08-19);
+3. production verification passes.
+
+Then, in the Render dashboard for the web service, add the environment variable
+`CMS_QUALITY_INTELLIGENCE_ENABLED` = `true` and let Render restart the service.
+Setting it to anything else, or deleting it, turns the module back off on the
+next restart — which is also the rollback.
+
+### API and UI
+
+`GET /api/provider-intelligence/quality` — `requireProviderAuth`, provider id
+from `getProviderContext(req.providerUserId)` only. No `providerId` in the path,
+query or body.
+
+`cmsQuality` becomes `available` for hospice care types. As with
+`cmsMarketOverlap`, that is a **precondition** — the endpoint remains the
+authority and still returns a fail-closed status for an unmatched, ambiguous or
+unmeasured hospice. `cmsRatings` and `cahps` are unchanged.
+
+The UI reuses the established compact-card → expand → collapse pattern and
+registers with `INTEL_ACCORDION`, so only one intelligence module is expanded at
+a time. The expanded report labels every section either **"Reported by CMS"** or
+**"Best Hospice comparison"**. The family-caregiver dimension is conditional: when
+CMS published nothing it shows one sentence — *"CMS has not published a family
+caregiver survey result for this hospice."* — and never a blank or a zero.
+
 ## Not implemented
 
 Named explicitly so this document is not mistaken for a description of a larger
@@ -1225,12 +1491,21 @@ system than exists:
 
 - **No home-health ingestion.** Only hospice is ingested. `CmsFacility` and
   `CmsFacilityServiceArea` hold `cms_hospice` rows only.
-- **No CMS data in production.** Ingestion has run against disposable local
-  databases only.
-- **No `CmsMeasure`** and **no `CmsFacilityHistory`.** Both are deferred.
+- **No quality data in production.** `CmsMeasureDefinition` and
+  `CmsFacilityMeasure` have been ingested against disposable local databases
+  only. The hospice facility roster and service areas ARE in production
+  (release 2026-08-19).
+- **No `CmsFacilityHistory`.** Per-release snapshots of changing FACILITY
+  attributes are still deferred. Quality measures are no longer deferred: the
+  planned `CmsMeasure` shipped as `CmsMeasureDefinition` + `CmsFacilityMeasure`
+  (see Quality Intelligence V1 above).
 - No home-health identity matching. No Provider currently holds a
   `cms_home_health` identity.
-- No Market Intelligence surface is provider-visible.
+- **One Market Intelligence module is provider-visible in production: My
+  Market.** Quality Intelligence is built and merged-ready but ships behind
+  `CMS_QUALITY_INTELLIGENCE_ENABLED`, which defaults OFF, so until it is
+  explicitly activated the Quality panel shows the same Coming soon card it
+  always did. Every other module is still `coming_soon` or `not_applicable`.
 - No `careType` change. Whether a given `home` Provider is a Medicare-certified
   home health agency or a non-medical personal-care agency is **not** encoded
   anywhere, and the archive pipeline makes no such claim.

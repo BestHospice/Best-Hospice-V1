@@ -331,6 +331,7 @@ model CmsRelease {
   facilitiesLastSeen    CmsFacility[]            @relation("CmsFacilityLastSeen")
   serviceAreasFirstSeen CmsFacilityServiceArea[] @relation("CmsServiceAreaFirstSeen")
   serviceAreasLastSeen  CmsFacilityServiceArea[] @relation("CmsServiceAreaLastSeen")
+  facilityMeasures      CmsFacilityMeasure[]
 
   @@unique([source, releaseKey])
   /// Target for the composite foreign keys below. Guarantees a facility or
@@ -391,6 +392,7 @@ model CmsFacility {
   firstSeenRelease CmsRelease               @relation("CmsFacilityFirstSeen", fields: [firstSeenReleaseId, source], references: [id, source])
   lastSeenRelease  CmsRelease               @relation("CmsFacilityLastSeen", fields: [lastSeenReleaseId, source], references: [id, source])
   serviceAreas     CmsFacilityServiceArea[]
+  measures         CmsFacilityMeasure[]
 
   @@unique([source, ccn])
   /// Target for CmsFacilityServiceArea's composite foreign key.
@@ -430,6 +432,146 @@ model CmsFacilityServiceArea {
   /// Always source-scoped in practice - hospices are compared with hospices.
   @@index([source, zip])
   @@index([lastSeenReleaseId])
+}
+
+/// The measure dictionary for Quality Intelligence. One row per CMS measure code
+/// we surface, seeded from data/cms-hospice-quality-measures.json by
+/// scripts/import-cms-hospice-quality.js.
+///
+/// THIS TABLE IS WHERE DIRECTIONALITY LIVES. `direction` says whether a higher or
+/// a lower published value is better care, it is sourced from CMS Hospice Quality
+/// Reporting Program documentation rather than from the data, and every comparison
+/// in cms-hospice-quality.js reads it from here. Nothing infers direction at query
+/// or render time, so a measure can never be silently compared the wrong way round.
+///
+/// CMS also publishes an H_012_xx_PERCENTILE for each Hospice Care Index indicator.
+/// It is a plain monotone rank of the RAW value with no directional correction
+/// (Spearman rho = 1.0000 against the observed value on all ten indicators), so on
+/// a lower-is-better indicator a higher CMS percentile means WORSE care. It is
+/// deliberately not modelled and must never be surfaced as a quality rank.
+model CmsMeasureDefinition {
+  id     String @id @default(uuid())
+  /// "cms_hospice" | "cms_home_health". Same namespace as CmsFacility.source.
+  source String
+  /// The CMS measure code exactly as published, e.g. "H_012_00_OBSERVED".
+  measureCode String
+
+  /// CMS's own Measure Name for this code, recorded as a FACT at ingestion time.
+  /// Ingestion fails closed if the archived file disagrees, which is how a CMS
+  /// measure redefinition surfaces as an error instead of a silent relabelling.
+  cmsMeasureName String
+  /// Best Hospice's provider-facing label. Ours, not CMS's.
+  shortLabel     String
+  /// Groups measures into one provider-facing dimension, e.g. "liveDischarge"
+  /// carries both the early and the late live-discharge measures.
+  dimension      String
+  /// "hci" | "hci_indicator" | "his" | "hvldl" | "cahps"
+  family         String
+  /// "index" | "percent" | "stars"
+  valueKind      String
+  /// "higher_better" | "lower_better". No other value is written today; a
+  /// contextual measure would need explicit product handling, not a third enum
+  /// value that comparison code silently ignores.
+  direction      String
+
+  scaleMin  Float?
+  scaleMax  Float?
+  decimals  Int
+  unitLabel String?
+
+  /// The companion CMS code carrying this measure's sample size, e.g.
+  /// "H_012_02_DENOMINATOR". Its value is stored on the measurement row's
+  /// `denominator` column rather than as a measurement of its own.
+  denominatorCode String?
+  /// Whether Quality Intelligence V1 shows this measure to providers.
+  surfaced        Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  measurements CmsFacilityMeasure[]
+
+  @@unique([source, measureCode])
+  /// Target for CmsFacilityMeasure's composite foreign key.
+  @@unique([id, source])
+  @@index([source, surfaced])
+}
+
+/// One CMS-published measurement: a facility, a measure, a release.
+///
+/// Unlike CmsFacility and CmsFacilityServiceArea, which are CURRENT STATE updated
+/// in place, this table is a per-release SNAPSHOT - releaseId is part of the
+/// natural key. Measures carry their own measurement period and CMS republishes
+/// them on a different cadence from the facility roster, so overwriting the
+/// previous period's value in place would destroy the only record of it.
+///
+/// SUPPRESSION IS FIRST CLASS. CMS withholds a measure for small samples and other
+/// documented reasons, and a withheld measure is NOT a zero, NOT an average and NOT
+/// a low score. `valueNumeric` is null in that case, `valueRaw` keeps the exact CMS
+/// text ("Not Available", "Not Applicable"), `suppressed` is true, and the peer
+/// comparison in cms-hospice-quality.js excludes the row from every denominator.
+model CmsFacilityMeasure {
+  id String @id @default(uuid())
+
+  facilityId String
+  /// Denormalised from the facility, exactly as on CmsFacilityServiceArea. It is
+  /// what makes all three composite foreign keys below possible, so the database
+  /// guarantees a measurement, its facility, its measure definition and its
+  /// release all belong to one source.
+  source     String
+  /// References CmsMeasureDefinition, so an undefined measure code cannot be
+  /// stored at all - unknown codes are refused by the database, not just by the
+  /// ingester.
+  measureCode String
+  releaseId   String
+
+  /// The parsed number, or NULL when CMS published no usable value. Float, not
+  /// Decimal: every surfaced measure is a percentage, a 0-10 index or a 1-5 star
+  /// rating with at most one published decimal place, and nothing is summed into
+  /// money.
+  valueNumeric  Float?
+  /// The Score (or Star Rating) cell verbatim, so a suppressed row still records
+  /// exactly what CMS said. Never trimmed to "" and never replaced with "0".
+  valueRaw      String
+  /// True whenever CMS published no comparable observation. Explicit rather than
+  /// inferred from `valueNumeric IS NULL` so the intent survives in the data.
+  suppressed    Boolean
+  /// CMS footnote codes for this cell. An ARRAY because CMS publishes multi-valued
+  /// footnotes such as "2,5" and "6,7"; storing that as an integer would corrupt it.
+  /// Empty array when CMS wrote its no-footnote sentinel ("-" or blank).
+  footnoteCodes String[]
+  /// Sample size from the measure's companion denominator code, where CMS
+  /// publishes one. Null is "not published", never "zero patients".
+  denominator   Float?
+  /// CAHPS publishes its summary rating in a separate Star Rating column rather
+  /// than in Score. Null for every non-CAHPS measure.
+  starRating    Int?
+
+  /// The measurement period CMS published for this cell. Date-only, so @db.Date:
+  /// there is no time component to invent. Stored PER MEASUREMENT because the
+  /// periods genuinely differ within one release - in the 2026-08-19 archive the
+  /// HCI measures cover 01/01/2023-12/31/2024, the composite process measure
+  /// 10/01/2024-09/30/2025 and CAHPS 10/01/2023-09/30/2025.
+  periodStart DateTime? @db.Date
+  periodEnd   DateTime? @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  facility   CmsFacility          @relation(fields: [facilityId, source], references: [id, source])
+  release    CmsRelease           @relation(fields: [releaseId, source], references: [id, source])
+  definition CmsMeasureDefinition @relation(fields: [source, measureCode], references: [source, measureCode])
+
+  /// One measurement per facility, measure and release. Includes releaseId on
+  /// purpose: this is history, not current state.
+  @@unique([facilityId, measureCode, releaseId])
+  /// The market-comparison index. The peer query asks for ONE measure, in ONE
+  /// release, across a set of facilities, which is exactly this column order.
+  @@index([source, releaseId, measureCode, facilityId])
+  /// "everything this facility published in this release" - the provider's own
+  /// side of the comparison.
+  @@index([facilityId, releaseId])
+  @@index([releaseId])
 }
 
 model WaitlistRequest {

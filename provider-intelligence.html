@@ -67,6 +67,36 @@
     .mm-collapse:hover { background:#e2e8f0; }
     .mm-chev { font-size:12px; line-height:1; }
 
+    /* ---- Quality Intelligence ---- */
+    .q-card { margin-bottom:18px; }
+    .q-prov { display:inline-flex; align-items:center; gap:6px; font-size:.72rem; font-weight:800;
+              letter-spacing:.04em; text-transform:uppercase; padding:4px 9px; border-radius:999px;
+              margin:0 0 8px; }
+    .q-prov.cms { background:#eef2ff; color:#3730a3; }
+    .q-prov.bh { background:#f0fdfa; color:#0f766e; }
+    .q-table-wrap { overflow-x:auto; }
+    .q-table { width:100%; border-collapse:collapse; font-size:.9rem; }
+    .q-table th, .q-table td { text-align:left; padding:9px 10px; border-bottom:1px solid #e2e8f0;
+                               vertical-align:top; }
+    .q-table th { font-size:.75rem; text-transform:uppercase; letter-spacing:.03em; color:#475569;
+                  white-space:nowrap; }
+    .q-table td.n { font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .q-measure { font-weight:600; color:#0f2744; }
+    .q-period { font-size:.76rem; color:#64748b; }
+    .q-chip { display:inline-flex; align-items:center; gap:6px; font-size:.76rem; font-weight:700;
+              padding:4px 9px; border-radius:999px; white-space:nowrap; }
+    .q-chip .d { width:6px; height:6px; border-radius:50%; background:currentColor; }
+    .q-chip.favorable { background:#ecfdf5; color:#047857; }
+    .q-chip.unfavorable { background:#fff7ed; color:#9a3412; }
+    .q-chip.even { background:#eff6ff; color:#1d4ed8; }
+    .q-chip.none { background:#f4f4f5; color:#52525b; }
+    .q-sentence { margin:6px 0 0; font-size:.86rem; color:#334155; }
+    .q-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+    .q-list li { border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#f8fafc; }
+    .q-list .q-measure { display:block; }
+    .q-empty { margin:0; font-size:.9rem; color:#64748b; }
+    .q-cahps { border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; background:#f8fafc; }
+
     /* ---- CMS My Market ---- */
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
                clip:rect(0 0 0 0); white-space:nowrap; border:0; }
@@ -253,6 +283,109 @@
           </div>
 
           <div class="mi-panel" data-section="Quality">
+
+            <!-- Compact module card, identical progressive-disclosure pattern to
+                 My Market: the detailed report lives in #q-detail and stays
+                 collapsed until asked for. -->
+            <!-- Starts HIDDEN and is revealed only once the capability model says
+                 the module is available. If the release gate is off, or this
+                 script fails before reaching that point, the provider simply
+                 sees the ordinary Coming soon module card below - never a
+                 half-built Quality panel. -->
+            <div class="mi-card q-card" id="q-card" hidden>
+              <h3>Quality Intelligence</h3>
+              <p>See how your CMS-measured quality compares with the hospices that overlap your service area.</p>
+              <p class="mm-summary" id="q-summary" hidden></p>
+              <p class="cms-status" id="q-status" role="status">Loading your quality data&hellip;</p>
+              <button type="button" class="mm-toggle" id="q-toggle"
+                      aria-expanded="false" aria-controls="q-detail" hidden>
+                <span id="q-toggle-label">View quality insights</span>
+                <span class="mm-chev" aria-hidden="true">&#8595;</span>
+              </button>
+            </div>
+
+            <section class="cms-market" id="q-detail" aria-labelledby="q-detail-h" hidden>
+              <div class="cms-market-head">
+                <h3 id="q-detail-h">Your CMS Quality Profile</h3>
+                <p class="cms-sub">CMS-published measures, compared with the hospices that share your CMS-reported service ZIP codes.</p>
+                <p class="cms-fresh" id="q-fresh" hidden></p>
+              </div>
+
+              <div id="q-body" hidden>
+                <!-- 1. Quality snapshot -->
+                <div class="cms-metrics" id="q-metrics"></div>
+
+                <!-- 2. CMS-measured performance -->
+                <div class="cms-block" id="q-cms-block">
+                  <h4>CMS-measured performance</h4>
+                  <p class="q-prov cms"><span aria-hidden="true">&#9679;</span> Reported by CMS</p>
+                  <p class="cms-hint">Exactly what Medicare published for your CCN, including the measurement period.</p>
+                  <div class="q-table-wrap">
+                    <table class="q-table" id="q-cms-table">
+                      <caption class="sr-only">CMS-published quality measures for your hospice</caption>
+                      <thead><tr>
+                        <th scope="col">Measure</th>
+                        <th scope="col">Your published value</th>
+                        <th scope="col">Measurement period</th>
+                      </tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- 3. Provider vs overlapping-hospice benchmarks -->
+                <div class="cms-block" id="q-bench-block">
+                  <h4>Compared with overlapping hospices</h4>
+                  <p class="q-prov bh"><span aria-hidden="true">&#9679;</span> Best Hospice comparison</p>
+                  <p class="cms-hint" id="q-bench-hint"></p>
+                  <div class="q-table-wrap">
+                    <table class="q-table" id="q-bench-table">
+                      <caption class="sr-only">Your CMS measures compared with overlapping hospices</caption>
+                      <thead><tr>
+                        <th scope="col">Measure</th>
+                        <th scope="col">Yours</th>
+                        <th scope="col">Overlapping-hospice median</th>
+                        <th scope="col">Comparable hospices</th>
+                        <th scope="col">Comparison</th>
+                      </tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- 4. Relative strengths -->
+                <div class="cms-block" id="q-strengths-block">
+                  <h4>Relative strengths</h4>
+                  <p class="q-prov bh"><span aria-hidden="true">&#9679;</span> Best Hospice comparison</p>
+                  <ul class="q-list" id="q-strengths"></ul>
+                  <p class="q-empty" id="q-strengths-empty" hidden></p>
+                </div>
+
+                <!-- 5. Areas to review -->
+                <div class="cms-block" id="q-review-block">
+                  <h4>Areas to review</h4>
+                  <p class="q-prov bh"><span aria-hidden="true">&#9679;</span> Best Hospice comparison</p>
+                  <ul class="q-list" id="q-review"></ul>
+                  <p class="q-empty" id="q-review-empty" hidden></p>
+                </div>
+
+                <!-- 6. Family caregiver experience — conditional -->
+                <div class="cms-block" id="q-cahps-block">
+                  <h4>Family caregiver experience</h4>
+                  <p class="q-prov cms"><span aria-hidden="true">&#9679;</span> Reported by CMS</p>
+                  <div class="q-cahps" id="q-cahps"></div>
+                </div>
+              </div>
+
+              <!-- 7. Methodology + freshness -->
+              <p class="cms-note" id="q-note"></p>
+
+              <button type="button" class="mm-toggle mm-collapse" id="q-collapse"
+                      aria-expanded="true" aria-controls="q-detail">
+                <span class="mm-chev" aria-hidden="true">&#8593;</span> Hide quality insights
+              </button>
+            </section>
+
             <div class="mi-grid" id="mi-quality-grid"></div>
           </div>
 
@@ -382,8 +515,9 @@
 
   // ---- intelligence detail accordion -------------------------------------
   // Generic on purpose. Register a module with its trigger(s) and detail panel;
-  // opening one closes any other. My Market is the only registered module today,
-  // and Coming Soon cards deliberately register nothing, so they stay inert.
+  // opening one closes any other. My Market and Quality Intelligence are the two
+  // registered modules today, and Coming Soon cards deliberately register
+  // nothing, so they stay inert.
   const INTEL_ACCORDION = (function () {
     const modules = new Map();
 
@@ -625,6 +759,279 @@
     document.getElementById('mm-toggle').hidden = false;
   }
 
+  // ---- CMS Quality Intelligence -------------------------------------------
+  // Same fail-closed philosophy as My Market. Every backend status maps to plain
+  // language; none of them fabricates a zero, a percentage or an expandable
+  // report to fill the space.
+  const QUALITY_MESSAGES = {
+    unsupported_care_type:
+      'Medicare does not publish hospice quality measures for your provider type, so quality intelligence is not available.',
+    no_verified_identity:
+      "We're still connecting your provider profile to CMS data. This section will fill in once that match is confirmed.",
+    multiple_verified_identities:
+      'Your provider profile needs review before we can show quality data. Please contact support and we will sort it out.',
+    facility_not_found:
+      'Quality data is not available for your organization right now.',
+    no_service_area:
+      'CMS does not currently provide a service-area footprint we can use to find comparable hospices.',
+    market_unavailable:
+      'Quality data is not available for your organization right now.',
+    provider_not_found:
+      'Quality data is not available for your organization right now.',
+    no_quality_data:
+      'Medicare has not published the quality measures we report for your organization.'
+  };
+  const QUALITY_FALLBACK = 'Quality data is not available for your organization right now.';
+  const QUALITY_ERROR = "We couldn't load your quality intelligence right now. Please try again.";
+
+  // Direction-aware chip language. The backend's verdict field is POSITIONAL
+  // (above/below the median numerically), so it is deliberately NOT used to pick
+  // a colour or a word here - `favorable` is, because that is the only field
+  // that accounts for whether a higher or a lower value is better care.
+  function verdictChip(m) {
+    if (m.verdict === 'not_published') return { cls: 'none', text: 'Not published by CMS' };
+    if (m.verdict === 'insufficient_peers') return { cls: 'none', text: 'Not enough comparable hospices' };
+    if (m.favorable === true) return { cls: 'favorable', text: 'Stronger than the peer median' };
+    if (m.favorable === false) return { cls: 'unfavorable', text: 'Weaker than the peer median' };
+    return { cls: 'even', text: 'At the peer median' };
+  }
+
+  // Rendered at the measure's natural published precision. Nothing is padded to a
+  // decimal CMS did not publish and nothing is rounded up into a better number.
+  const fmtNum = (v) => {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    const r = Math.round(v * 100) / 100;
+    return Number.isInteger(r) ? String(r) : String(r);
+  };
+  function fmtValue(m, v) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    const u = m.unitLabel || '';
+    if (u === '%') return fmtNum(v) + '%';
+    return u ? fmtNum(v) + ' ' + u : fmtNum(v);
+  }
+  const fmtPeriod = (p) => (p ? friendlyReleaseDate(p.start) + ' – ' + friendlyReleaseDate(p.end) : '—');
+
+  // The transparent count sentence. Directional wording comes from the measure's
+  // own direction, and favorablePeerCount is already oriented by the backend, so
+  // "higher than" and "lower than" are always literally true of the numbers.
+  function countSentence(m) {
+    if (!m.comparisonAllowed) return '';
+    const word = m.direction === 'lower_better' ? 'lower' : 'higher';
+    return 'Your ' + m.shortLabel.toLowerCase() + ' of ' + fmtValue(m, m.provider.value)
+      + ' is ' + word + ' than ' + m.favorablePeerCount + ' of ' + m.peers.comparableCount
+      + ' overlapping hospices with a published score.';
+  }
+
+  // The module is not available to this provider at all - either the release
+  // gate is still off, or Medicare publishes no hospice quality data for this
+  // care type. Either way the compact card and the report are removed entirely,
+  // leaving exactly the Coming soon / Not applicable module card that the
+  // Quality panel showed before this feature existed.
+  //
+  // Deliberately NOT a status message. "Medicare has not published the quality
+  // measures we report for your organization" is true of the data but
+  // misleading about the cause when the real reason is that we have not
+  // activated the module yet, and that is the provider-facing window this
+  // whole gate exists to remove.
+  function qualityNotActivated() {
+    const card = document.getElementById('q-card');
+    if (card) card.hidden = true;
+    const status = document.getElementById('q-status');
+    if (status) { status.hidden = true; status.textContent = ''; status.classList.remove('is-error'); }
+    const sum = document.getElementById('q-summary');
+    if (sum) { sum.hidden = true; sum.textContent = ''; }
+    const toggle = document.getElementById('q-toggle');
+    if (toggle) toggle.hidden = true;
+    const body = document.getElementById('q-body');
+    if (body) body.hidden = true;
+    INTEL_ACCORDION.close('quality');
+  }
+
+  function qualityMessage(status) {
+    const el = document.getElementById('q-status');
+    el.hidden = false;
+    el.classList.remove('is-error');
+    el.textContent = QUALITY_MESSAGES[status] || QUALITY_FALLBACK;
+    document.getElementById('q-body').hidden = true;
+    const sum = document.getElementById('q-summary');
+    sum.hidden = true; sum.textContent = '';
+    document.getElementById('q-toggle').hidden = true;
+    INTEL_ACCORDION.close('quality');
+  }
+
+  function renderQualityMetrics(q) {
+    const ci = q.summary.careIndex;
+    const cards = [];
+    // Real CMS values only. When CMS published no Care Index the card says so
+    // rather than showing a 0 or a dash that reads like a score.
+    cards.push(ci && typeof ci.value === 'number'
+      ? [fmtNum(ci.value) + ' / ' + fmtNum(ci.scaleMax), 'CMS Hospice Care Index']
+      : ['Not published', 'CMS Hospice Care Index']);
+    cards.push([num(q.summary.publishedMeasureCount) + ' of ' + num(q.summary.surfacedMeasureCount),
+      'Measures CMS published for you']);
+    cards.push([num(q.summary.comparedMeasureCount), 'Measures with a peer comparison']);
+    cards.push([num(q.peerContext.overlappingFacilityCount), 'Overlapping hospices']);
+    document.getElementById('q-metrics').innerHTML = cards
+      .map(([v, l]) => '<div class="cms-metric"><div class="v">' + esc(v) + '</div><div class="l">' + esc(l) + '</div></div>')
+      .join('');
+  }
+
+  function renderQualityCms(measures) {
+    document.getElementById('q-cms-table').querySelector('tbody').innerHTML = measures.map((m) => {
+      // A measure CMS withheld shows the reason, never a zero. valueRaw is the
+      // literal CMS cell, so "Not Available" is CMS's own word for it.
+      const val = m.provider.published
+        ? esc(fmtValue(m, m.provider.value))
+        : '<span class="q-period">' + esc(m.provider.valueRaw ? 'Not published by CMS' : 'Not published by CMS') + '</span>';
+      const denom = m.provider.published && typeof m.provider.denominator === 'number'
+        ? '<div class="q-period">Sample size ' + esc(num(m.provider.denominator)) + '</div>' : '';
+      const fn = m.provider.footnoteCodes && m.provider.footnoteCodes.length
+        ? '<div class="q-period">CMS footnote ' + esc(m.provider.footnoteCodes.join(', ')) + '</div>' : '';
+      return '<tr><td><span class="q-measure">' + esc(m.shortLabel) + '</span>'
+        + '<div class="q-period">' + esc(m.cmsMeasureName) + '</div></td>'
+        + '<td class="n">' + val + denom + fn + '</td>'
+        + '<td class="n"><span class="q-period">' + esc(fmtPeriod(m.period)) + '</span></td></tr>';
+    }).join('');
+  }
+
+  function renderQualityBench(q) {
+    document.getElementById('q-bench-hint').textContent =
+      'A comparable hospice is one that shares at least one of your CMS service ZIP codes and has a published value '
+      + 'for that same measure. At least ' + q.peerContext.minimumComparablePeers
+      + ' are required before any comparison is shown.';
+    document.getElementById('q-bench-table').querySelector('tbody').innerHTML = q.measures.map((m) => {
+      const chip = verdictChip(m);
+      const yours = m.provider.published ? esc(fmtValue(m, m.provider.value)) : '—';
+      const median = m.comparisonAllowed ? esc(fmtValue(m, m.peers.median)) : '—';
+      const n = m.peers ? num(m.peers.comparableCount) : '—';
+      const sentence = m.comparisonAllowed
+        ? '<p class="q-sentence">' + esc(countSentence(m)) + '</p>' : '';
+      return '<tr><td><span class="q-measure">' + esc(m.shortLabel) + '</span>' + sentence + '</td>'
+        + '<td class="n">' + yours + '</td>'
+        + '<td class="n">' + median + '</td>'
+        + '<td class="n">' + esc(n) + '</td>'
+        + '<td><span class="q-chip ' + chip.cls + '"><span class="d" aria-hidden="true"></span>'
+        + esc(chip.text) + '</span></td></tr>';
+    }).join('');
+  }
+
+  function renderQualityList(codes, byCode, listId, emptyId, emptyText) {
+    const ul = document.getElementById(listId);
+    const empty = document.getElementById(emptyId);
+    ul.innerHTML = codes.map((c) => {
+      const m = byCode[c];
+      if (!m) return '';
+      return '<li><span class="q-measure">' + esc(m.shortLabel) + '</span>'
+        + '<p class="q-sentence">' + esc(countSentence(m)) + '</p></li>';
+    }).join('');
+    const has = codes.length > 0;
+    ul.hidden = !has;
+    empty.hidden = has;
+    if (!has) empty.textContent = emptyText;
+  }
+
+  function renderQualityCahps(q, byCode) {
+    const dim = (q.dimensions || []).find((d) => d.conditional === true);
+    const el = document.getElementById('q-cahps');
+    if (!dim) { document.getElementById('q-cahps-block').hidden = true; return; }
+    document.getElementById('q-cahps-block').hidden = false;
+    // Never blank and never a zero: either CMS's real published values, or CMS's
+    // absence stated in one plain sentence.
+    if (!dim.anyPublished) { el.innerHTML = '<p class="q-empty">' + esc(dim.message) + '</p>'; return; }
+    el.innerHTML = dim.measureCodes.map((c) => {
+      const m = byCode[c];
+      if (!m) return '';
+      if (!m.provider.published) {
+        return '<p class="q-sentence"><span class="q-measure">' + esc(m.shortLabel)
+          + '</span> — ' + esc('Not published by CMS') + '</p>';
+      }
+      const cmp = m.comparisonAllowed ? ' ' + countSentence(m) : '';
+      return '<p class="q-sentence"><span class="q-measure">' + esc(m.shortLabel) + '</span> — '
+        + esc(fmtValue(m, m.provider.value)) + esc(cmp) + '</p>';
+    }).join('');
+  }
+
+  function renderQualityNote(q) {
+    const meth = q.methodology || {};
+    const notList = (meth.notRepresenting || []).join(', ');
+    document.getElementById('q-note').textContent =
+      (meth.peerDefinition || '')
+      + ' Measures CMS did not publish for a hospice are excluded from every comparison; they are never treated as zero '
+      + 'or estimated. Comparisons do not represent ' + notList + '.'
+      + " CMS's own published percentile fields are not used, because they rank the raw measure value without accounting "
+      + 'for whether a higher or lower value is better.';
+  }
+
+  function initQualityAccordion() {
+    const panel = document.getElementById('q-detail');
+    const toggle = document.getElementById('q-toggle');
+    const collapse = document.getElementById('q-collapse');
+    if (!panel || !toggle) return;
+    toggle.dataset.labelClosed = 'View quality insights';
+    toggle.dataset.labelOpen = 'Hide quality insights';
+    const labelSpan = document.getElementById('q-toggle-label');
+    if (labelSpan) labelSpan.setAttribute('data-toggle-label', '');
+    INTEL_ACCORDION.register('quality', panel, [toggle, collapse].filter(Boolean));
+    toggle.addEventListener('click', () => INTEL_ACCORDION.toggle('quality', toggle));
+    if (collapse) collapse.addEventListener('click', () => INTEL_ACCORDION.close('quality', toggle));
+  }
+
+  async function loadCmsQuality(caps) {
+    const statusEl = document.getElementById('q-status');
+    const cap = (caps && caps.cmsQuality) || { status: 'not_applicable' };
+    // Synchronous, before any await, so the card is never briefly visible while
+    // the request is in flight.
+    if (cap.status !== 'available') { qualityNotActivated(); return; }
+    const card = document.getElementById('q-card');
+    if (card) card.hidden = false;
+    let data;
+    try {
+      data = await callApi('/api/provider-intelligence/quality');
+    } catch (_err) {
+      statusEl.hidden = false;
+      statusEl.classList.add('is-error');
+      statusEl.textContent = QUALITY_ERROR;
+      document.getElementById('q-body').hidden = true;
+      return;
+    }
+    if (!data || data.status !== 'resolved') { qualityMessage(data && data.status); return; }
+
+    const byCode = {};
+    (data.measures || []).forEach((m) => { byCode[m.measureCode] = m; });
+
+    renderQualityMetrics(data);
+    renderQualityCms(data.measures || []);
+    renderQualityBench(data);
+    renderQualityList(data.strengths || [], byCode, 'q-strengths', 'q-strengths-empty',
+      'No measure is above the overlapping-hospice median by enough comparable data to report yet.');
+    renderQualityList(data.areasToReview || [], byCode, 'q-review', 'q-review-empty',
+      'No measure falls below the overlapping-hospice median where a comparison is available.');
+    renderQualityCahps(data, byCode);
+    renderQualityNote(data);
+
+    const rk = data.freshness && data.freshness.qualityRelease && data.freshness.qualityRelease.releaseKey;
+    const pretty = friendlyReleaseDate(rk);
+    const fresh = document.getElementById('q-fresh');
+    if (pretty) { fresh.textContent = 'CMS quality data current through ' + pretty; fresh.hidden = false; }
+
+    statusEl.hidden = true;
+    document.getElementById('q-body').hidden = false;
+
+    // Compact live summary from real CMS values in the same response. No second
+    // request, no recalculation, and no percentage that CMS did not publish.
+    const ci = data.summary.careIndex;
+    const bits = [];
+    if (ci && typeof ci.value === 'number') {
+      bits.push('Care Index: ' + fmtNum(ci.value) + ' of ' + fmtNum(ci.scaleMax));
+    }
+    if (typeof data.summary.comparedMeasureCount === 'number') {
+      bits.push(num(data.summary.comparedMeasureCount) + ' measures compared');
+    }
+    const sum = document.getElementById('q-summary');
+    if (bits.length) { sum.textContent = bits.join(' \u00b7 '); sum.hidden = false; }
+    document.getElementById('q-toggle').hidden = false;
+  }
+
   // ---- section navigation ----
   const panels = Array.from(document.querySelectorAll('.mi-panel'));
   const nav = document.getElementById('mi-nav');
@@ -717,7 +1124,9 @@
       buildNav();
       // Fire and forget: a market failure must not blank the whole page.
       initMyMarketAccordion();
+      initQualityAccordion();
       loadCmsMarket(data.capabilities || {});
+      loadCmsQuality(data.capabilities || {});
       status.classList.add('hidden');
       document.getElementById('mi-shell').classList.remove('hidden');
       show(initialSection());
