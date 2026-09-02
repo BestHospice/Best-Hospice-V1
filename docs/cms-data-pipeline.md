@@ -914,6 +914,103 @@ internal account may later hold a genuine identity row, but the row still assert
 real identity; the *account*, not the identity, is what is marked
 non-authoritative.
 
+## Provider CMS resolution
+
+The authoritative chain, implemented in `cms-provider-resolver.js`:
+
+```
+Provider -> ProviderExternalIdentity -> CmsFacility -> CmsFacilityServiceArea
+```
+
+`resolveProviderCmsContext(prisma, providerId)` takes **only** a provider id.
+Care type, CMS source, CCN and facility are all derived from the database; none
+is ever accepted from a caller.
+
+### Rules
+
+- **`ProviderExternalIdentity` is authoritative.** It means *"this provider IS
+  that external provider."* Resolution happens only through a real identity row.
+- **The identity must be verified.** `verifiedAt` is the repo's acceptance
+  marker — the identity importer writes it from the human reviewer's
+  `reviewedAt`. A null `verifiedAt` is treated as not accepted.
+- **Both `source` and `externalId` are required.** The facility join uses the
+  composite `(source, ccn)` natural key. A CCN alone is not unique across
+  sources, and joining on it would let a `cms_home_health` record answer for a
+  hospice provider.
+- **Ambiguous identities fail closed.** `@@unique([source, externalId])` makes a
+  CCN globally exclusive, but nothing stops one provider holding several
+  identities in the same source. Two verified identities returns
+  `multiple_verified_identities` rather than picking one.
+- **A missing facility fails closed.** A verified identity may outlive the
+  ingested data — there is deliberately no foreign key between them — so this
+  returns `facility_not_found`. It is a staleness signal, not licence to guess.
+- **No fallback of any kind.** No provider-name match, no city/state match, no
+  ZIP or service-area inference, no nearest-facility guess, no auto-created
+  identity rows.
+- **`internalRole` has no effect on identity resolution.** It governs public and
+  business isolation only. A `cms_reference` account and a real customer use the
+  identical resolver, and neither resolves without a verified identity.
+
+### Care type to CMS source
+
+| careType | CMS source | status |
+| --- | --- | --- |
+| `hospice`, `hospice-care` | `cms_hospice` | supported |
+| everything else | — | `unsupported_care_type` |
+
+The mapping is explicit and closed. It deliberately does **not** use
+`normalizeCareType()`, which falls back to `hospice` for anything unrecognised —
+correct for service-page routing, wrong here, because it would claim Medicare
+publishes hospice data about a palliative or assisted-living provider.
+
+`home-health` is intentionally absent. The registry maps that family to
+`cms_home_health` and the archiver captures it, but no ingester writes
+`CmsFacility` rows for it yet, so there is nothing to resolve to. Adding it later
+is one line in `CMS_SOURCE_BY_CARE_TYPE` plus one in `IDENTIFIER_TYPE_BY_SOURCE`;
+the resolver needs no redesign.
+
+### Result states
+
+| status | meaning |
+| --- | --- |
+| `resolved` | full CMS context returned |
+| `provider_not_found` | no such provider |
+| `unsupported_care_type` | no CMS dataset is resolved for this care type |
+| `no_verified_identity` | no accepted identity for the applicable source |
+| `multiple_verified_identities` | ambiguous — refusing to choose |
+| `facility_not_found` | verified identity, but that facility is not ingested |
+
+Unresolved states are ordinary, not errors: the resolver returns a structured
+status rather than throwing.
+
+### Service areas and freshness
+
+Service areas are fetched through the relational key `(facilityId, source)`,
+never independently by CCN, and ordered by ZIP so output is deterministic.
+`@@unique([facilityId, zip])` already guarantees one row per ZIP, so there is no
+application-level dedupe.
+
+`CmsFacility` is **current state**, updated in place as CMS republishes, with
+`firstSeenRelease` / `lastSeenRelease` bracketing observation. "Still current" is
+therefore computed by comparing `lastSeenReleaseId` against the newest ingested
+release for the source — it is not a stored flag.
+
+### Runtime consumer
+
+`GET /api/provider-intelligence/cms-context` — requires provider authentication,
+resolves the authenticated provider only. There is no `providerId` parameter in
+the path, query or body, so one provider cannot inspect another's CMS context.
+Read-only: it creates no identity and writes nothing.
+
+The response is an explicit projection, never raw Prisma rows. Provider email,
+Stripe ids, billing mode, subscription state, `planTier` and `internalRole` are
+all excluded.
+
+**UI capability is unchanged.** `cmsQuality`, `cmsRatings`, `cahps`, competitor,
+market-opportunity and reports modules all remain `coming_soon`, and
+`provider-intelligence.html` does not consume this endpoint. Flipping any
+capability to `available` is a separate, separately authorized step.
+
 ## Not implemented
 
 Named explicitly so this document is not mistaken for a description of a larger
