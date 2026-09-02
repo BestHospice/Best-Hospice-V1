@@ -339,6 +339,32 @@ section('ingester — structure and safety');
   ok(/schemaVersion >= 2/.test(ING_SRC), '81. Archive V2 manifest facts are required, never inferred');
   ok(!/for\s*\([^)]*\)\s*\{[^}]*await prisma\./.test(ING_CODE),
      '82. no query is issued inside a loop over facilities in the planning phase');
+
+  // The first production write was killed by the OOM killer while the backend
+  // was parsing/binding a 1000-row, 13,000-parameter, ~296 KB statement on a
+  // 256 MB instance. The batch bound is now load-bearing safety, not tuning.
+  const chunk = ING_CODE.match(/const CHUNK = (\d+);/);
+  ok(!!chunk, '83. the measurement batch size is a fixed literal, not computed at runtime');
+  ok(chunk && Number(chunk[1]) <= 500,
+     '84. the batch size is bounded at 500 rows or fewer', chunk && chunk[1]);
+  ok(chunk && Number(chunk[1]) >= 50,
+     '   …and not so small that round trips dominate a production run', chunk && chunk[1]);
+  ok(chunk && Number(chunk[1]) * 13 <= 10000,
+     '85. bound parameters per statement stay under 10,000',
+     chunk && String(Number(chunk[1]) * 13));
+  // The batch loop must remain INSIDE the one transaction: batching must never
+  // become a way to commit part of a release.
+  const txBody = ING_CODE.match(/\$transaction\(async \(tx\) => \{([\s\S]*?)\n    \}, \{ timeout/);
+  ok(txBody && /const CHUNK = \d+;/.test(txBody[1]),
+     '86. the batch size is declared INSIDE the transaction');
+  ok(txBody && /for \(let i = 0; i < toWrite\.length; i \+= CHUNK\)/.test(txBody[1]),
+     '87. every batch is issued inside the ONE transaction — no partial commit is possible');
+  ok(txBody && !/\b(COMMIT|ROLLBACK|BEGIN)\b/.test(txBody[1]),
+     '88. the batch loop opens no nested or intermediate transaction');
+  ok(txBody && !/retry|backoff|setTimeout|attempt\s*\+\+/i.test(txBody[1]),
+     '89. no retry or sleep was introduced that could double-write');
+  ok(txBody && !/try\s*\{/.test(txBody[1]),
+     '90. no try/catch inside the transaction could swallow a failed batch');
 }
 
 // ======================= FAIL-CLOSED, END TO END ============================
