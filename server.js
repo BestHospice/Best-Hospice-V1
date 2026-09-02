@@ -14,6 +14,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const cron = require('node-cron');
 const { runNewsletterPipeline, verifyUnsubscribeToken, loadSchedule: loadNewsletterSchedule, ensureNewsletterIssuesTable } = require('./newsletter-pipeline');
 const { resolveProviderCmsContext } = require('./cms-provider-resolver');
+const { buildProviderCmsMarket } = require('./cms-hospice-market');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -5909,6 +5910,28 @@ app.get('/api/provider-intelligence/cms-context', requireProviderAuth, async (re
     res.json(result);
   } catch (err) {
     console.error('Provider CMS context failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Provider CMS market overlap. Same isolation contract as cms-context: resolves
+// the authenticated provider ONLY, with no providerId anywhere in the path, query
+// or body, so one provider cannot inspect another's market.
+//
+// Read-only, and CMS supply data only - it returns no Best Hospice account
+// information about any provider, including the caller's own billing or contact
+// details.
+//
+// Backend foundation. No Market Intelligence capability is flipped by it and no
+// UI consumes it yet.
+app.get('/api/provider-intelligence/my-market', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await buildProviderCmsMarket(prisma, ctx.providerId);
+    res.json(result);
+  } catch (err) {
+    console.error('Provider CMS market failed', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

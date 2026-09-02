@@ -1011,6 +1011,116 @@ market-opportunity and reports modules all remain `coming_soon`, and
 `provider-intelligence.html` does not consume this endpoint. Flipping any
 capability to `available` is a separate, separately authorized step.
 
+## My Market Phase 1 — CMS hospice service-area overlap
+
+Implemented in `cms-hospice-market.js` as
+`buildProviderCmsMarket(prisma, providerId)`.
+
+### Definitions
+
+**Market** — the set of ZIP codes the provider's resolved `CmsFacility` serves,
+exactly as CMS publishes them in `CmsFacilityServiceArea`.
+
+**Competitor** — another `CmsFacility` with `source = cms_hospice` that serves at
+least one of those ZIPs. The provider's own facility is excluded, as is every
+facility from any other CMS source.
+
+Competitors are identified by CMS facility identity — `(source, ccn)` — never by
+name. Two facilities with identical names and different CCNs are two competitors,
+and there is no name-based dedupe.
+
+### What overlap does NOT mean
+
+CMS service-area overlap is a **supply proxy**. It does **not** imply referral
+relationships, patient volume, geographic exclusivity, or facility quality. It is
+not derived from mileage, city, county, state, provider-name similarity, Best
+Hospice coverage radius, or Best Hospice lead geography, and it never consults
+Best Hospice subscription or payment status. There is no fuzzy fallback of any
+kind: identity must resolve through the verified-identity chain first, or no
+market is produced.
+
+### Metrics
+
+| metric | formula |
+| --- | --- |
+| `sharedZipCount` | ZIPs in both facilities' service areas |
+| `providerZipCount` | ZIPs in the provider facility's service area |
+| `competitorZipCount` | ZIPs in the competitor facility's service area |
+| `providerOverlapPct` | `sharedZipCount / providerZipCount * 100` |
+| `competitorOverlapPct` | `sharedZipCount / competitorZipCount * 100` |
+| `averageCompetitorsPerProviderZip` | Σ(competitors serving each provider ZIP) / `providerZipCount` |
+
+All percentages use **2 decimal places**, rounded on the scaled integer so the
+result is deterministic across platforms.
+
+`zipDensity` returns `{ zip, competitorCount }` for every provider ZIP, ordered by
+ZIP ascending — the basis for later market-density and opportunity work.
+
+### Ranking
+
+`sharedZipCount DESC` is the primary signal and is an integer, so ties are broken
+before any float comparison decides an order. Tie-breakers, in order:
+`providerOverlapPct DESC`, `competitorOverlapPct DESC`, facility `name ASC`,
+`ccn ASC`.
+
+Ranking deliberately ignores CMS quality, Best Hospice payment or subscription
+status, lead relationships, and distance.
+
+### Query strategy
+
+Two aggregate SQL statements, both parameterised Prisma tagged templates. Raw SQL
+is used because the computation is a set operation — self-join
+`CmsFacilityServiceArea` on `zip`, group by facility, count — and
+`@@index([source, zip])` plus the denormalised `source` column make it a single
+indexed join. Expressing it through the Prisma client would mean either pulling
+every matching row into Node or issuing one query per competitor, an N+1 over a
+table already holding ~342k rows.
+
+**A successful market resolution costs 9 database round trips**, constant
+regardless of how many competitors exist: 7 from the resolver (provider,
+identities, facility, its two release includes, service areas, latest release) and
+2 aggregates here.
+
+**Operational note.** These queries are sensitive to PostgreSQL planner
+statistics. Measured on a synthetic 401-facility / 11,860-row fixture: **~2,000 ms
+with stale statistics, ~20 ms after `ANALYZE`** — roughly a 100× difference. After
+a large CMS ingest, the first market queries will be slow until autovacuum
+analyses `CmsFacilityServiceArea`. Running `ANALYZE` at the end of ingestion would
+remove that window; it is not done today.
+
+### Snapshot semantics
+
+`CmsFacility` and `CmsFacilityServiceArea` are current state, updated in place as
+CMS republishes. My Market Phase 1 therefore describes the market according to the
+**current ingested CMS snapshot**. No historical reconstruction is attempted and
+no history table is introduced. Freshness metadata is passed through from the
+resolver unchanged.
+
+### Result states
+
+`resolved` · `no_service_area` · `market_unavailable`, plus every resolver state
+propagated verbatim: `provider_not_found`, `unsupported_care_type`,
+`no_verified_identity`, `multiple_verified_identities`, `facility_not_found`.
+Unresolved states return a structured result rather than throwing. A facility with
+zero service-area ZIPs returns `no_service_area` — a market is never invented from
+the facility's city or state.
+
+### Runtime consumer
+
+`GET /api/provider-intelligence/my-market` — requires provider authentication and
+resolves the authenticated provider only. No `providerId` is accepted from the
+path, query or body. Read-only. The response carries CMS supply data plus the
+provider's own `id` and `name`; no email, phone, billing, Stripe, subscription,
+`planTier` or `internalRole` fields appear anywhere in it.
+
+`Provider.internalRole` has no effect on market resolution, exactly as with
+identity resolution.
+
+**UI exposure remains separately gated.** My Market, Competitors, Quality,
+Opportunities and Reports all remain `coming_soon`, and
+`provider-intelligence.html` consumes neither this endpoint nor `cms-context`.
+Flipping any capability to `available` is a separate, separately authorized step.
+
 ## Not implemented
 
 Named explicitly so this document is not mistaken for a description of a larger
