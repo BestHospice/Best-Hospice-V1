@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 const Anthropic = require('@anthropic-ai/sdk');
 const cron = require('node-cron');
 const { runNewsletterPipeline, verifyUnsubscribeToken, loadSchedule: loadNewsletterSchedule, ensureNewsletterIssuesTable } = require('./newsletter-pipeline');
+const { resolveProviderCmsContext } = require('./cms-provider-resolver');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -5883,6 +5884,31 @@ app.patch('/api/provider/profile', requireProviderAuth, async (req, res) => {
     res.json({ ok: true, provider: updated });
   } catch (err) {
     console.error('Provider profile update failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Provider CMS context. The first runtime consumer of ProviderExternalIdentity.
+//
+// Resolves the authenticated provider ONLY. There is deliberately no providerId
+// parameter anywhere in the path, query or body: the id comes from the bearer
+// token via getProviderContext(), so one provider cannot inspect another's CMS
+// context by guessing an id.
+//
+// Read-only. It creates no identity, writes nothing, and performs no fuzzy
+// matching. Unresolvable providers get a structured status, not an error - "we
+// have not matched you to CMS yet" is an ordinary state, not a failure.
+//
+// This is backend foundation. No Market Intelligence capability is flipped to
+// available by it, and no UI consumes it yet.
+app.get('/api/provider-intelligence/cms-context', requireProviderAuth, async (req, res) => {
+  try {
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await resolveProviderCmsContext(prisma, ctx.providerId);
+    res.json(result);
+  } catch (err) {
+    console.error('Provider CMS context failed', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
