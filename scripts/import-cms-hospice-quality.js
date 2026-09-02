@@ -749,7 +749,37 @@ const pad = (s, n) => String(s).padEnd(n);
       const idRows = await tx.cmsFacility.findMany({ where: { source: dbSource }, select: { id: true, ccn: true } });
       const ccnToId = new Map(idRows.map((r) => [r.ccn, r.id]));
 
-      const CHUNK = 1000;
+      // 250 rows per statement, not 1000.
+      //
+      // The first production attempt died here: the PostgreSQL backend running
+      // this INSERT was terminated by signal 9 (the Linux OOM killer) on a
+      // 256 MB Render instance, and the server logged our exact statement as the
+      // failed process. Prisma surfaced that as P1017 "Server has closed the
+      // connection". No timeout was involved - production has statement_timeout,
+      // transaction_timeout, lock_timeout and idle_in_transaction_session_timeout
+      // all set to 0.
+      //
+      // At 1000 rows each statement carried 13,000 bound parameters, ~111 KB of
+      // SQL text and ~184 KB of parameter data - a ~296 KB peak payload the
+      // backend had to parse, plan and bind in one go, while pgbackrest was
+      // concurrently lz4-compressing the WAL our own transaction was generating.
+      // At 250 that peak drops ~4x, to ~72 KB and 3,250 parameters, which is the
+      // one lever we control without giving up atomicity.
+      //
+      // Measured locally on the full 66,690-row release, 250 is also the FASTEST
+      // of the sizes tried (3.60 s, vs 3.83 s at 1000 and 4.23 s at 100): total
+      // bytes on the wire are essentially constant, so smaller batches cost only
+      // round trips, and below ~250 those round trips start to dominate. A longer
+      // transaction is itself exposure here, so going smaller is not safer.
+      //
+      // Deterministic and bounded: batch boundaries depend only on toWrite's
+      // order and CHUNK, never on timing or database state, so a rerun issues
+      // byte-identical statements. ALL batches stay inside the ONE surrounding
+      // transaction - if any batch throws, the whole ingestion rolls back and
+      // zero rows survive.
+      const CHUNK = 250;
+      const t0Insert = Date.now();
+      let batchNo = 0;
       for (let i = 0; i < toWrite.length; i += CHUNK) {
         const chunk = toWrite.slice(i, i + CHUNK);
         const params = []; const tuples = [];
@@ -775,6 +805,17 @@ const pad = (s, n) => String(s).padEnd(n);
              "denominator"=EXCLUDED."denominator", "starRating"=EXCLUDED."starRating",
              "periodStart"=EXCLUDED."periodStart", "periodEnd"=EXCLUDED."periodEnd",
              "updatedAt"=NOW()`, ...params);
+        batchNo++;
+        // Progress, so a run that dies mid-transaction tells us exactly how far
+        // it got. Logging only: nothing is committed here and the transaction
+        // boundary is unchanged.
+        if (batchNo % 50 === 0 || i + CHUNK >= toWrite.length) {
+          const done = Math.min(i + CHUNK, toWrite.length);
+          const total = Math.ceil(toWrite.length / CHUNK);
+          console.log('  batch ' + String(batchNo).padStart(4) + '/' + total
+            + '   rows ' + done + '/' + toWrite.length
+            + '   ' + ((Date.now() - t0Insert) / 1000).toFixed(1) + 's');
+        }
       }
 
       // Postconditions inside the transaction.
