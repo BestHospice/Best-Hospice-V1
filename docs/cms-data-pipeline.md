@@ -1121,6 +1121,71 @@ Opportunities and Reports all remain `coming_soon`, and
 `provider-intelligence.html` consumes neither this endpoint nor `cms-context`.
 Flipping any capability to `available` is a separate, separately authorized step.
 
+## My Market Phase 2 — the first provider-visible CMS module
+
+My Market is the **first CMS-backed module a provider can actually see**. It is
+rendered in `provider-intelligence.html` from the authenticated
+`GET /api/provider-intelligence/my-market` endpoint.
+
+### How availability is decided
+
+Two gates, in order:
+
+1. **Capability precondition** — `cmsMarketOverlap` in
+   `providerIntelligenceCapabilities()`. `available` only when the provider's care
+   type maps to a CMS source we ingest (hospice today), otherwise
+   `not_applicable`. This decides whether the page attempts the request at all.
+2. **The endpoint is the authority.** Even for a hospice, the UI renders metrics
+   *only* when the response is `status: "resolved"`. A provider with no verified
+   identity, ambiguous identities, a missing facility, or no service area gets a
+   plain-language unavailable message and **no numbers**.
+
+`available` at the capability layer is therefore a statement about the dataset,
+not a promise about this provider. Nothing else moved: Competitors
+(`competitorBenchmarking`), Quality (`cmsQuality` / `cmsRatings` / `cahps`),
+Opportunities (`marketOpportunity`) and Reports remain `coming_soon`, and
+`stateLicensing` remains `not_applicable`.
+
+### What a resolved provider sees
+
+Market overview metrics, their CMS profile (facility name, city/state, Medicare
+CCN, service ZIP count), overlapping hospices ranked by shared ZIP count, ZIP-code
+overlap counts, and a freshness label derived from the latest ingested release.
+
+Competitors are shown in **backend order**; the UI paginates but never re-ranks.
+Top 10 by default with a "show all" control, and 15 ZIP rows with the same.
+
+### Fail-closed provider-visible states
+
+Every backend status maps to plain language. Raw status codes, resolver enums,
+`cms_hospice`, database UUIDs, `internalRole` and raw error text never reach the
+screen, and no state fabricates a zero metric to fill the space. An unexpected
+network or API failure shows a single generic retry message.
+
+### Methodology disclosure
+
+The panel carries a permanent note: *"Market overlap is based on CMS-reported
+hospice service ZIP codes. Shared ZIP codes indicate overlapping service
+footprints, not patient volume, market share, referral relationships, or
+quality."*
+
+No payment, subscription or lead signal affects what is shown or how competitors
+are ordered.
+
+### Internal reference accounts
+
+`internalRole` has no effect here, exactly as in the resolver and the market
+service. The internal CMS reference account renders through the identical
+authenticated path as any real provider, and nothing in the UI is special-cased
+to it.
+
+### Note on release dates
+
+`releaseKey` is a plain `YYYY-MM-DD` calendar date. The UI parses its parts
+explicitly and formats with `timeZone: 'UTC'` — letting the browser parse the
+string and render in local time would show the previous day for anyone west of
+UTC, the same off-by-one that was caught during ingestion.
+
 ## Not implemented
 
 Named explicitly so this document is not mistaken for a description of a larger

@@ -89,7 +89,11 @@ section('Market Intelligence capabilities unchanged');
     ok(new RegExp(`${m}: \\{\\s*\\n\\s*status: 'coming_soon'`).test(caps), `17. ${m} still coming_soon`);
   }
   const html = fs.readFileSync(path.join(ROOT, 'provider-intelligence.html'), 'utf8');
-  ok(!/my-market|cms-context/.test(html), '18. provider-intelligence.html consumes neither endpoint');
+  // Phase 2 deliberately wires My Market into the UI. The raw resolver endpoint
+  // stays unconsumed, and no capability above was flipped.
+  ok(/\/api\/provider-intelligence\/my-market/.test(html),
+     '18. provider-intelligence.html consumes the My Market endpoint (Phase 2)');
+  ok(!/cms-context/.test(html), '   …and still does not consume the raw resolver endpoint');
 }
 
 // ============================ DATABASE BEHAVIOUR =============================
@@ -261,10 +265,16 @@ const DB = process.env.TEST_DATABASE_URL;
       let n = 0; counted.$on('query', () => { n += 1; });
       for (let i = 0; i < 12; i++) await mkFacility(`M713${String(i).padStart(2, '0')}`, `SCALE ${i}`, ['11111', '11112']);
       await counted.$queryRawUnsafe('SELECT 1');
+      // Prisma emits 'query' events asynchronously, so the counter can be short
+      // by one if it is read in the same tick the promise settles. Flush the
+      // event loop before sampling, or this assertion flakes.
+      const settle = () => new Promise((r) => setTimeout(r, 50));
       n = 0; const small = await buildProviderCmsMarket(counted, 'p-int');
+      await settle();
       const roundTripsSmall = n;
       for (let i = 12; i < 40; i++) await mkFacility(`M713${String(i).padStart(2, '0')}`, `SCALE ${i}`, ['11111', '11112']);
       n = 0; const big = await buildProviderCmsMarket(counted, 'p-int');
+      await settle();
       const roundTripsBig = n;
       ok(big.competitors.length > small.competitors.length,
          '59. the competitor population really did grow',
