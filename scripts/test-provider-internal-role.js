@@ -25,6 +25,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const SRC = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
 const SCHEMA = fs.readFileSync(path.join(ROOT, 'prisma', 'schema.prisma'), 'utf8');
+const LEAD_RULE = fs.readFileSync(path.join(ROOT, 'consumer-lead-eligibility.js'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detail) => {
@@ -82,7 +83,12 @@ section('central helper semantics');
 section('gate presence at each call site');
 {
   const gates = [
-    [/WHERE \$\{INTERNAL_PROVIDER_SQL\}\s*\n\s*OR "receiveClientLeads" = false/, 'A. client lead exclusion lists internal FIRST'],
+      // Consumer lead eligibility moved from a raw-SQL blocklist to the positive
+      // Prisma allowlist in consumer-lead-eligibility.js. The guarantee is unchanged
+      // and stricter: internalRole is still the FIRST condition, now expressed as an
+      // equality a query cannot accidentally satisfy.
+      [/where: \{ id: \{ in: requestedIds \}, \.\.\.CONSUMER_LEAD_ELIGIBLE_WHERE \}/,
+        'A. client lead eligibility is re-derived server-side, scoped to the requested ids'],
     [/"receiveJobLeads", "internalRole" FROM "Provider"/, 'B. job lead fan-out selects internalRole'],
     [/if \(isInternalProvider\(p\)\) return false;[\s\S]{0,120}activelyHiring === false/, '   …and rejects internal before activelyHiring/receiveJobLeads'],
     [/async function fetchAllProviders\(\) \{\s*\n\s*const providers = await prisma\.provider\.findMany\(\{\s*\n\s*where: PUBLIC_PROVIDER_WHERE,/, 'C. fetchAllProviders is public-only'],
@@ -97,6 +103,13 @@ section('gate presence at each call site');
     [/\/api\/providers\/email\/checkout[\s\S]{0,900}if \(isInternalProvider\(provider\)\)/, 'H. BOTH checkout entry points are gated (id and email)']
   ];
   gates.forEach(([re, label], i) => ok(re.test(SRC), `${7 + i}. ${label}`));
+    // The shared consumer-lead rule must keep internalRole first, for the same
+    // reason the old raw SQL did: an internal account stays excluded even if
+    // receiveClientLeads is later flipped back to true by hand.
+    ok(/const CONSUMER_LEAD_ELIGIBLE_WHERE = Object\.freeze\(\{\s*\n\s*internalRole: null,\s*\n\s*receiveClientLeads: true,/.test(LEAD_RULE),
+       '   A. the shared consumer-lead rule lists internalRole FIRST, then receiveClientLeads');
+    ok(/internalRole != null\) return false;/.test(LEAD_RULE),
+       '   A. …and its in-memory twin rejects any non-null internalRole');
   ok((SRC.match(/PUBLIC_PROVIDER_WHERE/g) || []).length >= 12,
      '19. every public provider collection carries the public-only filter',
      `${(SRC.match(/PUBLIC_PROVIDER_WHERE/g) || []).length} usages`);

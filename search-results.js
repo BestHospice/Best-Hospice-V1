@@ -112,11 +112,15 @@ function getPlanBadge(planTier) {
   return known.includes(tier) ? '<span class="badge">Partner</span>' : '';
 }
 
+// Returns '' for anything unrecognised rather than defaulting to 'Hospice Care'.
+// Both call sites already guard on a falsy value, so an unknown or future care
+// type now renders no label instead of mislabelling an agency to a family.
 function formatCareType(value) {
   const type = String(value || '').toLowerCase();
+  if (type === 'hospice' || type === 'hospice-care') return 'Hospice Care';
   if (type === 'palliative' || type === 'palliative-care') return 'Palliative Care';
   if (type === 'home' || type === 'home-care') return 'Home Care';
-  return 'Hospice Care';
+  return '';
 }
 
 
@@ -565,9 +569,29 @@ async function startResultsFlow() {
     const initialResult = await notifyInitialLead();
     currentLeadId = initialResult.leadId || null;
 
-    reassuranceMessage.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
-    notifyMini.textContent = `We've notified ${currentNearbyProviders.length} matched providers near ${cityName}.`;
-    setStatus(`We've notified ${currentNearbyProviders.length} providers near ${geo.label}.`);
+    // The SERVER is authoritative about who was notified. It re-derives
+    // eligibility from the submitted ZIP against its own provider records, so its
+    // count can legitimately be lower than the number of cards drawn here - a
+    // provider sitting right on the radius boundary, or one who has since paused
+    // lead intake. Reporting the browser's own count would overstate what
+    // actually happened.
+    const notifiedCount = Number.isFinite(Number(initialResult.notified))
+      ? Number(initialResult.notified)
+      : currentNearbyProviders.length;
+
+    if (initialResult.waitlisted || notifiedCount === 0) {
+      // Nobody was eligible once the server checked. Say so plainly rather than
+      // claiming a notification that did not happen; the server has already
+      // recorded the coverage request and alerted the team.
+      showNoProvidersState(cityName);
+      setStatus('', false);
+      return;
+    }
+
+    const providerWord = notifiedCount === 1 ? 'provider' : 'providers';
+    reassuranceMessage.textContent = `We've notified ${notifiedCount} matched ${providerWord} near ${cityName} and they will be reaching out to you shortly at ${contactTarget}. Most families hear back within a few hours.`;
+    notifyMini.textContent = `We've notified ${notifiedCount} matched ${providerWord} near ${cityName}.`;
+    setStatus(`We've notified ${notifiedCount} ${providerWord} near ${geo.label}.`);
     showResultsWithOptionalPrompt();
   } catch (err) {
     console.error(err);

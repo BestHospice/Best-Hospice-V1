@@ -16,6 +16,10 @@ const { runNewsletterPipeline, verifyUnsubscribeToken, loadSchedule: loadNewslet
 const { resolveProviderCmsContext } = require('./cms-provider-resolver');
 const { buildProviderCmsMarket } = require('./cms-hospice-market');
 const { buildProviderCmsQuality } = require('./cms-hospice-quality');
+const {
+  CONSUMER_LEAD_ELIGIBLE_WHERE,
+  providerCoversLocation
+} = require('./consumer-lead-eligibility');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -534,6 +538,63 @@ async function ensureJobLeadTable() {
     ALTER TABLE "Provider" ADD COLUMN IF NOT EXISTS "receiveJobLeads" BOOLEAN NOT NULL DEFAULT TRUE
   `);
   jobLeadTableReady = true;
+}
+
+// ─── CONSUMER LOCATION RESOLUTION ────────────────────────────────────────────
+// One ZIP -> coordinates path for both the browser (/api/geocode) and the
+// server-side eligibility checks, so display and routing cannot disagree about a
+// provider sitting near a radius boundary.
+//
+// Cached in process because /api/notify now resolves a location on every consumer
+// submission, and consumer ZIPs repeat heavily. Bounded so a stream of distinct
+// ZIPs cannot grow it without limit. ZIP centroids do not move, so no TTL.
+const ZIP_GEOCODE_CACHE = new Map();
+const ZIP_GEOCODE_CACHE_MAX = 5000;
+
+async function geocodeZipCentroid(zip) {
+  const clean = String(zip == null ? '' : zip).trim();
+  if (!/^\d{5}$/.test(clean)) return null;
+  if (ZIP_GEOCODE_CACHE.has(clean)) return ZIP_GEOCODE_CACHE.get(clean);
+  let result = null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(clean)}&countrycodes=us&limit=1&addressdetails=1`;
+    const response = await fetch(url, {
+      headers: { 'Accept-Language': 'en', 'User-Agent': 'BestHospice/1.0 (contact@besthospice.com)' }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data) && data.length) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          result = { lat, lon, label: data[0].display_name || '' };
+        }
+      }
+    }
+  } catch (err) {
+    console.error('ZIP geocode failed', err && err.message);
+  }
+  // Only successes are cached. A transient outage must not pin a null for the
+  // lifetime of the process, because a null means "notify nobody by radius".
+  if (result) {
+    if (ZIP_GEOCODE_CACHE.size >= ZIP_GEOCODE_CACHE_MAX) {
+      ZIP_GEOCODE_CACHE.delete(ZIP_GEOCODE_CACHE.keys().next().value);
+    }
+    ZIP_GEOCODE_CACHE.set(clean, result);
+  }
+  return result;
+}
+
+/**
+ * The location a consumer lead is evaluated against. `lat`/`lon` are null when
+ * geocoding failed, which providerCoversLocation() treats as "no radius match" -
+ * so a geocode outage narrows the eligible set to providers with an explicit ZIP
+ * list and never widens it.
+ */
+async function resolveConsumerLocation(zip) {
+  const clean = String(zip == null ? '' : zip).trim();
+  const geo = /^\d{5}$/.test(clean) ? await geocodeZipCentroid(clean) : null;
+  return { zip: clean, lat: geo ? geo.lat : null, lon: geo ? geo.lon : null };
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -3822,25 +3883,43 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       }
     }
 
-    const rawToList = providers.filter((p) => !!p.id);
-    if (!rawToList.length) return res.status(400).json({ error: 'No providers to notify' });
+    // CANDIDATES, not recipients. The browser tells us which providers it showed
+    // the family; it does not get to decide who receives their information.
+    const requestedIds = [...new Set(providers.map((p) => p && p.id).filter(Boolean))];
+    if (!requestedIds.length) return res.status(400).json({ error: 'No providers to notify' });
     await ensureJobLeadTable();
     await ensureProviderStripeColumns();
-    // Excluded if notifications are switched off, if billing is switched off, or
-    // if they are billed but Stripe does not show them current. Providers on the
-    // default 'free' mode are never excluded here.
-    // An internal provider is excluded unconditionally and first: this must hold
-    // even if receiveClientLeads is later flipped back to true by hand, which is
-    // exactly the accident the internalRole column exists to survive.
-    const disabledClientLeads = await prisma.$queryRawUnsafe(
-      `SELECT id FROM "Provider"
-       WHERE ${INTERNAL_PROVIDER_SQL}
-          OR "receiveClientLeads" = false
-          OR "billingMode" = 'off'
-          OR ("billingMode" = 'billed' AND COALESCE("subscriptionStatus", '') NOT IN ('active', 'trialing'))`
-    );
-    const disabledClientSet = new Set(disabledClientLeads.map((r) => r.id));
-    const toList = rawToList.filter((p) => !disabledClientSet.has(p.id));
+
+    // ELIGIBILITY IS RE-DERIVED SERVER-SIDE, in two independent halves.
+    //
+    // Flags, in the database, scoped to the requested ids by an `in:` filter -
+    // which is what makes the client's list able only to NARROW the eligible set,
+    // never to expand it. Naming a provider who is internal, opted out, on
+    // billingMode 'off', or billed without a current subscription now notifies
+    // nobody. Stated positively via CONSUMER_LEAD_ELIGIBLE_WHERE: the previous
+    // implementation built a blocklist and notified everything else, so anything
+    // that failed to disqualify a provider silently let them through.
+    //
+    // Every contact detail comes from these rows. The client-supplied email and
+    // phone are no longer consulted at all.
+    const candidates = await prisma.provider.findMany({
+      where: { id: { in: requestedIds }, ...CONSUMER_LEAD_ELIGIBLE_WHERE },
+      select: {
+        id: true, name: true, email: true, secondaryContactEmail: true, phone: true,
+        planTier: true, lat: true, lon: true, serviceRadiusKm: true, serviceZipCodes: true
+      }
+    });
+
+    // Geography, on the server, against the canonical coverage rule: a configured
+    // serviceZipCodes list is exclusive, otherwise lat/lon within the clamped
+    // consumer radius. A geocode failure leaves lat/lon null, which matches no
+    // radius-mode provider - so an outage narrows the set and can never broadcast.
+    //
+    // Provider careType is deliberately not consulted. Ordinary consumer requests
+    // intentionally reach all eligible nearby partners regardless of care type,
+    // because families frequently do not know which level of care they need.
+    const consumerLocation = await resolveConsumerLocation(zip);
+    const toList = candidates.filter((p) => providerCoversLocation(p, consumerLocation));
 
     // Every nearby provider is switched off, lapsed, or not receiving leads.
     // Route the family into New Territory Outreach rather than failing on them:
@@ -3884,7 +3963,8 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       }
       await logAdminAction(
         'system', 'NOTIFY_NO_AVAILABLE_PROVIDERS', wlZip,
-        { matched: rawToList.length, excluded: rawToList.length },
+        { requested: requestedIds.length, flagEligible: candidates.length, excluded: requestedIds.length,
+          geocoded: consumerLocation.lat != null },
         hashIp(req.ip || '')
       );
       return res.json({ ok: true, waitlisted: true, notified: 0 });
@@ -4019,22 +4099,13 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       if (impressionData.length) await prisma.providerImpression.createMany({ data: impressionData });
     }
 
-    const providerIds = toList.map((p) => p.id).filter(Boolean);
-    let providerMap = new Map();
-    if (providerIds.length) {
-      const providerRecords = await prisma.provider.findMany({
-        where: { id: { in: providerIds } },
-        select: { id: true, planTier: true, email: true, secondaryContactEmail: true, phone: true }
-      });
-      providerMap = new Map(providerRecords.map((p) => [p.id, p]));
-    }
-
+    // toList rows came straight from the database above, so no second lookup is
+    // needed and no client-supplied contact detail is ever used.
     const jobs = toList
       .map((p) => {
-      const providerRecord = providerMap.get(p.id);
       const recipientEmails = uniqueEmails([
-        String(providerRecord?.email || p.email || '').trim(),
-        String(providerRecord?.secondaryContactEmail || '').trim()
+        String(p.email || '').trim(),
+        String(p.secondaryContactEmail || '').trim()
       ]);
       if (!recipientEmails.length) return null;
       const delayMs = PLAN_NOTIFY_DELAY_MS;
@@ -4062,7 +4133,7 @@ app.post('/api/notify', rateLimit, async (req, res) => {
           additionalNotes,
           providerEmail: recipientEmails[0],
           providerEmails: recipientEmails,
-          providerPhone: providerRecord?.phone || p.phone || ''
+          providerPhone: p.phone || ''
         }
       };
     })
@@ -4118,7 +4189,10 @@ app.post('/api/notify', rateLimit, async (req, res) => {
       }
     }
 
-    res.json({ ok: true, queued: true, sent: jobs.length, leadId: lead.id, mode: notifyMode });
+    // `notified` is the authoritative count of providers the SERVER found eligible,
+    // reported on every branch (0 on the waitlisted paths) so the page never has to
+    // guess. `sent` is kept for backward compatibility with anything reading it.
+    res.json({ ok: true, queued: true, sent: jobs.length, notified: jobs.length, leadId: lead.id, mode: notifyMode });
   } catch (err) {
     console.error('Notify failed', err);
     res.status(500).json({ error: 'Notify failed' });
@@ -6733,10 +6807,19 @@ app.get('/api/provider-auth/providers', async (_req, res) => {
 });
 
 // Public provider data for search results page
+// The provider directory that feeds consumer lead matching, and its ONLY consumer
+// is search-results.js. It therefore applies the SAME eligibility rule as
+// /api/notify, so families are never shown a "Partner" card for an agency the
+// server would then refuse to notify. Geography stays client-side here because
+// the browser needs distances for the map and the ordering.
+//
+// This restriction deliberately does NOT extend to /api/public/providers, which
+// is the marketing/directory feed for the home page and the state landing pages -
+// a provider who has paused lead intake should still appear in the directory.
 app.get('/api/search/providers', async (_req, res) => {
   try {
     const providers = await prisma.provider.findMany({
-      where: PUBLIC_PROVIDER_WHERE,
+      where: { ...PUBLIC_PROVIDER_WHERE, ...CONSUMER_LEAD_ELIGIBLE_WHERE },
       orderBy: { name: 'asc' },
       select: {
         id: true, name: true, email: true, phone: true, website: true,
@@ -8799,6 +8882,16 @@ app.delete('/api/admin/testimonials/:id', async (req, res) => {
 });
 
 // POST /api/discharge-referral — submit a discharge planner referral
+// Discharge-referral care-type labels. Shared by the planner confirmation, the
+// provider notification and the manual-routing alert so one wording is used
+// everywhere. care_type is context for the receiving agency, never a filter.
+const DISCHARGE_CARE_LABELS = Object.freeze({
+  hospice: 'Hospice Care',
+  home_health: 'Home Health Care',
+  palliative: 'Palliative Care',
+  unsure: 'Unsure — Needs Guidance'
+});
+
 app.post('/api/discharge-referral', async (req, res) => {
   if (req.body?.website) return res.json({ ok: true });
   try {
@@ -8836,7 +8929,7 @@ app.post('/api/discharge-referral', async (req, res) => {
       String(notes || '').trim()
     );
     if (EMAIL_ENABLED && planner_email) {
-      const careLabels = { hospice: 'Hospice Care', home_health: 'Home Health Care', palliative: 'Palliative Care', unsure: 'Unsure — Needs Guidance' };
+      const careLabels = DISCHARGE_CARE_LABELS;
       const urgencyLabels = { immediate: 'Immediate (today/tomorrow)', within_week: 'Within the week', planning_ahead: 'Planning ahead (2+ weeks)' };
       const html = `<div style="font-family:sans-serif;max-width:560px;">
         <h2 style="color:#0f2744;">Referral Received — Best Hospice & Home Health</h2>
@@ -8849,42 +8942,100 @@ app.post('/api/discharge-referral', async (req, res) => {
       </div>`;
       sendGenericEmail(String(planner_email).trim().toLowerCase(), 'Referral Received — Best Hospice & Home Health', html).catch(() => {});
     }
-    // Notify providers in the patient's area
+    // Notify providers in the patient's area.
+    //
+    // FAIL CLOSED. This block previously fell back to `allProviders` whenever
+    // geocoding failed, which meant a transient geocoder outage broadcast a named
+    // patient's details to every public provider in the country. It also ignored
+    // serviceZipCodes entirely and defaulted a missing radius to 96.6 km, so the
+    // two providers who configure explicit ZIP lists (and therefore carry
+    // serviceRadiusKm = 0) were reached for ZIPs they had deliberately excluded.
+    //
+    // The referral row is already persisted above with status 'new', so notifying
+    // zero providers loses nothing: the referral is preserved and surfaced to
+    // admin for manual routing via /api/admin/discharge-referrals.
+    //
+    // care_type is CONTEXT, not a filter. It is required on the form, stored on
+    // the referral, and included in the provider and admin notifications, but it
+    // does not restrict eligibility: nearby agencies are expected to help the
+    // planner determine and coordinate the appropriate level of care, and the
+    // network is not dense enough to suppress useful referrals on care type. The
+    // form's own "Unsure - Needs Guidance" option reflects that intent.
     if (EMAIL_ENABLED) {
+      const patientZip = String(patient_zip || '').trim();
+      const careTypeLabel = DISCHARGE_CARE_LABELS[care_type] || String(care_type || '').trim();
+      let routedCount = 0;
+      let unroutedReason = null;
       try {
-        const geo = await geocodeAddress(`${String(patient_zip).trim()}, USA`).catch(() => null);
-        const allProviders = await prisma.provider.findMany({
-          where: PUBLIC_PROVIDER_WHERE,
-          select: { id: true, email: true, secondaryContactEmail: true, lat: true, lon: true, serviceRadiusKm: true }
-        });
-        const nearbyProviders = geo
-          ? allProviders.filter((p) => {
-              const radiusKm = Number(p.serviceRadiusKm) || 96.6;
-              return haversineKm(geo.lat, geo.lon, p.lat, p.lon) <= radiusKm;
-            })
-          : allProviders;
-        const providerList = nearbyProviders.map((p) => ({
-          id: p.id,
-          emails: [p.email, p.secondaryContactEmail].filter(Boolean)
-        }));
-        if (providerList.length) {
-          sendDischargeReferralNotifications({
-            patientName: `${String(patient_first).trim()} ${String(patient_last).trim()}`,
-            patientZip: String(patient_zip).trim(),
-            careType: String(care_type).trim(),
-            urgency: String(urgency).trim(),
-            plannerName: String(planner_name).trim(),
-            plannerTitle: String(planner_title || '').trim(),
-            plannerEmail: String(planner_email).trim(),
-            plannerPhone: String(planner_phone || '').trim(),
-            facility: String(facility).trim(),
-            insurance: String(insurance || '').trim(),
-            notes: String(notes || '').trim(),
-            providers: providerList
-          }).catch((err) => console.error('Discharge referral provider notifications failed', err));
+        const patientLocation = await resolveConsumerLocation(patientZip);
+        if (patientLocation.lat == null || patientLocation.lon == null) {
+          // Zero providers. Never a fallback to everyone.
+          unroutedReason = 'geocode_failed';
+        } else {
+          const candidates = await prisma.provider.findMany({
+            where: CONSUMER_LEAD_ELIGIBLE_WHERE,
+            select: {
+              id: true, email: true, secondaryContactEmail: true,
+              lat: true, lon: true, serviceRadiusKm: true, serviceZipCodes: true
+            }
+          });
+          const nearbyProviders = candidates.filter((p) => providerCoversLocation(p, patientLocation));
+          const providerList = nearbyProviders.map((p) => ({
+            id: p.id,
+            emails: [p.email, p.secondaryContactEmail].filter(Boolean)
+          })).filter((p) => p.emails.length);
+          routedCount = providerList.length;
+          if (providerList.length) {
+            sendDischargeReferralNotifications({
+              patientName: `${String(patient_first).trim()} ${String(patient_last).trim()}`,
+              patientZip,
+              careType: careTypeLabel,
+              urgency: String(urgency).trim(),
+              plannerName: String(planner_name).trim(),
+              plannerTitle: String(planner_title || '').trim(),
+              plannerEmail: String(planner_email).trim(),
+              plannerPhone: String(planner_phone || '').trim(),
+              facility: String(facility).trim(),
+              insurance: String(insurance || '').trim(),
+              notes: String(notes || '').trim(),
+              providers: providerList
+            }).catch((err) => console.error('Discharge referral provider notifications failed', err));
+          } else {
+            unroutedReason = 'no_eligible_provider_covers_zip';
+          }
         }
       } catch (err) {
-        console.error('Could not fetch providers for discharge referral notification', err);
+        console.error('Could not resolve providers for discharge referral notification', err);
+        unroutedReason = 'provider_lookup_failed';
+      }
+
+      if (unroutedReason) {
+        // Surfaced for manual handling through the mechanisms that already exist.
+        try {
+          await sendGenericEmail(
+            'contact@besthospice.com',
+            `Discharge referral needs manual routing - ZIP ${patientZip}`,
+            `<div style="font-family: Arial, Helvetica, sans-serif; line-height:1.6; color:#222;">
+               <p>A discharge referral was received but was sent to <strong>ZERO providers</strong> and needs manual routing.</p>
+               <p><strong>Reason:</strong> ${unroutedReason}</p>
+               <p><strong>Referral ID:</strong> ${id}<br />
+               <strong>Patient ZIP:</strong> ${patientZip}<br />
+               <strong>Care type requested:</strong> ${careTypeLabel}<br />
+               <strong>Urgency:</strong> ${String(urgency || '').trim()}<br />
+               <strong>Facility:</strong> ${String(facility || '').trim()}<br />
+               <strong>Planner:</strong> ${String(planner_name || '').trim()} &lt;${String(planner_email || '').trim()}&gt;</p>
+               <p>The referral is saved with status "new" and is visible in the admin discharge referral list.
+                  Patient details are deliberately not included in this email.</p>
+             </div>`
+          );
+        } catch (mailErr) {
+          console.error('Discharge referral manual-routing email failed', mailErr);
+        }
+        await logAdminAction(
+          'system', 'DISCHARGE_REFERRAL_UNROUTED', patientZip,
+          { referralId: id, reason: unroutedReason, careType: care_type, notified: 0 },
+          hashIp(req.ip || '')
+        );
       }
     }
     res.json({ ok: true });
