@@ -58,7 +58,10 @@ function makeDom() {
     tagName: 'BUTTON', dataset: {}, _attrs: {}, _listeners: {}, _focused: 0,
     _classes: new Set(),
     classList: { add(c) { els[id]._classes.add(c); }, remove(c) { els[id]._classes.delete(c); },
-                 contains(c) { return els[id]._classes.has(c); } },
+                 contains(c) { return els[id]._classes.has(c); },
+                 toggle(c, on) { const set = els[id]._classes;
+                   const want = on === undefined ? !set.has(c) : !!on;
+                   if (want) set.add(c); else set.delete(c); return want; } },
     setAttribute(k, v) { this._attrs[k] = v; },
     getAttribute(k) { return this._attrs[k]; },
     addEventListener(ev, fn) { (this._listeners[ev] = this._listeners[ev] || []).push(fn); },
@@ -73,7 +76,9 @@ function makeDom() {
     scrollIntoView() { this._scrolled = true; }
   });
   ['q-card', 'q-summary', 'q-status', 'q-toggle', 'q-toggle-label', 'q-detail', 'q-collapse',
-   'q-body', 'q-metrics', 'q-cms-table', 'q-bench-table', 'q-bench-hint', 'q-strengths',
+   'q-body', 'q-primary', 'q-care-index', 'q-care-index-note', 'q-verdicts-block', 'q-verdict-list',
+   'q-verdict-empty', 'q-verdict-note', 'q-coverage',
+   'q-cms-table', 'q-bench-table', 'q-bench-hint', 'q-strengths',
    'q-strengths-empty', 'q-review', 'q-review-empty', 'q-cahps', 'q-cahps-block', 'q-fresh', 'q-note',
    'cms-market-status', 'cms-market-body', 'cms-metrics', 'cms-profile', 'cms-competitors',
    'cms-comp-more', 'cms-competitors-block', 'cms-density-more', 'cms-density-block', 'cms-fresh',
@@ -369,7 +374,12 @@ section('markup: the seven expanded sections and the provenance labels');
   for (const [id, label] of [
     ['q-card', 'compact Quality card'], ['q-summary', 'live summary line'],
     ['q-toggle', 'View quality insights trigger'], ['q-detail', 'expanded report panel'],
-    ['q-collapse', 'Hide quality insights trigger'], ['q-metrics', '1. quality snapshot'],
+    ['q-collapse', 'Hide quality insights trigger'],
+    ['q-primary', '1a. quality snapshot — primary CMS metric'],
+    ['q-care-index', '1b. …its Care Index value element'],
+    ['q-verdicts-block', '1c. quality snapshot — Best Hospice comparison summary'],
+    ['q-verdict-list', '1d. …its verdict tally'],
+    ['q-coverage', '1e. quality snapshot — data coverage'],
     ['q-cms-block', '2. CMS-measured performance'], ['q-bench-block', '3. peer benchmarks'],
     ['q-strengths-block', '4. relative strengths'], ['q-review-block', '5. areas to review'],
     ['q-cahps-block', '6. family caregiver experience'], ['q-note', '7. methodology and freshness']
@@ -446,9 +456,16 @@ let R, dom;
        '36. an unpublished Care Index is omitted from the summary, not shown as 0');
     ok(/3 measures compared/.test(d2.els['q-summary'].textContent),
        '   …and the remaining real fact is still shown');
-    ok(/Not published/.test(d2.els['q-metrics'].innerHTML),
-       '37. the snapshot card says "Not published" rather than showing a zero');
-    ok(!/>0 \/ 10</.test(d2.els['q-metrics'].innerHTML), '   …and never renders 0 / 10');
+    ok(/Not published by CMS/.test(d2.els['q-care-index'].textContent),
+       '37. the primary metric says "Not published by CMS" rather than showing a zero',
+       d2.els['q-care-index'].textContent);
+    ok(!/0 \/ 10/.test(d2.els['q-care-index'].textContent)
+       && d2.els['q-care-index'].textContent.trim()[0] !== '0',
+       '   …and never renders 0 or 0 / 10');
+    ok(d2.els['q-care-index'].classList.contains('is-unpublished'),
+       '   …and is styled as unpublished rather than as a headline number');
+    ok(/does not calculate a replacement/.test(d2.els['q-care-index-note'].textContent),
+       '   …and states that Best Hospice invents no replacement');
   }
 
   section('CMS-measured performance section');
@@ -799,6 +816,210 @@ let R, dom;
        '127. the comparison sentence never attributes the comparison to CMS');
     ok(!/percentile|score of|rating of/i.test(cmp(P(10, 7, 3, 0))),
        '128. …and invents no percentile or score');
+  }
+
+  section('Task 2: snapshot hierarchy — primary CMS metric vs comparison summary');
+  {
+    // A fixture matching the live CCN 121509 shape: 10 compared measures split
+    // 3 favourable / 6 unfavourable / 1 tied, Care Index 10 of 10.
+    const build = (verdicts, careIndexValue) => {
+      const ms = verdicts.map((fav, i) => measure({
+        measureCode: 'Q_' + i, shortLabel: 'Synthetic measure ' + i,
+        dimension: i === 0 ? 'careIndex' : 'staffing',
+        provider: { value: 50, valueRaw: '50', published: true, suppressed: false,
+                    denominator: null, starRating: null, footnoteCodes: [] },
+        peers: { comparableCount: 12, median: 40, min: 10, max: 90,
+                 lowerThanProvider: 8, higherThanProvider: 3, equalToProvider: 1 },
+        verdict: fav === null ? 'at_peer_median' : (fav ? 'above_peer_median' : 'below_peer_median'),
+        favorable: fav, favorablePeerCount: 8, differenceFromPeerMedian: 10,
+        comparisonAllowed: true
+      }));
+      const d = clone(RESOLVED);
+      d.measures = ms;
+      d.strengths = ms.filter((m) => m.favorable === true).map((m) => m.measureCode);
+      d.areasToReview = ms.filter((m) => m.favorable === false).map((m) => m.measureCode);
+      d.summary.careIndex = careIndexValue === null ? null
+        : { measureCode: 'Q_0', value: careIndexValue, scaleMax: 10, unitLabel: 'of 10', comparisonAllowed: true };
+      d.summary.surfacedMeasureCount = 10;
+      d.summary.publishedMeasureCount = 10;
+      d.summary.comparedMeasureCount = ms.filter((m) => m.comparisonAllowed).length;
+      d.peerContext.overlappingFacilityCount = 10;
+      return d;
+    };
+    const LIVE = [true, true, true, false, false, false, false, false, false, null];
+
+    const d = makeDom();
+    const Rx = loadRenderers(d, async () => build(LIVE, 10));
+    Rx.initQualityAccordion();
+    await Rx.loadCmsQuality({ cmsQuality: { status: 'available' } });
+
+    // ---- 1 & 2: the Care Index is primary and CMS-attributed ----
+    ok(d.els['q-care-index'].textContent === '10 / 10',
+       '129. the Care Index renders as its own primary value', d.els['q-care-index'].textContent);
+    ok(!d.els['q-care-index'].classList.contains('is-unpublished'),
+       '130. …styled as a published headline number');
+    ok(/Published by Medicare for your CCN/.test(d.els['q-care-index-note'].textContent),
+       '131. the Care Index is explicitly attributed to CMS/Medicare');
+    ok(/not a Best Hospice rating/.test(d.els['q-care-index-note'].textContent),
+       '132. …and explicitly disclaimed as NOT a Best Hospice rating');
+    ok(/Reported by CMS/.test(PAGE.slice(PAGE.indexOf('id="q-primary"') - 400, PAGE.indexOf('id="q-care-index"'))),
+       '133. the primary block carries the "Reported by CMS" provenance label');
+    // The Care Index must NOT sit in the same element as the counts any more.
+    const cov = d.els['q-coverage'].innerHTML;
+    ok(!/Care Index/.test(cov),
+       '134. the Care Index is NOT rendered among the measure-count metrics');
+    ok(!/10 \/ 10/.test(cov), '   …and its "10 / 10" form does not appear in the coverage row');
+
+    // ---- 3, 4, 5: the verdict tally ----
+    const vl = d.els['q-verdict-list'].innerHTML;
+    ok(/<span class="n">3<\/span><span class="lbl">Relative strengths<\/span>/.test(vl),
+       '135. 3 relative strengths');
+    ok(/<span class="n">6<\/span><span class="lbl">Areas to review<\/span>/.test(vl),
+       '136. 6 areas to review');
+    ok(/<span class="n">1<\/span><span class="lbl">At peer median<\/span>/.test(vl),
+       '137. 1 at peer median');
+    ok(/Across 10 measures with a peer comparison\./.test(d.els['q-verdict-note'].textContent),
+       '138. 3 + 6 + 1 = 10, the compared-measure count', d.els['q-verdict-note'].textContent);
+    ok(/Best Hospice comparison/.test(PAGE.slice(PAGE.indexOf('id="q-verdicts-block"') - 200,
+        PAGE.indexOf('id="q-verdict-list"'))),
+       '139. the tally is attributed to Best Hospice comparison, not CMS');
+    ok(d.els['q-verdict-empty'].hidden === true, '140. the neutral state is hidden when comparisons exist');
+
+    // measures without a valid comparison must not enter the tally
+    const withUncomparable = build(LIVE, 10);
+    withUncomparable.measures.push(measure({
+      measureCode: 'Q_FEW', shortLabel: 'Thin measure', comparisonAllowed: false, favorable: null,
+      verdict: 'insufficient_peers',
+      provider: { value: 55, valueRaw: '55', published: true, suppressed: false,
+                  denominator: null, starRating: null, footnoteCodes: [] },
+      peers: { comparableCount: 4, median: null, min: null, max: null,
+               lowerThanProvider: null, higherThanProvider: null, equalToProvider: null }
+    }));
+    withUncomparable.measures.push(measure({
+      measureCode: 'Q_SUP', shortLabel: 'Withheld measure', comparisonAllowed: false, favorable: null,
+      verdict: 'not_published',
+      provider: { value: null, valueRaw: 'Not Available', published: false, suppressed: true,
+                  denominator: null, starRating: null, footnoteCodes: ['11'] }
+    }));
+    const d3 = makeDom();
+    const R3 = loadRenderers(d3, async () => withUncomparable);
+    R3.initQualityAccordion();
+    await R3.loadCmsQuality({ cmsQuality: { status: 'available' } });
+    ok(/<span class="n">1<\/span><span class="lbl">At peer median<\/span>/.test(d3.els['q-verdict-list'].innerHTML),
+       '141. an insufficient-peer measure and a suppressed measure do NOT inflate the tie count');
+    ok(/Across 10 measures with a peer comparison\./.test(d3.els['q-verdict-note'].textContent),
+       '142. …and the total stays at the 10 comparable measures',
+       d3.els['q-verdict-note'].textContent);
+
+    // singular labels
+    const d4 = makeDom();
+    const R4 = loadRenderers(d4, async () => build([true, false, null], 7));
+    R4.initQualityAccordion();
+    await R4.loadCmsQuality({ cmsQuality: { status: 'available' } });
+    ok(/<span class="lbl">Relative strength<\/span>/.test(d4.els['q-verdict-list'].innerHTML),
+       '143. a single strength is labelled in the singular');
+    ok(/<span class="lbl">Area to review<\/span>/.test(d4.els['q-verdict-list'].innerHTML),
+       '144. …and so is a single area to review');
+    ok(/Across 3 measures with a peer comparison\./.test(d4.els['q-verdict-note'].textContent),
+       '145. the total follows the fixture');
+
+    // ---- 6: zero comparisons -> neutral state, never "0 · 0 · 0" ----
+    const d5 = makeDom();
+    const none = build([], 10);
+    none.measures = [measure({ measureCode: 'Q_NONE', shortLabel: 'Thin', comparisonAllowed: false,
+      verdict: 'insufficient_peers',
+      provider: { value: 55, valueRaw: '55', published: true, suppressed: false,
+                  denominator: null, starRating: null, footnoteCodes: [] },
+      peers: { comparableCount: 3, median: null, min: null, max: null,
+               lowerThanProvider: null, higherThanProvider: null, equalToProvider: null } })];
+    none.strengths = []; none.areasToReview = []; none.summary.comparedMeasureCount = 0;
+    const R5 = loadRenderers(d5, async () => none);
+    R5.initQualityAccordion();
+    await R5.loadCmsQuality({ cmsQuality: { status: 'available' } });
+    ok(d5.els['q-verdict-empty'].hidden === false,
+       '146. zero comparisons shows the neutral state');
+    ok(d5.els['q-verdict-empty'].textContent === 'No peer comparisons available',
+       '147. …with the exact agreed wording', d5.els['q-verdict-empty'].textContent);
+    ok(d5.els['q-verdict-list'].hidden === true && d5.els['q-verdict-list'].innerHTML === '',
+       '148. …and the tally is removed, not rendered as zeros');
+    ok(!/0.*Relative strength|Relative strengths.*0/.test(d5.els['q-verdict-list'].innerHTML),
+       '149. …so no misleading "0 strengths · 0 areas to review · 0 at peer median"');
+    ok(/at least 5 overlapping hospices/.test(d5.els['q-verdict-note'].textContent),
+       '150. …and the reason cites the existing minimum-comparable-peer rule',
+       d5.els['q-verdict-note'].textContent);
+
+    // ---- 7: missing Care Index never becomes zero ----
+    const d6 = makeDom();
+    const R6 = loadRenderers(d6, async () => build(LIVE, null));
+    R6.initQualityAccordion();
+    await R6.loadCmsQuality({ cmsQuality: { status: 'available' } });
+    ok(d6.els['q-care-index'].textContent === 'Not published by CMS',
+       '151. a missing Care Index says so', d6.els['q-care-index'].textContent);
+    ok(!/\b0\b/.test(d6.els['q-care-index'].textContent),
+       '152. …and never renders a zero');
+    ok(d6.els['q-care-index'].classList.contains('is-unpublished'),
+       '153. …and is de-emphasised rather than shown as a headline');
+    ok(/Best Hospice does not calculate a replacement/.test(d6.els['q-care-index-note'].textContent),
+       '154. …and states that no replacement is invented');
+    ok(d6.els['q-verdict-list'].hidden === false,
+       '155. the comparison summary still renders when only the Care Index is missing');
+
+    // ---- 8: no proprietary score / rating / grade / ranking / percentile ----
+    const snapshotText = [d.els['q-care-index'].textContent, d.els['q-care-index-note'].textContent,
+      d.els['q-verdict-list'].innerHTML, d.els['q-verdict-note'].textContent,
+      d.els['q-verdict-empty'].textContent, d.els['q-coverage'].innerHTML].join(' ');
+    for (const bad of ['quality score', 'overall score', 'percentile', 'grade', 'ranking', 'ranked',
+                                              'best hospice score', 'out of 100', 'we rate', 'our rating']) {
+      ok(!new RegExp(bad, 'i').test(snapshotText), `156. the snapshot never says "${bad}"`);
+    }
+    ok((snapshotText.match(/rating/gi) || []).length === 1
+       && /not a Best Hospice rating/.test(snapshotText),
+       '157. the only use of "rating" is the disclaimer that this is NOT one');
+
+    // ---- 9: the data-currency indicator survives ----
+    ok(/CMS quality data current through Aug 19, 2026/.test(d.els['q-fresh'].textContent),
+       '158. the CMS data-current-through date is still shown', d.els['q-fresh'].textContent);
+    ok(d.els['q-fresh'].hidden === false, '159. …and is visible');
+
+    // ---- C: coverage row labels are unambiguous ----
+    ok(/CMS measures available/.test(cov), '160. coverage: "CMS measures available"');
+    ok(/10 of 10/.test(cov), '   …rendered as 10 of 10');
+    ok(/Measures compared/.test(cov), '161. coverage: "Measures compared"');
+    ok(/Overlapping hospices/.test(cov), '162. coverage: "Overlapping hospices"');
+    ok(!/Measures CMS published for you|Measures with a peer comparison/.test(cov),
+       '163. the old ambiguous labels are gone');
+
+    // zero overlapping hospices must not crash or read oddly
+    const d7 = makeDom();
+    const solo = build([], 10);
+    solo.measures = []; solo.strengths = []; solo.areasToReview = [];
+    solo.summary.comparedMeasureCount = 0; solo.summary.publishedMeasureCount = 0;
+    solo.peerContext.overlappingFacilityCount = 0;
+    const R7 = loadRenderers(d7, async () => solo);
+    R7.initQualityAccordion();
+    await R7.loadCmsQuality({ cmsQuality: { status: 'available' } });
+    ok(/Overlapping hospices/.test(d7.els['q-coverage'].innerHTML)
+       && /class="v">0</.test(d7.els['q-coverage'].innerHTML),
+       '164. zero overlapping hospices renders as 0 in the coverage row, not a crash');
+    ok(d7.els['q-verdict-empty'].hidden === false,
+       '165. …and the comparison summary falls back to the neutral state');
+
+    // ---- 11: responsive markup / CSS ----
+    ok(/\.q-snapshot \{ display:grid;[\s\S]{0,200}minmax\(0,1fr\) minmax\(0,1fr\)/.test(PAGE),
+       '166. the snapshot is a two-column grid using minmax(0,1fr) so long values cannot overflow');
+    ok(/@media \(max-width:760px\) \{\s*\n\s*\.q-snapshot \{ grid-template-columns:minmax\(0,1fr\); \}/.test(PAGE),
+       '167. …and stacks to one column on narrow screens');
+    ok(/\.q-primary-value \{[^}]*font-size:clamp\(/.test(PAGE),
+       '168. the headline value uses clamp() so it scales instead of overflowing');
+    ok(/\.q-coverage \{ display:grid;[\s\S]{0,160}repeat\(auto-fit,minmax\(160px,1fr\)\)/.test(PAGE),
+       '169. the coverage row reflows with auto-fit rather than a fixed column count');
+    ok(/\.q-primary, \.q-verdicts-block \{[^}]*min-width:0/.test(PAGE),
+       '170. grid children carry min-width:0, the usual cause of grid overflow');
+    ok(/overflow-wrap:anywhere/.test(PAGE.slice(PAGE.indexOf('.q-primary-value'), PAGE.indexOf('.q-primary-note'))),
+       '171. a long primary value wraps rather than pushing the layout wide');
+    // the pre-existing mobile rules must still be present
+    ok(/@media \(max-width:600px\) \{[\s\S]{0,400}\.cms-metrics/.test(PAGE),
+       '172. the pre-existing 600px mobile block is untouched');
   }
 
   console.log(`\n${'='.repeat(60)}`);

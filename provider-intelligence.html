@@ -100,7 +100,44 @@
     .q-row td { border-bottom:0; }
     .q-note-row td { border-bottom:1px solid #e2e8f0; padding-top:0; padding-bottom:11px; }
     .q-note-row .q-sentence { margin:0; }
-    .q-verdicts { margin:10px 0 0; font-size:.9rem; font-weight:600; color:#0f2744; }
+    /* ---- Quality snapshot: primary CMS metric + comparison summary ---- */
+    /* Two columns on desktop, stacking to one below 760px. minmax(0,1fr) rather
+       than a fixed basis so a long value cannot force horizontal overflow - the
+       layout must not depend on this provider's values happening to be short. */
+    .q-snapshot { display:grid; gap:14px; margin:16px 0 0;
+                  grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:stretch; }
+    .q-primary, .q-verdicts-block { border:1px solid #e2e8f0; border-radius:14px;
+                  padding:14px 16px; background:#f8fafc; min-width:0; }
+    .q-primary { background:#f4f7fb; border-color:#dbe4ef; }
+    .q-primary-label { margin:6px 0 0; font-size:.86rem; font-weight:700; color:#334155;
+                  text-transform:uppercase; letter-spacing:.04em; }
+    /* clamp() so the headline scales down instead of overflowing on a phone */
+    .q-primary-value { margin:2px 0 0; font-size:clamp(1.6rem,6vw,2.4rem); font-weight:700;
+                  color:#0f2744; line-height:1.15; overflow-wrap:anywhere;
+                  font-variant-numeric:tabular-nums; }
+    .q-primary-value.is-unpublished { font-size:clamp(1rem,3.4vw,1.15rem); font-weight:600; color:#475569; }
+    .q-primary-note { margin:6px 0 0; font-size:.79rem; color:#64748b; line-height:1.5; }
+    .q-verdict-list { list-style:none; margin:6px 0 0; padding:0; display:grid; gap:6px; }
+    .q-verdict-list li { display:flex; align-items:baseline; gap:10px; font-size:.95rem; color:#0f2744; }
+    .q-verdict-list .n { font-size:1.35rem; font-weight:700; min-width:1.6em;
+                  text-align:right; font-variant-numeric:tabular-nums; }
+    .q-verdict-list .lbl { font-weight:600; }
+    .q-verdict-list li.strength .n { color:#047857; }
+    .q-verdict-list li.review .n { color:#9a3412; }
+    .q-verdict-list li.even .n { color:#1d4ed8; }
+    .q-verdict-empty { margin:6px 0 0; font-size:.95rem; font-weight:600; color:#52525b; }
+    /* Coverage row: supporting context, deliberately quieter than the two above. */
+    .q-coverage { display:grid; gap:8px; margin:14px 0 0;
+                  grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+    .q-coverage div { border:1px solid #e2e8f0; border-radius:10px; padding:9px 12px;
+                  background:#fff; min-width:0; }
+    .q-coverage .k { font-size:.72rem; color:#64748b; text-transform:uppercase;
+                  letter-spacing:.03em; line-height:1.35; }
+    .q-coverage .v { font-size:1rem; font-weight:700; color:#0f2744; margin-top:1px;
+                  font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+    @media (max-width:760px) {
+      .q-snapshot { grid-template-columns:minmax(0,1fr); }
+    }
 
     /* ---- CMS My Market ---- */
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
@@ -317,12 +354,37 @@
               </div>
 
               <div id="q-body" hidden>
-                <!-- 1. Quality snapshot -->
-                <div class="cms-metrics" id="q-metrics"></div>
-                <!-- Counts of the comparison verdicts already computed above. Not a
-                     score and not a percentile - just how many measures fell on
-                     each side of the overlapping-hospice median. -->
-                <p class="q-verdicts" id="q-verdict-summary" hidden></p>
+                <!-- 1. Quality snapshot.
+                     Ordered so the provider reads: my CMS Care Index, then what Best
+                     Hospice's comparison found, then how complete the data behind it is.
+                     The Care Index gets primary treatment because it is the one number CMS
+                     itself publishes as an index; everything beside it is a COUNT, and in a
+                     provider whose values happen to be full of tens those were easy to
+                     confuse with each other. -->
+                <div class="q-snapshot">
+                  <!-- A. the primary CMS-published metric. Explicitly attributed, and
+                       explicitly disclaimed as not a Best Hospice rating. -->
+                  <div class="q-primary" id="q-primary">
+                    <p class="q-prov cms"><span aria-hidden="true">&#9679;</span> Reported by CMS</p>
+                    <p class="q-primary-label">CMS Hospice Care Index</p>
+                    <p class="q-primary-value" id="q-care-index">&mdash;</p>
+                    <p class="q-primary-note" id="q-care-index-note"></p>
+                  </div>
+
+                  <!-- B. what the Best Hospice comparison found. Counts of the verdicts
+                       already computed per measure - not a score, rating, grade, ranking or
+                       percentile, and not a statement about clinical quality overall. -->
+                  <div class="q-verdicts-block" id="q-verdicts-block">
+                    <p class="q-prov bh"><span aria-hidden="true">&#9679;</span> Best Hospice comparison</p>
+                    <ul class="q-verdict-list" id="q-verdict-list"></ul>
+                    <p class="q-verdict-empty" id="q-verdict-empty" hidden></p>
+                    <p class="q-primary-note" id="q-verdict-note"></p>
+                  </div>
+                </div>
+
+                <!-- C. data coverage and comparison-set size. Deliberately demoted: these
+                     support the two blocks above rather than competing with them. -->
+                <div class="q-coverage" id="q-coverage"></div>
 
                 <!-- 2. CMS-measured performance -->
                 <div class="cms-block" id="q-cms-block">
@@ -922,37 +984,87 @@
     INTEL_ACCORDION.close('quality');
   }
 
+  // The expanded module's top block. Presentation only: every number here was
+  // already computed by the service or by the per-measure verdicts from Task 1.
+  //
+  // Ordered to answer, in this sequence: what is my CMS Care Index, what did the
+  // Best Hospice comparison find, how complete is the data behind it, and how big
+  // is the comparison set. The Care Index is the only index CMS publishes; the
+  // rest are counts, and in a provider whose values are full of tens they were
+  // easy to mistake for one another.
   function renderQualityMetrics(q) {
+    // ---- A. primary CMS metric ------------------------------------------------
     const ci = q.summary.careIndex;
-    const cards = [];
-    // Real CMS values only. When CMS published no Care Index the card says so
-    // rather than showing a 0 or a dash that reads like a score.
-    cards.push(ci && typeof ci.value === 'number'
-      ? [fmtNum(ci.value) + ' / ' + fmtNum(ci.scaleMax), 'CMS Hospice Care Index']
-      : ['Not published', 'CMS Hospice Care Index']);
-    cards.push([num(q.summary.publishedMeasureCount) + ' of ' + num(q.summary.surfacedMeasureCount),
-      'Measures CMS published for you']);
-    cards.push([num(q.summary.comparedMeasureCount), 'Measures with a peer comparison']);
-    cards.push([num(q.peerContext.overlappingFacilityCount), 'Overlapping hospices']);
-    document.getElementById('q-metrics').innerHTML = cards
-      .map(([v, l]) => '<div class="cms-metric"><div class="v">' + esc(v) + '</div><div class="l">' + esc(l) + '</div></div>')
-      .join('');
+    const ciEl = document.getElementById('q-care-index');
+    const ciNote = document.getElementById('q-care-index-note');
+    const published = !!(ci && typeof ci.value === 'number' && isFinite(ci.value));
+    if (ciEl) {
+      // Real CMS values only. A withheld Care Index says so; it never becomes 0,
+      // and it never becomes a Best Hospice substitute.
+      ciEl.textContent = published
+        ? fmtNum(ci.value) + ' / ' + fmtNum(ci.scaleMax)
+        : 'Not published by CMS';
+      ciEl.classList.toggle('is-unpublished', !published);
+    }
+    if (ciNote) {
+      ciNote.textContent = published
+        ? 'Published by Medicare for your CCN. This is a CMS measure, not a Best Hospice rating.'
+        : 'Medicare has not published a Care Index for your CCN. Best Hospice does not calculate a replacement.';
+    }
 
-    // Verdict tally, derived straight from the comparisons already made. Ties are
-    // counted separately so strengths + areas to review + at-peer-median always
-    // add up to the compared-measure count. No new scoring of any kind.
+    // ---- B. Best Hospice comparison summary -----------------------------------
+    // Straight from the verdicts already assigned per measure. favorable === true
+    // is a relative strength, false an area to review, null a tie. A measure
+    // without a valid peer comparison is not counted at all, so the three always
+    // sum to comparedMeasureCount. No score, rating, grade, ranking or percentile.
     const compared = (q.measures || []).filter((m) => m.comparisonAllowed);
     const nStrong = compared.filter((m) => m.favorable === true).length;
     const nReview = compared.filter((m) => m.favorable === false).length;
     const nEven = compared.filter((m) => m.favorable === null).length;
-    const bits = [];
-    if (nStrong) bits.push(nStrong + (nStrong === 1 ? ' relative strength' : ' relative strengths'));
-    if (nReview) bits.push(nReview + (nReview === 1 ? ' area to review' : ' areas to review'));
-    if (nEven) bits.push(nEven + ' at peer median');
-    const vs = document.getElementById('q-verdict-summary');
-    if (vs) {
-      vs.textContent = bits.join(' \u00b7 ');
-      vs.hidden = bits.length === 0;
+
+    const list = document.getElementById('q-verdict-list');
+    const emptyEl = document.getElementById('q-verdict-empty');
+    const noteEl = document.getElementById('q-verdict-note');
+    const rows = [
+      ['strength', nStrong, nStrong === 1 ? 'Relative strength' : 'Relative strengths'],
+      ['review', nReview, nReview === 1 ? 'Area to review' : 'Areas to review'],
+      ['even', nEven, 'At peer median']
+    ];
+    const anyComparison = compared.length > 0;
+    if (list) {
+      list.innerHTML = anyComparison
+        ? rows.map(([cls, n, label]) => '<li class="' + cls + '"><span class="n">' + esc(num(n))
+            + '</span><span class="lbl">' + esc(label) + '</span></li>').join('')
+        : '';
+      list.hidden = !anyComparison;
+    }
+    if (emptyEl) {
+      // Never "0 strengths, 0 areas to review, 0 at peer median" - that reads as a
+      // finding when it is an absence of data. The reason is the existing
+      // minimum-comparable-peer rule, stated in the product's own terms.
+      emptyEl.textContent = 'No peer comparisons available';
+      emptyEl.hidden = anyComparison;
+    }
+    if (noteEl) {
+      noteEl.textContent = anyComparison
+        ? 'Across ' + num(compared.length)
+          + (compared.length === 1 ? ' measure with a peer comparison.' : ' measures with a peer comparison.')
+        : 'A comparison needs at least ' + num(q.peerContext.minimumComparablePeers)
+          + ' overlapping hospices with a published value for the same measure.';
+    }
+
+    // ---- C. data coverage and comparison-set size -----------------------------
+    const coverage = [
+      ['CMS measures available',
+        num(q.summary.publishedMeasureCount) + ' of ' + num(q.summary.surfacedMeasureCount)],
+      ['Measures compared', num(q.summary.comparedMeasureCount)],
+      ['Overlapping hospices', num(q.peerContext.overlappingFacilityCount)]
+    ];
+    const cov = document.getElementById('q-coverage');
+    if (cov) {
+      cov.innerHTML = coverage
+        .map(([k, v]) => '<div><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div></div>')
+        .join('');
     }
   }
 
