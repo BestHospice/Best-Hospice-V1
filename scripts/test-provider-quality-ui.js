@@ -89,7 +89,7 @@ function makeDom() {
 
 function loadRenderers(dom, apiImpl) {
   const names = ['QUALITY_MESSAGES', 'QUALITY_FALLBACK', 'QUALITY_ERROR', 'verdictChip', 'fmtNum',
-                 'fmtValue', 'fmtPeriod', 'countSentence', 'qualityMessage', 'renderQualityMetrics',
+                 'fmtValue', 'fmtPeriod', 'peerSplit', 'comparisonSentence', 'qualityMessage', 'renderQualityMetrics',
                  'renderQualityCms', 'renderQualityBench', 'renderQualityList', 'renderQualityCahps',
                  'renderQualityNote', 'initQualityAccordion', 'loadCmsQuality',
                  'INTEL_ACCORDION', 'initMyMarketAccordion', 'esc', 'num', 'friendlyReleaseDate'];
@@ -470,19 +470,33 @@ let R, dom;
   section('peer benchmark section: transparent count and median language');
   {
     const h = dom.tbodies['q-bench-table'].innerHTML;
-    ok(/is higher than 19 of 25 overlapping hospices with a published score/.test(h),
-       '48. a higher-is-better measure uses "higher than X of N"');
-    ok(/is lower than 9 of 11 overlapping hospices with a published score/.test(h),
-       '49. a LOWER-is-better measure uses "lower than X of N" — direction-aware wording');
+    ok(/Your result was higher than 19 of 25 comparable hospices\./.test(h),
+       '48. a higher-is-better measure leads with "higher than X of N"');
+    ok(/Your result was lower than 9 of 11 comparable hospices\./.test(h),
+       '49. a LOWER-is-better measure leads with "lower than X of N" — direction-aware');
+    ok(/Lower is better for this measure\./.test(h),
+       '49b. …and says so explicitly for lower-is-better measures');
+    ok(!/Higher is better for this measure/.test(h),
+       '49c. …but that note is NOT added mechanically to higher-is-better measures');
+    ok(/11 of 12 comparable hospices reported a lower value\./.test(h),
+       '49d. when most peers do better, the sentence leads with THEIR count');
+    ok(!/than 0 of|of 0 of/.test(h),
+       '49e. no "than 0 of N" phrasing survives');
+    ok(!/overlapping hospices with a published score/.test(h),
+       '49f. the old awkward phrasing is gone');
     ok(/Stronger than the peer median/.test(h), '50. a favourable measure is called stronger');
     ok(/Weaker than the peer median/.test(h), '51. an unfavourable measure is called weaker');
-    ok(!/better|worse/i.test(h), '52. the words "better"/"worse" are never used unqualified');
+    // The only permitted use of "better" is the direction note, which is qualified
+    // ("for this measure"). A provider is never called better or worse than peers.
+    const hNoDirNote = h.split('Lower is better for this measure.').join('');
+    ok(!/better|worse/i.test(hNoDirNote),
+       '52. "better"/"worse" appear ONLY in the qualified direction note');
     ok(/Not enough comparable hospices/.test(h),
        '53. a measure below the peer threshold says so instead of comparing');
     ok(/Not published by CMS/.test(h), '54. an unpublished measure says so');
 
     // The thin measure must show its own value but no comparison.
-    const row = h.split('<tr>').find((r) => /Synthetic thin measure/.test(r));
+    const row = h.split(/<tr[^>]*>/).find((r) => /Synthetic thin measure/.test(r));
     ok(/55%/.test(row), '55. the thin measure still shows the provider\'s own CMS value');
     ok(!/higher than|lower than/.test(row), '56. …but makes no count claim');
     ok((row.match(/<td class="n">—<\/td>/g) || []).length >= 1,
@@ -506,7 +520,12 @@ let R, dom;
        '62. a lower-is-better measure BELOW the median is a strength, not an area to review');
     ok(/Synthetic weak measure/.test(r), '63. the unfavourable measure is an area to review');
     ok(!/Synthetic weak measure/.test(s), '   …and is not also a strength');
-    ok(/is lower than 9 of 11/.test(s), '64. each entry carries its own count sentence');
+    ok(/Your result was lower than 9 of 11 comparable hospices\./.test(s),
+       '64. each entry carries its own natural-language comparison sentence');
+    ok(/Lower is better for this measure\./.test(s),
+       '64b. …including the direction note where it applies');
+    ok(!/overlapping hospices with a published score/.test(s + r),
+       '64c. neither list repeats the old awkward phrasing');
     ok(dom.els['q-strengths-empty'].hidden === true, '65. the empty-state text is hidden when there is data');
 
     const d3 = makeDom();
@@ -545,7 +564,10 @@ let R, dom;
     await R4.loadCmsQuality({ cmsQuality: { status: 'available' } });
     const h4 = d4.els['q-cahps'].innerHTML;
     ok(/4 of 5 stars/.test(h4), '70. a published star rating is shown with its unit', h4.slice(0, 120));
-    ok(/is higher than 6 of 9 overlapping hospices/.test(h4), '71. …with its own count sentence');
+    ok(/Your result was higher than 6 of 9 comparable hospices\./.test(h4),
+       '71. …with its own natural-language comparison sentence');
+    ok(/One reported the same value as yours\./.test(h4),
+       '71b. …and the tied peer is stated rather than ignored');
     ok(!h4.includes(CAHPS_UNPUBLISHED_MESSAGE), '72. …and the not-published sentence is gone');
   }
 
@@ -676,6 +698,107 @@ let R, dom;
        '102. a tie gets its own neutral chip');
     ok(R.verdictChip({ verdict: 'insufficient_peers' }).cls === 'none',
        '103. an uncomparable measure gets a neutral chip');
+  }
+
+  section('comparison language: the full direction and tie matrix');
+  {
+    // Built directly from the three counts the API returns, which partition
+    // comparableCount exactly. Every case the copy has to survive is here.
+    const cmp = (o) => R.comparisonSentence(Object.assign({
+      shortLabel: 'Synthetic measure', direction: 'higher_better', comparisonAllowed: true,
+      provider: { value: 50, published: true },
+      peers: { comparableCount: 10, median: 50, lowerThanProvider: 5, higherThanProvider: 5, equalToProvider: 0 }
+    }, o));
+    const P = (n, lower, higher, equal, extra) => Object.assign(
+      { peers: { comparableCount: n, median: 50, lowerThanProvider: lower,
+                 higherThanProvider: higher, equalToProvider: equal } }, extra || {});
+
+    // ---- higher_better ----
+    ok(cmp(P(10, 7, 3, 0, { provider: { value: 80, published: true } }))
+       === 'Your result was higher than 7 of 10 comparable hospices.',
+       '104. higher_better, provider ABOVE the median');
+    ok(cmp(P(10, 2, 8, 0, { provider: { value: 20, published: true } }))
+       === '8 of 10 comparable hospices reported a higher value.',
+       '105. higher_better, provider BELOW the median — leads with the peers ahead');
+    ok(cmp(P(9, 3, 0, 6, { provider: { value: 50, published: true } }))
+       === 'Your result was higher than 3 of 9 comparable hospices. 6 reported the same value as yours.',
+       '106. higher_better, provider EQUAL to the median — ties are stated');
+
+    // ---- lower_better: the inversion ----
+    ok(cmp(P(9, 4, 5, 0, { direction: 'lower_better', provider: { value: 10, published: true } }))
+       === 'Your result was lower than 5 of 9 comparable hospices. Lower is better for this measure.',
+       '107. lower_better, provider BELOW the median (the good side)');
+    ok(cmp(P(9, 8, 1, 0, { direction: 'lower_better', provider: { value: 90, published: true } }))
+       === '8 of 9 comparable hospices reported a lower value. Lower is better for this measure.',
+       '108. lower_better, provider ABOVE the median (the bad side)');
+    ok(cmp(P(8, 2, 0, 6, { direction: 'lower_better', provider: { value: 50, published: true } }))
+       === '2 of 8 comparable hospices reported a lower value. 6 reported the same value as yours. Lower is better for this measure.',
+       '109. lower_better, provider EQUAL to the median — ties stated, direction noted',
+       cmp(P(8, 2, 0, 6, { direction: 'lower_better', provider: { value: 50, published: true } })));
+
+    // ---- zero peers beaten / all peers beaten ----
+    ok(cmp(P(10, 0, 10, 0)) === 'All 10 comparable hospices reported a higher value.',
+       '110. provider higher than ZERO peers, none tied -> the "All N" form is exact');
+    ok(cmp(P(10, 10, 0, 0)) === 'Your result was higher than all 10 comparable hospices.',
+       '111. provider higher than ALL peers');
+    // On a lower-is-better measure the peers AHEAD are the ones with lower values,
+    // so "the provider beat zero peers" is lowerThanProvider = N, higherThanProvider = 0.
+    ok(cmp(P(9, 9, 0, 0, { direction: 'lower_better' }))
+       === 'All 9 comparable hospices reported a lower value. Lower is better for this measure.',
+       '112. lower_better, provider lower than ZERO peers');
+    ok(cmp(P(9, 0, 9, 0, { direction: 'lower_better' }))
+       === 'Your result was lower than all 9 comparable hospices. Lower is better for this measure.',
+       '113. lower_better, provider lower than ALL peers');
+
+    // ---- NO FALSE "ALL" WHEN TIES EXIST ----
+    const tie1 = cmp(P(10, 0, 8, 2));
+    ok(!/^All 10/.test(tie1),
+       '114. with 2 tied peers the sentence does NOT claim "All 10"', tie1);
+    ok(tie1 === '8 of 10 comparable hospices reported a higher value. 2 reported the same value as yours.',
+       '115. …it reports 8 of 10 and names the 2 ties', tie1);
+    const tie2 = cmp(P(9, 8, 0, 1));
+    ok(!/all 9/i.test(tie2), '116. with 1 tied peer it does NOT claim "all 9"', tie2);
+    ok(/One reported the same value as yours\./.test(tie2),
+       '117. …a single tie is written as "One", not "1"', tie2);
+    ok(cmp(P(7, 0, 0, 7)) === 'All 7 comparable hospices reported the same value as yours.',
+       '118. every peer tied is its own exact statement');
+    ok(cmp(P(10, 5, 5, 0)) === 'Your result was higher than 5 of 10 comparable hospices.',
+       '119. an exact half-and-half split leads with the provider');
+
+    // ---- the counts must partition comparableCount ----
+    for (const [n, lo, hi, eq] of [[10, 7, 3, 0], [9, 3, 0, 6], [10, 0, 8, 2], [7, 0, 0, 7]]) {
+      ok(lo + hi + eq === n, `120. fixture counts partition comparableCount (${lo}+${hi}+${eq}=${n})`);
+    }
+
+    // ---- suppressed / not published / below the threshold ----
+    ok(R.comparisonSentence({ comparisonAllowed: false, direction: 'higher_better',
+         provider: { value: null, published: false, suppressed: true }, peers: null }) === '',
+       '121. a SUPPRESSED provider measure produces no comparison sentence');
+    ok(R.comparisonSentence({ comparisonAllowed: false, direction: 'higher_better',
+         provider: { value: 55, published: true },
+         peers: { comparableCount: 4, median: null, lowerThanProvider: null,
+                  higherThanProvider: null, equalToProvider: null } }) === '',
+       '122. FEWER THAN 5 comparable peers produces no comparison sentence');
+    ok(R.comparisonSentence(null) === '' && R.comparisonSentence({}) === '',
+       '123. a missing measure produces no sentence rather than throwing');
+
+    // ---- peerSplit orientation comes from the stored direction, never the numbers ----
+    const hi = R.peerSplit({ direction: 'higher_better',
+      peers: { comparableCount: 10, lowerThanProvider: 7, higherThanProvider: 3, equalToProvider: 0 } });
+    ok(hi.behind === 7 && hi.ahead === 3 && hi.betterWord === 'higher',
+       '124. higher_better: peers with LOWER values are the ones behind');
+    const lo = R.peerSplit({ direction: 'lower_better',
+      peers: { comparableCount: 10, lowerThanProvider: 7, higherThanProvider: 3, equalToProvider: 0 } });
+    ok(lo.behind === 3 && lo.ahead === 7 && lo.betterWord === 'lower',
+       '125. lower_better: the SAME counts invert — peers with HIGHER values are behind');
+    ok(!/provider\.value|median/.test(R.peerSplit.toString()),
+       '126. peerSplit never looks at the provider value or the median — direction only');
+
+    // ---- CMS vs Best Hospice attribution is preserved ----
+    ok(!/CMS (reports|published|says)/i.test(cmp(P(10, 7, 3, 0))),
+       '127. the comparison sentence never attributes the comparison to CMS');
+    ok(!/percentile|score of|rating of/i.test(cmp(P(10, 7, 3, 0))),
+       '128. …and invents no percentile or score');
   }
 
   console.log(`\n${'='.repeat(60)}`);

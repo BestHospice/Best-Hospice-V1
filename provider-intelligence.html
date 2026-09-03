@@ -96,6 +96,11 @@
     .q-list .q-measure { display:block; }
     .q-empty { margin:0; font-size:.9rem; color:#64748b; }
     .q-cahps { border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; background:#f8fafc; }
+    /* A measure row and its interpretation row read as one block. */
+    .q-row td { border-bottom:0; }
+    .q-note-row td { border-bottom:1px solid #e2e8f0; padding-top:0; padding-bottom:11px; }
+    .q-note-row .q-sentence { margin:0; }
+    .q-verdicts { margin:10px 0 0; font-size:.9rem; font-weight:600; color:#0f2744; }
 
     /* ---- CMS My Market ---- */
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
@@ -314,6 +319,10 @@
               <div id="q-body" hidden>
                 <!-- 1. Quality snapshot -->
                 <div class="cms-metrics" id="q-metrics"></div>
+                <!-- Counts of the comparison verdicts already computed above. Not a
+                     score and not a percentile - just how many measures fell on
+                     each side of the overlapping-hospice median. -->
+                <p class="q-verdicts" id="q-verdict-summary" hidden></p>
 
                 <!-- 2. CMS-measured performance -->
                 <div class="cms-block" id="q-cms-block">
@@ -811,15 +820,69 @@
   }
   const fmtPeriod = (p) => (p ? friendlyReleaseDate(p.start) + ' – ' + friendlyReleaseDate(p.end) : '—');
 
-  // The transparent count sentence. Directional wording comes from the measure's
-  // own direction, and favorablePeerCount is already oriented by the backend, so
-  // "higher than" and "lower than" are always literally true of the numbers.
-  function countSentence(m) {
-    if (!m.comparisonAllowed) return '';
-    const word = m.direction === 'lower_better' ? 'lower' : 'higher';
-    return 'Your ' + m.shortLabel.toLowerCase() + ' of ' + fmtValue(m, m.provider.value)
-      + ' is ' + word + ' than ' + m.favorablePeerCount + ' of ' + m.peers.comparableCount
-      + ' overlapping hospices with a published score.';
+  // Peers split by how they compare with the provider, ORIENTED by the measure's
+  // stored direction. Direction is never inferred from the numbers.
+  //
+  // The backend returns three counts that partition comparableCount exactly -
+  // lowerThanProvider, higherThanProvider and equalToProvider - so ties are a
+  // first-class case here rather than something the prose has to guess at. That
+  // matters: a sentence like "all 9 reported a higher value" is FALSE when some
+  // of them matched, and the old copy had no way to tell.
+  function peerSplit(m) {
+    const p = (m && m.peers) || {};
+    const lower = Number(p.lowerThanProvider) || 0;
+    const higher = Number(p.higherThanProvider) || 0;
+    const lowerIsBetter = m.direction === 'lower_better';
+    return {
+      total: Number(p.comparableCount) || 0,
+      tied: Number(p.equalToProvider) || 0,
+      // peers performing WORSE than this provider on this measure
+      behind: lowerIsBetter ? higher : lower,
+      // peers performing BETTER than this provider on this measure
+      ahead: lowerIsBetter ? lower : higher,
+      // the numeric word for the direction that counts as better here
+      betterWord: lowerIsBetter ? 'lower' : 'higher',
+      lowerIsBetter: lowerIsBetter
+    };
+  }
+
+  // One plain-English sentence per comparable measure.
+  //
+  // It leads with whichever side of the comparison is the larger group, which is
+  // what an administrator actually wants to know first, and it never states an
+  // "all" claim unless the counts prove it. The provider's own value and the
+  // peer median are NOT repeated here - the row already shows both, and the old
+  // sentence produced things like "Your care index of 10 of 10 is higher than…".
+  function comparisonSentence(m) {
+    if (!m || !m.comparisonAllowed) return '';
+    const s = peerSplit(m);
+    const n = s.total;
+    const w = s.betterWord;
+    let lead;
+
+    if (n === 0) return '';
+    if (s.tied === n) {
+      lead = 'All ' + n + ' comparable hospices reported the same value as yours.';
+    } else if (s.ahead === n) {
+      // Safe only because tied is 0 here, which the branch above already excluded.
+      lead = 'All ' + n + ' comparable hospices reported a ' + w + ' value.';
+    } else if (s.behind === n) {
+      lead = 'Your result was ' + w + ' than all ' + n + ' comparable hospices.';
+    } else if (s.ahead > s.behind) {
+      lead = s.ahead + ' of ' + n + ' comparable hospices reported a ' + w + ' value.';
+    } else {
+      lead = 'Your result was ' + w + ' than ' + s.behind + ' of ' + n + ' comparable hospices.';
+    }
+
+    const tieNote = (s.tied > 0 && s.tied < n)
+      ? (s.tied === 1
+          ? ' One reported the same value as yours.'
+          : ' ' + s.tied + ' reported the same value as yours.')
+      : '';
+    // Added only where it changes how the number should be read. A
+    // "higher is better" note on every upward measure would be noise.
+    const dirNote = s.lowerIsBetter ? ' Lower is better for this measure.' : '';
+    return lead + tieNote + dirNote;
   }
 
   // The module is not available to this provider at all - either the release
@@ -874,6 +937,23 @@
     document.getElementById('q-metrics').innerHTML = cards
       .map(([v, l]) => '<div class="cms-metric"><div class="v">' + esc(v) + '</div><div class="l">' + esc(l) + '</div></div>')
       .join('');
+
+    // Verdict tally, derived straight from the comparisons already made. Ties are
+    // counted separately so strengths + areas to review + at-peer-median always
+    // add up to the compared-measure count. No new scoring of any kind.
+    const compared = (q.measures || []).filter((m) => m.comparisonAllowed);
+    const nStrong = compared.filter((m) => m.favorable === true).length;
+    const nReview = compared.filter((m) => m.favorable === false).length;
+    const nEven = compared.filter((m) => m.favorable === null).length;
+    const bits = [];
+    if (nStrong) bits.push(nStrong + (nStrong === 1 ? ' relative strength' : ' relative strengths'));
+    if (nReview) bits.push(nReview + (nReview === 1 ? ' area to review' : ' areas to review'));
+    if (nEven) bits.push(nEven + ' at peer median');
+    const vs = document.getElementById('q-verdict-summary');
+    if (vs) {
+      vs.textContent = bits.join(' \u00b7 ');
+      vs.hidden = bits.length === 0;
+    }
   }
 
   function renderQualityCms(measures) {
@@ -899,19 +979,27 @@
       'A comparable hospice is one that shares at least one of your CMS service ZIP codes and has a published value '
       + 'for that same measure. At least ' + q.peerContext.minimumComparablePeers
       + ' are required before any comparison is shown.';
+    // Two rows per measure. The five scannable facts stay on one line - measure,
+    // your value, the overlapping-hospice median, how many hospices are comparable,
+    // and the verdict - and the interpretation gets a full-width row beneath it
+    // instead of being squeezed into the measure cell.
     document.getElementById('q-bench-table').querySelector('tbody').innerHTML = q.measures.map((m) => {
       const chip = verdictChip(m);
       const yours = m.provider.published ? esc(fmtValue(m, m.provider.value)) : '—';
       const median = m.comparisonAllowed ? esc(fmtValue(m, m.peers.median)) : '—';
       const n = m.peers ? num(m.peers.comparableCount) : '—';
-      const sentence = m.comparisonAllowed
-        ? '<p class="q-sentence">' + esc(countSentence(m)) + '</p>' : '';
-      return '<tr><td><span class="q-measure">' + esc(m.shortLabel) + '</span>' + sentence + '</td>'
+      const row = '<tr class="q-row"><td><span class="q-measure">' + esc(m.shortLabel) + '</span>'
+        + '<div class="q-period">' + esc(m.cmsMeasureName) + '</div></td>'
         + '<td class="n">' + yours + '</td>'
         + '<td class="n">' + median + '</td>'
         + '<td class="n">' + esc(n) + '</td>'
         + '<td><span class="q-chip ' + chip.cls + '"><span class="d" aria-hidden="true"></span>'
         + esc(chip.text) + '</span></td></tr>';
+      const sentence = comparisonSentence(m);
+      const note = sentence
+        ? '<tr class="q-note-row"><td colspan="5"><p class="q-sentence">' + esc(sentence) + '</p></td></tr>'
+        : '';
+      return row + note;
     }).join('');
   }
 
@@ -922,7 +1010,7 @@
       const m = byCode[c];
       if (!m) return '';
       return '<li><span class="q-measure">' + esc(m.shortLabel) + '</span>'
-        + '<p class="q-sentence">' + esc(countSentence(m)) + '</p></li>';
+        + '<p class="q-sentence">' + esc(comparisonSentence(m)) + '</p></li>';
     }).join('');
     const has = codes.length > 0;
     ul.hidden = !has;
@@ -945,7 +1033,7 @@
         return '<p class="q-sentence"><span class="q-measure">' + esc(m.shortLabel)
           + '</span> — ' + esc('Not published by CMS') + '</p>';
       }
-      const cmp = m.comparisonAllowed ? ' ' + countSentence(m) : '';
+      const cmp = m.comparisonAllowed ? ' ' + comparisonSentence(m) : '';
       return '<p class="q-sentence"><span class="q-measure">' + esc(m.shortLabel) + '</span> — '
         + esc(fmtValue(m, m.provider.value)) + esc(cmp) + '</p>';
     }).join('');
