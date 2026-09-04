@@ -766,10 +766,12 @@ const num = (n) => String(n).padStart(9);
     console.log(`  chronology        : ${existing ? 'same release (idempotent re-run)' : latest ? `later than ${latest.releaseKey} — OK` : 'first release for this source — OK'}`);
     console.log(`  facilities        : CREATE ${fCreate}   UPDATE ${fUpdate}   UNCHANGED ${fUnchanged}   absent-from-release ${absentFacilities} (retained, lastSeen untouched)`);
     console.log(`  service areas     : CREATE ${sCreate}   UPDATE ${sUpdate}   UNCHANGED ${sUnchanged}   absent-from-release ${absentSas} (retained, lastSeen untouched)`);
+    console.log(`  observations      : APPEND ${fac.facilities.size} for this release (append-only; earlier releases untouched)`);
 
     report.plan = { releaseAction,
       facilities: { create: fCreate, update: fUpdate, unchanged: fUnchanged, absent: absentFacilities },
-      serviceAreas: { create: sCreate, update: sUpdate, unchanged: sUnchanged, absent: absentSas } };
+      serviceAreas: { create: sCreate, update: sUpdate, unchanged: sUnchanged, absent: absentSas },
+      observations: { append: fac.facilities.size } };
     if (opts.json) { fs.writeFileSync(opts.json, JSON.stringify(report, null, 2) + '\n'); console.log(`\n  wrote ${opts.json}`); }
 
     if (releaseAction === 'CONFLICT') fail('Refusing to write: release conflict. ZERO rows written.');
@@ -842,6 +844,43 @@ const num = (n) => String(n).padStart(9);
       const idRows = await tx.cmsFacility.findMany({ where: { source: dbSource }, select: { id: true, ccn: true } });
       const ccnToId = new Map(idRows.map((r) => [r.ccn, r.id]));
 
+      // Append-only history: one CmsFacilityObservation per facility per release.
+      //
+      // Every value comes from `fac.facilities`, which is the PARSED ARCHIVE - never
+      // from the CmsFacility rows just written. That matters for three reasons: the
+      // observation is a pure function of the release bytes, it cannot inherit a
+      // value the upsert happened to leave behind, and it stays correct regardless
+      // of where in the transaction this runs.
+      //
+      // The conflict target is (facilityId, releaseId), so this is idempotent for a
+      // re-run of the SAME release and structurally incapable of touching an older
+      // one: a different release has a different releaseId and therefore inserts a
+      // new row. No release can ever update another release's observation.
+      const oRows = [...fac.facilities.values()];
+      for (let i = 0; i < oRows.length; i += 500) {
+        const chunk = oRows.slice(i, i + 500);
+        const params = []; const tuples = [];
+        chunk.forEach((f) => {
+          const b = params.length;
+          // Same date handling as the facility upsert: pass YYYY-MM-DD as text, never
+          // a JS Date, or the pg driver's local-time serialisation shifts ::date back
+          // a day in any negative UTC offset.
+          params.push(crypto.randomUUID(), ccnToId.get(f.ccn), dbSource, rel.id, f.ccn,
+            f.name, f.address, f.city, f.state, f.zip, f.county, f.phone, f.ownershipType,
+            f.certificationDate ? f.certificationDate.toISOString().slice(0, 10) : null);
+          tuples.push(`($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14}::date,NOW())`);
+        });
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "CmsFacilityObservation" ("id","facilityId","source","releaseId","ccn","name","address","city","state","zip","county","phone","ownershipType","certificationDate","createdAt")
+           VALUES ${tuples.join(',')}
+           ON CONFLICT ("facilityId","releaseId") DO UPDATE SET
+             "ccn"=EXCLUDED."ccn", "name"=EXCLUDED."name", "address"=EXCLUDED."address",
+             "city"=EXCLUDED."city", "state"=EXCLUDED."state", "zip"=EXCLUDED."zip",
+             "county"=EXCLUDED."county", "phone"=EXCLUDED."phone",
+             "ownershipType"=EXCLUDED."ownershipType",
+             "certificationDate"=EXCLUDED."certificationDate"`, ...params);
+      }
+
       const sRows = [...sa.pairs.values()];
       for (let i = 0; i < sRows.length; i += 2000) {
         const chunk = sRows.slice(i, i + 2000);
@@ -862,15 +901,20 @@ const num = (n) => String(n).padStart(9);
       if (nf !== fac.facilities.size) throw new Error(`postcondition: ${nf} facilities carry this release, expected ${fac.facilities.size}`);
       const ns = await tx.cmsFacilityServiceArea.count({ where: { source: dbSource, lastSeenReleaseId: rel.id } });
       if (ns !== sa.pairs.size) throw new Error(`postcondition: ${ns} service areas carry this release, expected ${sa.pairs.size}`);
+      // History postcondition. Scoped to THIS release, so it is unaffected by how
+      // many observations earlier releases left behind.
+      const no = await tx.cmsFacilityObservation.count({ where: { source: dbSource, releaseId: rel.id } });
+      if (no !== fac.facilities.size) throw new Error(`postcondition: ${no} facility observations carry this release, expected ${fac.facilities.size}`);
     }, { timeout: 600000, maxWait: 60000 });
 
     const totals = {
       releases: await prisma.cmsRelease.count({ where: { source: dbSource } }),
       facilities: await prisma.cmsFacility.count({ where: { source: dbSource } }),
-      serviceAreas: await prisma.cmsFacilityServiceArea.count({ where: { source: dbSource } })
+      serviceAreas: await prisma.cmsFacilityServiceArea.count({ where: { source: dbSource } }),
+      observations: await prisma.cmsFacilityObservation.count({ where: { source: dbSource } })
     };
     console.log(`\nINGESTED release ${arc.releaseKey} in one transaction (${((Date.now() - t0) / 1000).toFixed(1)}s).`);
-    console.log(`  CmsRelease ${totals.releases}   CmsFacility ${totals.facilities}   CmsFacilityServiceArea ${totals.serviceAreas}`);
+    console.log(`  CmsRelease ${totals.releases}   CmsFacility ${totals.facilities}   CmsFacilityServiceArea ${totals.serviceAreas}   CmsFacilityObservation ${totals.observations}`);
   } finally {
     if (typeof prisma !== 'undefined') await prisma.$disconnect().catch(() => {});
   }
