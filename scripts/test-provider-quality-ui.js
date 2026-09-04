@@ -65,7 +65,13 @@ function makeDom() {
     setAttribute(k, v) { this._attrs[k] = v; },
     getAttribute(k) { return this._attrs[k]; },
     addEventListener(ev, fn) { (this._listeners[ev] = this._listeners[ev] || []).push(fn); },
-    click() { (this._listeners.click || []).forEach((f) => f()); },
+    // Real DOM click() fires BOTH the onclick property and addEventListener
+    // handlers. The reveal control assigns .onclick deliberately, so that it
+    // replaces rather than accumulates across re-renders.
+    click() {
+      if (typeof this.onclick === 'function') this.onclick();
+      (this._listeners.click || []).forEach((f) => f());
+    },
     querySelector(sel) {
       if (sel === 'tbody') return (tbodies[id] = tbodies[id] || { innerHTML: '' });
       if (sel === '[data-toggle-label]') return els[TOGGLE_LABEL[id]] || null;
@@ -79,7 +85,9 @@ function makeDom() {
    'q-body', 'q-primary', 'q-care-index', 'q-care-index-note', 'q-verdicts-block', 'q-verdict-list',
    'q-verdict-empty', 'q-verdict-note', 'q-coverage',
    'q-cms-table', 'q-bench-table', 'q-bench-hint', 'q-strengths',
-   'q-strengths-empty', 'q-review', 'q-review-empty', 'q-cahps', 'q-cahps-block', 'q-fresh', 'q-note',
+   'q-strengths-empty', 'q-strengths-more', 'q-strengths-hint',
+   'q-review', 'q-review-empty', 'q-review-more', 'q-review-hint',
+   'q-cahps', 'q-cahps-block', 'q-fresh', 'q-note',
    'cms-market-status', 'cms-market-body', 'cms-metrics', 'cms-profile', 'cms-competitors',
    'cms-comp-more', 'cms-competitors-block', 'cms-density-more', 'cms-density-block', 'cms-fresh',
    'mm-card', 'mm-summary', 'mm-toggle', 'mm-toggle-label', 'mm-detail', 'mm-collapse'].forEach(mk);
@@ -95,7 +103,8 @@ function makeDom() {
 function loadRenderers(dom, apiImpl) {
   const names = ['QUALITY_MESSAGES', 'QUALITY_FALLBACK', 'QUALITY_ERROR', 'verdictChip', 'fmtNum',
                  'fmtValue', 'fmtPeriod', 'peerSplit', 'comparisonSentence', 'qualityMessage', 'renderQualityMetrics',
-                 'renderQualityCms', 'renderQualityBench', 'renderQualityList', 'renderQualityCahps',
+                 'renderQualityCms', 'renderQualityBench', 'renderQualityCahps',
+                 'peerPositionCount', 'prioritizeTakeaways', 'renderTakeaways', 'TAKEAWAY_DEFAULT',
                  'renderQualityNote', 'initQualityAccordion', 'loadCmsQuality',
                  'INTEL_ACCORDION', 'initMyMarketAccordion', 'esc', 'num', 'friendlyReleaseDate'];
   const start = SCRIPT_BODY.indexOf('  // ---- intelligence detail accordion');
@@ -381,7 +390,8 @@ section('markup: the seven expanded sections and the provenance labels');
     ['q-verdict-list', '1d. …its verdict tally'],
     ['q-coverage', '1e. quality snapshot — data coverage'],
     ['q-cms-block', '2. CMS-measured performance'], ['q-bench-block', '3. peer benchmarks'],
-    ['q-strengths-block', '4. relative strengths'], ['q-review-block', '5. areas to review'],
+    ['q-strengths-block', '4. key relative strengths'], ['q-strengths-more', '4b. …its reveal-more control'],
+    ['q-review-block', '5. areas to review'], ['q-review-more', '5b. …its reveal-more control'],
     ['q-cahps-block', '6. family caregiver experience'], ['q-note', '7. methodology and freshness']
   ]) ok(PAGE.includes(`id="${id}"`), `14. ${label} is present (#${id})`);
 
@@ -1020,6 +1030,266 @@ let R, dom;
     // the pre-existing mobile rules must still be present
     ok(/@media \(max-width:600px\) \{[\s\S]{0,400}\.cms-metrics/.test(PAGE),
        '172. the pre-existing 600px mobile block is untouched');
+  }
+
+  section('Task 3: executive takeaway prioritisation');
+  {
+    // A measure with explicit peer counts. `scaleMin`/`scaleMax` and
+    // `differenceFromPeerMedian` are populated on purpose so the tests can prove
+    // the ordering does NOT consult them.
+    const M = (code, label, direction, value, median, n, lower, higher, equal, scale) => measure({
+      measureCode: code, shortLabel: label, direction: direction,
+      scaleMin: (scale || [0, 100])[0], scaleMax: (scale || [0, 100])[1],
+      differenceFromPeerMedian: Math.round((value - median) * 100) / 100,
+      unitLabel: (scale && scale[1] === 5) ? 'of 5 stars' : '%',
+      provider: { value: value, valueRaw: String(value), published: true, suppressed: false,
+                  denominator: null, starRating: null, footnoteCodes: [] },
+      peers: { comparableCount: n, median: median, min: null, max: null,
+               lowerThanProvider: lower, higherThanProvider: higher, equalToProvider: equal },
+      favorable: value === median ? null : (direction === 'lower_better' ? value < median : value > median),
+      verdict: value === median ? 'at_peer_median'
+        : (value > median ? 'above_peer_median' : 'below_peer_median'),
+      comparisonAllowed: true
+    });
+    const idx = (ms) => { const o = {}; ms.forEach((m, i) => { o[m.measureCode] = i; }); return o; };
+    const map = (ms) => { const o = {}; ms.forEach((m) => { o[m.measureCode] = m; }); return o; };
+    const order = (ms, side) => R.prioritizeTakeaways(ms.map((m) => m.measureCode), map(ms), side, idx(ms))
+      .map((m) => m.measureCode);
+
+    // ---- 1 & 3: strengths, higher_better, ordered by peers outperformed ----
+    let ms = [
+      M('A', 'A', 'higher_better', 60, 50, 10, 3, 7, 0),   // behind 3/10 = 0.30
+      M('B', 'B', 'higher_better', 60, 50, 10, 9, 1, 0),   // behind 9/10 = 0.90
+      M('C', 'C', 'higher_better', 60, 50, 10, 6, 4, 0)    // behind 6/10 = 0.60
+    ];
+    ok(JSON.stringify(order(ms, 'strength')) === JSON.stringify(['B', 'C', 'A']),
+       '173. strengths ordered by the proportion of peers the provider outperformed',
+       order(ms, 'strength').join(','));
+
+    // ---- 2 & 4: areas to review, lower_better, ordered by peers that outperformed ----
+    ms = [
+      M('A', 'A', 'lower_better', 60, 50, 10, 2, 8, 0),    // ahead = lower = 2/10 = 0.20
+      M('B', 'B', 'lower_better', 60, 50, 10, 8, 2, 0),    // ahead = lower = 8/10 = 0.80
+      M('C', 'C', 'lower_better', 60, 50, 10, 5, 5, 0)     // ahead = lower = 5/10 = 0.50
+    ];
+    ok(JSON.stringify(order(ms, 'review')) === JSON.stringify(['B', 'C', 'A']),
+       '174. areas to review ordered by the proportion of peers that outperformed the provider',
+       order(ms, 'review').join(','));
+    // the SAME counts must invert between directions
+    const hi = [M('X', 'X', 'higher_better', 60, 50, 10, 8, 2, 0)];
+    const lo = [M('X', 'X', 'lower_better', 40, 50, 10, 8, 2, 0)];
+    ok(R.peerPositionCount(hi[0], 'strength') === 8 && R.peerPositionCount(lo[0], 'strength') === 2,
+       '175. direction inverts which side counts as outperformed');
+    ok(!/provider\.value|peers\.median|differenceFromPeerMedian/.test(R.peerPositionCount.toString()),
+       '176. peerPositionCount never infers direction from the value or the median');
+
+    // ---- 5: comparableCount normalisation ----
+    ms = [
+      M('P8OF10', 'P8OF10', 'higher_better', 60, 50, 10, 8, 2, 0),  // 8/10 = 0.800
+      M('P7OF8', 'P7OF8', 'higher_better', 60, 50, 8, 7, 1, 0)      // 7/8  = 0.875
+    ];
+    ok(JSON.stringify(order(ms, 'strength')) === JSON.stringify(['P7OF8', 'P8OF10']),
+       '177. 7 of 8 outranks 8 of 10 — the proportion decides, not the raw count',
+       order(ms, 'strength').join(','));
+    ms = [
+      M('P7OF9', 'P7OF9', 'higher_better', 60, 50, 9, 7, 2, 0),     // 7/9 = 0.778
+      M('P8OF10b', 'P8OF10b', 'higher_better', 60, 50, 10, 8, 2, 0) // 8/10 = 0.800
+    ];
+    ok(JSON.stringify(order(ms, 'strength')) === JSON.stringify(['P8OF10b', 'P7OF9']),
+       '178. …and 8 of 10 outranks 7 of 9, where the proportions dictate that');
+
+    // ---- 6: tie-break by directional count ----
+    ms = [
+      M('SMALL', 'SMALL', 'higher_better', 60, 50, 4, 2, 2, 0),     // 2/4 = 0.5, count 2
+      M('BIG', 'BIG', 'higher_better', 60, 50, 12, 6, 6, 0)         // 6/12 = 0.5, count 6
+    ];
+    // (comparableCount 4 is below the threshold in production, but the API would
+    //  not mark it comparisonAllowed; here both are comparable by construction so
+    //  the tie-break itself can be tested in isolation.)
+    ok(JSON.stringify(order(ms, 'strength')) === JSON.stringify(['BIG', 'SMALL']),
+       '179. equal proportions are broken by the larger directional peer count',
+       order(ms, 'strength').join(','));
+
+    // ---- 7: stable existing measure order as the final tie-break ----
+    ms = [
+      M('H_012_02_OBSERVED', 'Gaps', 'lower_better', 53.8, 54.3, 9, 4, 5, 0),   // behind 5/9
+      M('H_012_03_OBSERVED', 'Early', 'lower_better', 8.5, 8.8, 9, 4, 5, 0)     // behind 5/9
+    ];
+    ok(JSON.stringify(order(ms, 'strength'))
+       === JSON.stringify(['H_012_02_OBSERVED', 'H_012_03_OBSERVED']),
+       '180. identical proportion AND count falls back to the existing measure order');
+    // reversing the incoming order reverses the result: the tie-break really is
+    // the supplied order, not something derived from the numbers
+    const rev = [ms[1], ms[0]];
+    ok(JSON.stringify(order(rev, 'strength'))
+       === JSON.stringify(['H_012_03_OBSERVED', 'H_012_02_OBSERVED']),
+       '181. …and that order is the one supplied, not recomputed from values');
+
+    // ---- 8 & 9: the raw numeric gap is NOT used, across unlike units ----
+    // Star rating: 1 star off a 1-5 scale = 0.25 normalised gap, but only 7 of 8
+    // peers ahead. Percentage: 10.5 points off 0-100 = 0.105 gap, but ALL 10
+    // peers ahead. The old normalized-gap ordering put the star measure first.
+    ms = [
+      M('STAR', 'Family caregiver survey rating', 'higher_better', 3, 4, 8, 0, 7, 1, [1, 5]),
+      M('PCT', 'Would definitely recommend', 'higher_better', 79, 89.5, 10, 0, 10, 0)
+    ];
+    ok(JSON.stringify(order(ms, 'review')) === JSON.stringify(['PCT', 'STAR']),
+       '182. a 10-of-10 peer position outranks a larger star-scale gap',
+       order(ms, 'review').join(','));
+    ok(!/differenceFromPeerMedian|scaleMin|scaleMax|Math\.abs/.test(R.prioritizeTakeaways.toString()),
+       '183. prioritizeTakeaways never reads the numeric gap or the measure scale');
+    ok(!/differenceFromPeerMedian|scaleMin|scaleMax/.test(R.peerPositionCount.toString()),
+       '184. …and neither does peerPositionCount');
+    // an index gap and a percentage gap must not be weighed against each other
+    ms = [
+      M('IDX', 'Care Index', 'higher_better', 4, 9, 10, 1, 9, 0, [0, 10]),   // gap 5/10 = 0.50, 9/10 ahead
+      M('PCT2', 'A percentage', 'higher_better', 10, 90, 10, 0, 10, 0)       // gap 80/100 = 0.80, 10/10 ahead
+    ];
+    ok(JSON.stringify(order(ms, 'review')) === JSON.stringify(['PCT2', 'IDX']),
+       '185. index and percentage gaps are never compared as magnitudes');
+
+    // ---- 17 & 18: uncomparable measures excluded; ties handled ----
+    const withBad = [
+      M('OK1', 'OK1', 'higher_better', 60, 50, 10, 9, 1, 0),
+      Object.assign(M('FEW', 'FEW', 'higher_better', 60, 50, 4, 3, 1, 0), { comparisonAllowed: false }),
+      Object.assign(M('SUP', 'SUP', 'higher_better', 0, 50, 10, 0, 10, 0),
+        { comparisonAllowed: false, provider: { value: null, valueRaw: 'Not Available',
+          published: false, suppressed: true, denominator: null, starRating: null, footnoteCodes: ['11'] } }),
+      Object.assign(M('NOPEERS', 'NOPEERS', 'higher_better', 60, 50, 0, 0, 0, 0), {}),
+      M('OK2', 'OK2', 'higher_better', 60, 50, 10, 4, 6, 0)
+    ];
+    const kept = order(withBad, 'strength');
+    ok(JSON.stringify(kept) === JSON.stringify(['OK1', 'OK2']),
+       '186. uncomparable, suppressed and zero-peer measures are excluded from takeaways', kept.join(','));
+    const allTied = [M('TIED', 'TIED', 'higher_better', 50, 50, 7, 0, 0, 7)];
+    ok(R.peerPositionCount(allTied[0], 'strength') === 0
+       && R.peerPositionCount(allTied[0], 'review') === 0,
+       '187. an all-tied measure has zero peers on either side');
+
+    // ---- 10, 11, 12, 13: default cap and reveal-more ----
+    const many = [
+      M('R1', 'R1', 'higher_better', 40, 50, 10, 0, 10, 0),
+      M('R2', 'R2', 'higher_better', 40, 50, 10, 1, 9, 0),
+      M('R3', 'R3', 'higher_better', 40, 50, 10, 2, 8, 0),
+      M('R4', 'R4', 'higher_better', 40, 50, 10, 3, 7, 0),
+      M('R5', 'R5', 'higher_better', 40, 50, 10, 4, 6, 0),
+      M('S1', 'S1', 'higher_better', 60, 50, 10, 9, 1, 0),
+      M('S2', 'S2', 'higher_better', 60, 50, 10, 8, 2, 0),
+      M('S3', 'S3', 'higher_better', 60, 50, 10, 7, 3, 0),
+      M('S4', 'S4', 'higher_better', 60, 50, 10, 6, 4, 0)
+    ];
+    const dm = makeDom();
+    const big = clone(RESOLVED);
+    big.measures = many;
+    big.strengths = many.filter((m) => m.favorable === true).map((m) => m.measureCode);
+    big.areasToReview = many.filter((m) => m.favorable === false).map((m) => m.measureCode);
+    big.summary.comparedMeasureCount = many.length;
+    const Rm = loadRenderers(dm, async () => big);
+    Rm.initQualityAccordion();
+    await Rm.loadCmsQuality({ cmsQuality: { status: 'available' } });
+
+    ok(R.TAKEAWAY_DEFAULT === 3, '188. the default cap is 3', String(R.TAKEAWAY_DEFAULT));
+    ok((dm.els['q-strengths'].innerHTML.match(/<li>/g) || []).length === 3,
+       '189. at most 3 strengths are shown by default');
+    ok((dm.els['q-review'].innerHTML.match(/<li>/g) || []).length === 3,
+       '190. at most 3 areas to review are shown by default');
+    ok(/S1[\s\S]*S2[\s\S]*S3/.test(dm.els['q-strengths'].innerHTML)
+       && !/S4/.test(dm.els['q-strengths'].innerHTML),
+       '191. …and they are the highest-priority three');
+    ok(/R1[\s\S]*R2[\s\S]*R3/.test(dm.els['q-review'].innerHTML)
+       && !/R4|R5/.test(dm.els['q-review'].innerHTML),
+       '192. …in both sections');
+    ok(dm.els['q-strengths-more'].hidden === false
+       && dm.els['q-strengths-more'].textContent === 'Show 1 more',
+       '193. a reveal control appears when more qualify', dm.els['q-strengths-more'].textContent);
+    ok(dm.els['q-review-more'].textContent === 'Show 2 more',
+       '194. …counting exactly how many remain', dm.els['q-review-more'].textContent);
+    dm.els['q-review-more'].click();
+    ok((dm.els['q-review'].innerHTML.match(/<li>/g) || []).length === 5,
+       '195. clicking it reveals the rest in place, with no reload');
+    ok(dm.els['q-review-more'].hidden === true,
+       '196. …and the control disappears once everything is shown');
+    ok(/R4[\s\S]*R5/.test(dm.els['q-review'].innerHTML),
+       '197. …including the lowest-priority entries');
+
+    // <= 3 qualifying: no control at all
+    ok(dom.els['q-strengths-more'].hidden === true,
+       '198. no reveal control when 3 or fewer qualify');
+
+    // ---- 14, 15, 16: neutral states ----
+    const dn = makeDom();
+    const noStrength = clone(RESOLVED);
+    noStrength.strengths = [];
+    const Rn = loadRenderers(dn, async () => noStrength);
+    Rn.initQualityAccordion();
+    await Rn.loadCmsQuality({ cmsQuality: { status: 'available' } });
+    ok(dn.els['q-strengths'].hidden === true && dn.els['q-strengths-empty'].hidden === false,
+       '199. no strengths shows the neutral state, not an empty list');
+    ok(/No measure is above the overlapping-hospice median/.test(dn.els['q-strengths-empty'].textContent),
+       '200. …with product language, and no fabricated zero',
+       dn.els['q-strengths-empty'].textContent);
+    ok(dn.els['q-strengths-more'].hidden === true, '201. …and no reveal control');
+    ok(dn.els['q-strengths-hint'].hidden === true, '202. …and no attribution hint on an empty section');
+
+    const dr = makeDom();
+    const noReview = clone(RESOLVED);
+    noReview.areasToReview = [];
+    const Rr = loadRenderers(dr, async () => noReview);
+    Rr.initQualityAccordion();
+    await Rr.loadCmsQuality({ cmsQuality: { status: 'available' } });
+    ok(dr.els['q-review'].hidden === true && dr.els['q-review-empty'].hidden === false,
+       '203. no areas to review shows the neutral state');
+    ok(/No measure falls below the overlapping-hospice median/.test(dr.els['q-review-empty'].textContent),
+       '204. …with product language');
+
+    // zero valid comparisons anywhere
+    const dz = makeDom();
+    const none = clone(RESOLVED);
+    none.measures = [Object.assign(M('NONE', 'NONE', 'higher_better', 55, 50, 4, 2, 2, 0),
+      { comparisonAllowed: false, verdict: 'insufficient_peers' })];
+    none.strengths = []; none.areasToReview = []; none.summary.comparedMeasureCount = 0;
+    const Rz = loadRenderers(dz, async () => none);
+    Rz.initQualityAccordion();
+    await Rz.loadCmsQuality({ cmsQuality: { status: 'available' } });
+    ok(dz.els['q-strengths-empty'].textContent === 'No peer comparisons available'
+       && dz.els['q-review-empty'].textContent === 'No peer comparisons available',
+       '205. with no valid comparisons at all, both sections use the no-comparisons state',
+       dz.els['q-strengths-empty'].textContent);
+
+    // ---- 22: attribution ----
+    const hint = dm.els['q-strengths-hint'].textContent;
+    ok(/Values are CMS-published/.test(hint), '206. the section states values are CMS-published');
+    ok(/peer median, the comparison and the order these appear in are calculated by Best Hospice/.test(hint),
+       '207. …and that the median, comparison and ORDER are Best Hospice calculations', hint);
+    ok(/Best Hospice comparison/.test(PAGE.slice(PAGE.indexOf('id="q-strengths-block"'),
+        PAGE.indexOf('id="q-strengths"'))),
+       '208. the strengths block carries the Best Hospice provenance chip');
+    ok(/Best Hospice comparison/.test(PAGE.slice(PAGE.indexOf('id="q-review-block"'),
+        PAGE.indexOf('id="q-review"'))),
+       '209. …and so does the areas-to-review block');
+    ok(!/CMS (identifies|found|flags|considers)/i.test(hint + dm.els['q-strengths'].innerHTML),
+       '210. nothing implies CMS identifies strengths or areas to review');
+
+    // ---- 21: no score / rank / percentile language, and no clinical causation ----
+    const takeawayText = [dm.els['q-strengths'].innerHTML, dm.els['q-review'].innerHTML,
+      dm.els['q-strengths-hint'].textContent, dm.els['q-review-hint'].textContent,
+      dm.els['q-strengths-more'].textContent, dm.els['q-review-more'].textContent].join(' ');
+    for (const bad of ['percentile', 'quality score', 'overall score', 'grade', 'rank', 'ranked',
+                       'ranking', 'priority score', 'weighted', 'composite', 'out of 100']) {
+      ok(!new RegExp(bad, 'i').test(takeawayText), `211. takeaways never say "${bad}"`);
+    }
+    for (const bad of ['improve', 'increase', 'you should', 'needs work', 'dissatisfied',
+                       'because', 'caused', 'poor care', 'we recommend']) {
+      ok(!new RegExp(bad, 'i').test(takeawayText), `212. takeaways make no causal or clinical claim ("${bad}")`);
+    }
+
+    // ---- item shape: measure, value vs median, evidence sentence ----
+    const first = dm.els['q-review'].innerHTML.split('</li>')[0];
+    ok(/class="q-measure">R1</.test(first), '213. each takeaway names the measure');
+    ok(/class="k">Yours<\/span><span class="v">/.test(first), '214. …shows the provider value');
+    ok(/class="k">Peer median<\/span><span class="v">/.test(first), '215. …and the peer median');
+    ok(/class="q-sentence">All 10 comparable hospices reported a higher value\./.test(first),
+       '216. …and reuses Task 1\'s tie-safe evidence sentence verbatim', first.slice(0, 200));
   }
 
   console.log(`\n${'='.repeat(60)}`);
