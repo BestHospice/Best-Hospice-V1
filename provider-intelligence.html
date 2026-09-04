@@ -219,6 +219,38 @@
     .cms-comp-stats { margin-top:8px; display:grid; gap:4px; font-size:.86rem; color:#334155; }
     .cms-comp-stats b { color:#0f2744; }
     .cms-density-wrap { overflow-x:auto; }
+    /* Provider Funnel V1. Reuses .mi-card, .mm-toggle, .cms-metrics and
+       .cms-metric so the module is visually indistinguishable from My Market,
+       Quality and Competitors; only the window control, the status breakdown
+       and the methodology block need anything new. */
+    .pf-wins { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 2px; }
+    .pf-win { background:#fff; border:1px solid #e2e8f0; border-radius:999px; padding:7px 15px;
+              font-size:.85rem; font-weight:600; color:#0f2744; cursor:pointer; }
+    .pf-win:hover { background:#f1f5f9; }
+    .pf-win[aria-pressed="true"] { background:#0f2744; border-color:#0f2744; color:#fff; }
+    .pf-win:focus-visible { outline:3px solid #93c5fd; outline-offset:2px; }
+    .pf-scope { font-size:.8rem; color:#64748b; margin:6px 0 0; }
+    .pf-buckets { list-style:none; margin:10px 0 0; padding:0; }
+    .pf-bucket { display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+                 padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px;
+                 background:#f8fafc; margin-bottom:8px; }
+    .pf-bucket .b-l { font-size:.9rem; color:#0f2744; font-weight:600; }
+    .pf-bucket .b-v { font-size:1.25rem; font-weight:700; color:#0f2744; }
+    .pf-warn { border:1px solid #fcd34d; background:#fffbeb; border-radius:10px;
+               padding:11px 13px; margin:14px 0 0; font-size:.88rem; color:#78350f; }
+    .pf-empty { border:1px solid #e2e8f0; background:#f8fafc; border-radius:10px;
+                padding:16px; margin:14px 0 0; font-size:.92rem; color:#334155; }
+    /* Methodology is a first-class block, not a tooltip: most providers will see
+       a large "no response recorded" count and must be able to read why without
+       hovering anything. */
+    .pf-method { margin:18px 0 0; padding:14px 16px; border:1px solid #e2e8f0;
+                 border-radius:12px; background:#f8fafc; }
+    .pf-method h4 { margin:0 0 8px; font-size:.95rem; color:#0f2744; }
+    .pf-method dl { margin:0; }
+    .pf-method dt { font-size:.84rem; font-weight:700; color:#0f2744; margin-top:9px; }
+    .pf-method dd { margin:2px 0 0; font-size:.86rem; color:#475569; line-height:1.5; }
+    .pf-method ul { margin:10px 0 0; padding-left:18px; }
+    .pf-method li { font-size:.86rem; color:#475569; line-height:1.5; margin-bottom:4px; }
     .cms-density { width:100%; border-collapse:collapse; font-size:.9rem; }
     .cms-density th, .cms-density td { text-align:left; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
     .cms-density th { font-size:.78rem; text-transform:uppercase; letter-spacing:.03em; color:#475569; }
@@ -297,6 +329,71 @@
 
           <div class="mi-panel" data-section="Overview">
             <p class="mi-lede" style="margin-bottom:14px;">A summary of everything below. Each module tells you whether its data is available for your organization today, and if not, why.</p>
+
+            <!-- Compact module card, identical progressive-disclosure pattern to
+                 My Market, Quality and Competitors: the detail lives in
+                 #pf-detail and stays collapsed until asked for.
+                 Starts HIDDEN and is revealed only once the capability model says
+                 the module is available. With the release gate off, a provider
+                 sees exactly the Overview page that shipped before this module
+                 existed - no card, no control, no request. -->
+            <div class="mi-card pf-card" id="pf-card" hidden>
+              <h3>Your Best Hospice referral activity</h3>
+              <p>The referrals Best Hospice sent you, and the statuses your team recorded for them.</p>
+              <p class="mm-summary" id="pf-summary" hidden></p>
+              <p class="cms-status" id="pf-status" role="status"></p>
+              <button type="button" class="mm-toggle" id="pf-toggle"
+                      aria-expanded="false" aria-controls="pf-detail" hidden>
+                <span id="pf-toggle-label">View referral activity</span>
+                <span class="mm-chev" aria-hidden="true">&#8595;</span>
+              </button>
+            </div>
+
+            <section class="cms-market" id="pf-detail" aria-labelledby="pf-detail-h" hidden>
+              <div class="cms-market-head">
+                <h3 id="pf-detail-h">Your Best Hospice Referral Activity</h3>
+                <p class="cms-sub">Counts of what Best Hospice recorded for your referrals. These are your own records and are never compared with another provider.</p>
+              </div>
+
+              <!-- Window control. Three closed choices matching the service; the
+                   default is 90 days. -->
+              <div class="pf-wins" id="pf-wins" role="group" aria-label="Time period">
+                <button type="button" class="pf-win" data-window="30d" aria-pressed="false">30 days</button>
+                <button type="button" class="pf-win" data-window="90d" aria-pressed="true">90 days</button>
+                <button type="button" class="pf-win" data-window="all" aria-pressed="false">All time</button>
+              </div>
+              <p class="pf-scope" id="pf-scope"></p>
+
+              <div id="pf-body" hidden>
+                <div class="cms-metrics" id="pf-metrics"></div>
+
+                <!-- Operational, and only when it happened. Rendered from a
+                     conditional branch rather than hidden by CSS, so a provider
+                     with nothing undelivered never sees a zero card. -->
+                <div class="pf-warn" id="pf-delivery" hidden></div>
+
+                <div class="cms-block" id="pf-buckets-block">
+                  <h4>Current status of those referrals</h4>
+                  <p class="cms-hint">Where each referral stands today. A status that was changed is counted where it stands now, not where it has been.</p>
+                  <ul class="pf-buckets" id="pf-buckets"></ul>
+                </div>
+              </div>
+
+              <!-- Legitimate zero activity, not an error. -->
+              <div class="pf-empty" id="pf-empty" hidden></div>
+
+              <div class="pf-method" id="pf-method" hidden>
+                <h4>What these counts mean</h4>
+                <dl id="pf-method-list"></dl>
+                <ul id="pf-method-limits"></ul>
+              </div>
+
+              <button type="button" class="mm-toggle mm-collapse" id="pf-collapse"
+                      aria-expanded="true" aria-controls="pf-detail">
+                <span class="mm-chev" aria-hidden="true">&#8593;</span> Hide referral activity
+              </button>
+            </section>
+
             <div class="mi-grid" id="mi-overview-grid"></div>
           </div>
 
@@ -2185,6 +2282,279 @@
     document.getElementById('comp-toggle').hidden = false;
   }
 
+  // ---- Best Hospice referral funnel (Provider Funnel V1) -------------------
+  // Counts only. There is no response percentage, admission percentage,
+  // time-to-response, median, average, trend line, score, rank, grade,
+  // percentile, peer comparison or competitor benchmark anywhere in this module,
+  // and none can be derived from what the endpoint returns.
+  //
+  // The reason is in the data. 87.46% of recorded outcomes sit at the system
+  // default, 30 of 37 providers have never recorded a single status update, and
+  // one provider accounts for 69.9% of every response there is. A percentage
+  // over that distribution would be arithmetically correct and would tell a
+  // provider something false about their own team. A count tells them what Best
+  // Hospice recorded, which is all we know.
+  //
+  // Lazy, exactly like Competitors: page load reveals the compact card and its
+  // expand control and issues NO request. The first expansion fetches the
+  // default window, and each window is cached for the page session.
+  const FUNNEL_DEFAULT_WINDOW = '90d';
+  const FUNNEL_WINDOW_LABELS = { '30d': 'Last 30 days', '90d': 'Last 90 days', all: 'All time' };
+  const FUNNEL_PROMPT = 'See what Best Hospice recorded for the referrals we sent you.';
+  const FUNNEL_LOADING = 'Loading your referral activity…';
+  const FUNNEL_ERROR = "We couldn't load your referral activity right now. Please try again.";
+  const FUNNEL_EMPTY = 'No Best Hospice referral activity in this period yet.';
+  const FUNNEL_EMPTY_HINT = 'When a family is matched to your organization and we send you the referral, it will appear here. Try a longer period above.';
+
+  // Display order fixed by the product: volume, then what came back.
+  const FUNNEL_METRICS = [
+    ['timesMatched', 'Times matched'],
+    ['referralsSent', 'Referrals sent'],
+    ['responsesRecorded', 'Responses recorded'],
+    ['noResponseRecorded', 'No response recorded']
+  ];
+
+  // The methodology block, in reading order. Every string comes from the
+  // endpoint rather than being duplicated here, so the definition a provider
+  // reads and the definition the service applies cannot drift apart.
+  const FUNNEL_METHOD_ORDER = [
+    ['referralDefinition', 'Referrals sent'],
+    ['deliveryLimitation', 'What "sent" does not mean'],
+    ['responseDefinition', 'Responses recorded'],
+    ['noResponseDefinition', 'No response recorded'],
+    ['cohortDefinition', 'Which period a referral belongs to'],
+    ['statusCurrentOnly', 'Current status only']
+  ];
+
+  // Which recorded statuses sit behind each shipped label. A DISPLAY fact, so it
+  // belongs here next to the labels rather than in the service.
+  //
+  // Both notes exist because the dashboard's status picker offers four choices
+  // while six statuses can be stored: an emailed status link can record
+  // "qualified", which displays as Contacted, and can record the internal
+  // no-reply status, which carries the SAME "Not a True Lead" label a provider
+  // chooses by hand and is counted as a response for exactly that reason. A
+  // provider seeing a number they cannot reproduce from their own four buttons
+  // deserves the sentence that explains it.
+  const FUNNEL_BUCKET_NOTES = {
+    new: 'No status update has been recorded in Best Hospice for these referrals.',
+    contacted: 'Includes anything recorded as qualified through an emailed status link, which the dashboard also shows as Contacted.',
+    not_a_fit: 'Includes every referral marked as not a true lead, whether it was set here or through an emailed status link.'
+  };
+
+  let funnelActivated = false;
+  let funnelWindow = FUNNEL_DEFAULT_WINDOW;
+  let funnelPending = false;
+  const funnelCache = new Map();
+
+  // ISO timestamp -> "Jun 6, 2026", reusing the UTC-safe formatter so a provider
+  // west of UTC is not shown the previous day.
+  const funnelDay = (iso) => friendlyReleaseDate(String(iso || '').slice(0, 10));
+
+  function funnelSetStatus(text, isError) {
+    const el = document.getElementById('pf-status');
+    if (!el) return;
+    el.hidden = !text;
+    el.textContent = text || '';
+    if (isError) el.classList.add('is-error'); else el.classList.remove('is-error');
+  }
+
+  // Release gate off, or the capability otherwise unavailable: the module leaves
+  // no trace on the page. No card, no expand control, no summary, no request -
+  // the Overview panel is the one that shipped before this module existed.
+  function funnelNotActivated() {
+    funnelActivated = false;
+    const card = document.getElementById('pf-card');
+    if (card) card.hidden = true;
+    funnelSetStatus('', false);
+    const sum = document.getElementById('pf-summary');
+    if (sum) { sum.hidden = true; sum.textContent = ''; }
+    const toggle = document.getElementById('pf-toggle');
+    if (toggle) toggle.hidden = true;
+    const body = document.getElementById('pf-body');
+    if (body) body.hidden = true;
+    INTEL_ACCORDION.close('providerFunnel');
+  }
+
+  function initFunnel(caps) {
+    const cap = (caps && caps.providerFunnelV1) || { status: 'coming_soon' };
+    if (cap.status !== 'available') { funnelNotActivated(); return; }
+    funnelActivated = true;
+    const card = document.getElementById('pf-card');
+    if (card) card.hidden = false;
+    funnelSetStatus(FUNNEL_PROMPT, false);
+    document.getElementById('pf-summary').hidden = true;
+    document.getElementById('pf-body').hidden = true;
+    document.getElementById('pf-toggle').hidden = false;
+  }
+
+  function initFunnelAccordion() {
+    const panel = document.getElementById('pf-detail');
+    const toggle = document.getElementById('pf-toggle');
+    const collapse = document.getElementById('pf-collapse');
+    if (!panel || !toggle) return;
+    toggle.dataset.labelClosed = 'View referral activity';
+    toggle.dataset.labelOpen = 'Hide referral activity';
+    const labelSpan = document.getElementById('pf-toggle-label');
+    if (labelSpan) labelSpan.setAttribute('data-toggle-label', '');
+    INTEL_ACCORDION.register('providerFunnel', panel, [toggle, collapse].filter(Boolean));
+    toggle.addEventListener('click', () => { toggleFunnel(toggle); });
+    if (collapse) collapse.addEventListener('click', () => INTEL_ACCORDION.close('providerFunnel', toggle));
+    const wins = document.getElementById('pf-wins');
+    if (wins) {
+      Array.prototype.forEach.call(wins.querySelectorAll('[data-window]') || [], (b) => {
+        b.addEventListener('click', () => { selectFunnelWindow(b.getAttribute('data-window')); });
+      });
+    }
+  }
+
+  // Fetch one window, or serve it from the page-session cache. Returns true only
+  // when there is something real to show, so the caller never opens an empty
+  // panel or one showing a stale window.
+  async function ensureFunnelLoaded(windowKey) {
+    if (!funnelActivated) return false;
+    if (funnelCache.has(windowKey)) { renderFunnel(funnelCache.get(windowKey)); return true; }
+    if (funnelPending) return false;
+    funnelPending = true;
+    funnelSetStatus(FUNNEL_LOADING, false);
+    try {
+      const data = await callApi('/api/provider/funnel?window=' + encodeURIComponent(windowKey));
+      funnelCache.set(windowKey, data);
+      renderFunnel(data);
+      return true;
+    } catch (_err) {
+      funnelSetStatus(FUNNEL_ERROR, true);
+      document.getElementById('pf-body').hidden = true;
+      return false;
+    } finally {
+      funnelPending = false;
+    }
+  }
+
+  async function toggleFunnel(focusEl) {
+    if (INTEL_ACCORDION.isOpen('providerFunnel')) {
+      INTEL_ACCORDION.close('providerFunnel', focusEl);
+      return;
+    }
+    if (await ensureFunnelLoaded(funnelWindow)) INTEL_ACCORDION.open('providerFunnel');
+  }
+
+  async function selectFunnelWindow(windowKey) {
+    if (!windowKey || windowKey === funnelWindow) return;
+    funnelWindow = windowKey;
+    renderFunnelWindowButtons();
+    await ensureFunnelLoaded(windowKey);
+  }
+
+  function renderFunnelWindowButtons() {
+    const wins = document.getElementById('pf-wins');
+    if (!wins) return;
+    Array.prototype.forEach.call(wins.querySelectorAll('[data-window]') || [], (b) => {
+      b.setAttribute('aria-pressed', b.getAttribute('data-window') === funnelWindow ? 'true' : 'false');
+    });
+  }
+
+  function renderFunnel(data) {
+    const win = (data && data.window) || {};
+    const volume = (data && data.volume) || {};
+    const engagement = (data && data.engagement) || {};
+    const outcomes = (data && data.outcomes) || [];
+    funnelWindow = win.key || funnelWindow;
+    renderFunnelWindowButtons();
+
+    const periodLabel = FUNNEL_WINDOW_LABELS[win.key] || win.label || '';
+    const scope = document.getElementById('pf-scope');
+    if (scope) {
+      const from = funnelDay(win.from);
+      const to = funnelDay(win.to);
+      scope.textContent = win.from && from && to
+        ? 'Referrals from families who submitted a request between ' + from + ' and ' + to + '.'
+        : 'Every referral Best Hospice has sent you.';
+    }
+
+    const matched = volume.timesMatched || 0;
+    const sent = volume.referralsSent || 0;
+    const undelivered = volume.couldNotBeDelivered || 0;
+
+    // Legitimate zero activity is an empty state, not an error and not four
+    // zeroes. "Matched but never sent" is real activity, so a provider who was
+    // matched without a referral going out still gets the counts.
+    const nothingHappened = matched === 0 && sent === 0 && undelivered === 0;
+    const body = document.getElementById('pf-body');
+    const empty = document.getElementById('pf-empty');
+    const method = document.getElementById('pf-method');
+    if (nothingHappened) {
+      body.hidden = true;
+      method.hidden = true;
+      empty.hidden = false;
+      empty.innerHTML = '<strong>' + esc(FUNNEL_EMPTY) + '</strong><br>' + esc(FUNNEL_EMPTY_HINT);
+      funnelSetStatus(periodLabel + ' — nothing recorded yet.', false);
+      document.getElementById('pf-summary').hidden = true;
+      return;
+    }
+    empty.hidden = true;
+    body.hidden = false;
+
+    const values = {
+      timesMatched: matched,
+      referralsSent: sent,
+      responsesRecorded: engagement.responsesRecorded || 0,
+      noResponseRecorded: engagement.noResponseRecorded || 0
+    };
+    document.getElementById('pf-metrics').innerHTML = FUNNEL_METRICS.map(([key, label]) =>
+      '<div class="cms-metric"><div class="v">' + esc(num(values[key]))
+      + '</div><div class="l">' + esc(label) + '</div></div>').join('');
+
+    // Conditional by construction. With nothing undelivered this element is
+    // emptied and hidden, so there is no permanently-zero stat card.
+    const delivery = document.getElementById('pf-delivery');
+    if (undelivered > 0) {
+      delivery.hidden = false;
+      delivery.innerHTML = '<strong>' + esc(num(undelivered)) + ' could not be delivered.</strong> '
+        + esc('Best Hospice could not hand these referrals to the email provider, and no later attempt succeeded. '
+              + 'Check the contact email on your profile.');
+    } else {
+      delivery.hidden = true;
+      delivery.innerHTML = '';
+    }
+
+    document.getElementById('pf-buckets').innerHTML = outcomes.map((o) => {
+      const note = FUNNEL_BUCKET_NOTES[o.key];
+      return '<li class="pf-bucket"><span><span class="b-l">' + esc(o.label) + '</span>'
+        + (note ? '<br><span class="cms-hint">' + esc(note) + '</span>' : '')
+        + '</span><span class="b-v">' + esc(num(o.count)) + '</span></li>';
+    }).join('');
+
+    renderFunnelMethodology(data && data.methodology);
+
+    // Live summary on the compact card, so the module says something true
+    // before it is expanded.
+    const summary = document.getElementById('pf-summary');
+    summary.hidden = false;
+    summary.textContent = periodLabel + ' — ' + num(sent) + ' referral'
+      + (sent === 1 ? '' : 's') + ' sent, ' + num(values.responsesRecorded) + ' with a recorded response.';
+    funnelSetStatus('', false);
+  }
+
+  // Rendered from the endpoint's own strings. Visible in the panel rather than
+  // behind a tooltip: the largest number most providers will see is "no response
+  // recorded", and it does NOT mean nobody called the family. A provider must be
+  // able to read that without hovering anything.
+  function renderFunnelMethodology(methodology) {
+    const wrap = document.getElementById('pf-method');
+    const list = document.getElementById('pf-method-list');
+    const limits = document.getElementById('pf-method-limits');
+    if (!wrap || !list || !limits) return;
+    if (!methodology) { wrap.hidden = true; list.innerHTML = ''; limits.innerHTML = ''; return; }
+    wrap.hidden = false;
+    list.innerHTML = FUNNEL_METHOD_ORDER
+      .filter(([key]) => methodology[key])
+      .map(([key, label]) => '<dt>' + esc(label) + '</dt><dd>' + esc(methodology[key]) + '</dd>')
+      .join('');
+    const items = Array.isArray(methodology.limitations) ? methodology.limitations : [];
+    limits.innerHTML = items.map((t) => '<li>' + esc(t) + '</li>').join('');
+  }
+
   // ---- section navigation ----
   const panels = Array.from(document.querySelectorAll('.mi-panel'));
   const nav = document.getElementById('mi-nav');
@@ -2279,11 +2649,16 @@
       initMyMarketAccordion();
       initQualityAccordion();
       initCompetitorsAccordion();
+      initFunnelAccordion();
       loadCmsMarket(data.capabilities || {});
       loadCmsQuality(data.capabilities || {});
       // NOT loadCms*: Competitors is lazy. This only reveals the card and its
       // expand control; the request fires on the first expansion.
       initCompetitors(data.capabilities || {});
+      // Provider Funnel is lazy on the same terms, and behind its release gate.
+      // With the gate off the capability is not `available`, so this hides the
+      // card and issues no request.
+      initFunnel(data.capabilities || {});
       status.classList.add('hidden');
       document.getElementById('mi-shell').classList.remove('hidden');
       show(initialSection());

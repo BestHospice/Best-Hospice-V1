@@ -39,6 +39,7 @@ const capsFn = new Function('process',
    grab(/const TYPE_LABELS = \{[^}]*\};/, 'labels'),
    grab(/const CMS_QUALITY_INTELLIGENCE_ENABLED = [^\n]*/, 'quality release gate'),
    grab(/const CMS_COMPETITOR_INTELLIGENCE_ENABLED = [^\n]*/, 'competitor release gate'),
+   grab(/const PROVIDER_FUNNEL_V1_ENABLED = [^\n]*/, 'provider funnel release gate'),
    grab(/function providerIntelligenceCapabilities\(provider\) \{[\s\S]*?\n\}/, 'fn')].join('\n')
   + '\nreturn { providerIntelligenceCapabilities, INTELLIGENCE_MODULES };')({ env: {} });
 const caps = capsFn.providerIntelligenceCapabilities;
@@ -169,10 +170,16 @@ section('page wiring');
   // fourth registration, or a Coming Soon card accidentally becoming
   // expandable, fails it.
   const accReg = (PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length;
-  ok(accReg === 3, '16i. exactly three intelligence modules are registered as expandable today', String(accReg));
+  // Four since Provider Funnel V1 Phase B. My Market must remain exactly one of
+  // them, and every module must still share the single accordion so the
+  // one-open-at-a-time contract holds across all four.
+  ok(accReg === 4, '16i. exactly four intelligence modules are registered as expandable today', String(accReg));
   ok(/INTEL_ACCORDION\.register\('myMarket'/.test(PAGE) && /INTEL_ACCORDION\.register\('quality'/.test(PAGE)
-     && /INTEL_ACCORDION\.register\('competitors'/.test(PAGE),
-     '   …and they are myMarket, quality and competitors');
+     && /INTEL_ACCORDION\.register\('competitors'/.test(PAGE)
+     && /INTEL_ACCORDION\.register\('providerFunnel'/.test(PAGE),
+     '   …and they are myMarket, quality, competitors and providerFunnel');
+  ok((PAGE.match(/INTEL_ACCORDION\.register\('myMarket'/g) || []).length === 1,
+     '16i2. …and My Market registers exactly once');
   ok(/one detail module open at a time|Only one detail/i.test(PAGE),
      '16j. the one-open-at-a-time contract is documented in code');
 }

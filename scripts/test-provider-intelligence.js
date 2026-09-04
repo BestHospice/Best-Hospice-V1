@@ -32,6 +32,7 @@ const capsSrc = [
   grab(/const TYPE_LABELS = \{[^}]*\};/, 'TYPE_LABELS'),
   grab(/const CMS_QUALITY_INTELLIGENCE_ENABLED = [^\n]*/, 'quality release gate'),
   grab(/const CMS_COMPETITOR_INTELLIGENCE_ENABLED = [^\n]*/, 'competitor release gate'),
+  grab(/const PROVIDER_FUNNEL_V1_ENABLED = [^\n]*/, 'provider funnel release gate'),
   grab(/function providerIntelligenceCapabilities\(provider\) \{[\s\S]*?\n\}/, 'capability fn')
 ].join('\n');
 // `process` is injected so the REAL gate expression is evaluated against a

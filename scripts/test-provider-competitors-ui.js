@@ -46,6 +46,7 @@ const CAPS_SRC = [grab(/const INTELLIGENCE_MODULES = \[[\s\S]*?\n\];/, 'modules'
   grab(/const TYPE_LABELS = \{[^}]*\};/, 'labels'),
   grab(/const CMS_QUALITY_INTELLIGENCE_ENABLED = [^\n]*/, 'quality release gate'),
   grab(/const CMS_COMPETITOR_INTELLIGENCE_ENABLED = [^\n]*/, 'competitor release gate'),
+  grab(/const PROVIDER_FUNNEL_V1_ENABLED = [^\n]*/, 'provider funnel release gate'),
   grab(/function providerIntelligenceCapabilities\(provider\) \{[\s\S]*?\n\}/, 'fn')].join('\n');
 // `process` is injected, so every gate assertion below evaluates the expression
 // server.js actually ships rather than a convenient copy of it.
