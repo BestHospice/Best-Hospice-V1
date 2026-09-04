@@ -16,6 +16,8 @@ const { runNewsletterPipeline, verifyUnsubscribeToken, loadSchedule: loadNewslet
 const { resolveProviderCmsContext } = require('./cms-provider-resolver');
 const { buildProviderCmsMarket } = require('./cms-hospice-market');
 const { buildProviderCmsQuality } = require('./cms-hospice-quality');
+const { buildProviderCmsCompetitors } = require('./cms-hospice-competitors');
+const { buildProviderCmsCompetitorDetail } = require('./cms-hospice-competitor-detail');
 const {
   CONSUMER_LEAD_ELIGIBLE_WHERE,
   providerCoversLocation
@@ -389,6 +391,27 @@ const LEAD_STATUS_NUDGE_ENABLED = process.env.LEAD_STATUS_NUDGE_ENABLED === 'tru
 // two different answers about whether the feature exists. Render restarts the
 // service when an environment variable changes, which is the activation step.
 const CMS_QUALITY_INTELLIGENCE_ENABLED = process.env.CMS_QUALITY_INTELLIGENCE_ENABLED === 'true';
+
+// Competitor Intelligence V1 ships DARK, on the same terms and for the same
+// reason as the Quality gate above. Competitors reads the CMS facility, service
+// area and quality-measure tables; until the data behind it has been verified in
+// production, a real hospice must not be shown a competitor landscape that might
+// be empty, stale or partial. Until this is switched on the Competitors panel
+// looks exactly as it did before the feature existed.
+//
+// FAILS CLOSED, with the identical comparison. Only the exact string 'true'
+// enables it. Absent, 'false', 'TRUE', 'True', '1', 'on', 'yes' and anything else
+// all leave it OFF, so a missing, misspelled or unexpected setting can only ever
+// hide the module - never expose it early.
+//
+// Read once at boot rather than per request, so a single process cannot serve two
+// different answers about whether the feature exists. Render restarts the service
+// when an environment variable changes, which is the activation step.
+//
+// It gates the ENDPOINT and the CAPABILITY only. cms-hospice-competitors.js knows
+// nothing about it, and neither My Market, Quality, consumer routing, Prisma nor
+// any migration is touched by its value.
+const CMS_COMPETITOR_INTELLIGENCE_ENABLED = process.env.CMS_COMPETITOR_INTELLIGENCE_ENABLED === 'true';
 const LEAD_OUTCOME_VALUES = ['new', 'contacted', 'qualified', 'admitted', 'not_a_fit', 'no_response'];
 const LEAD_OUTCOME_LABELS = {
   new: 'Received',
@@ -6063,6 +6086,87 @@ app.get('/api/provider-intelligence/quality', requireProviderAuth, async (req, r
   }
 });
 
+// Provider CMS competitor landscape. Same isolation contract as my-market,
+// quality and cms-context: the provider is resolved from the bearer token ONLY,
+// and there is no providerId in the path, query or body, so one provider cannot
+// read another's competitor list.
+//
+// Thin by design. Every rule that matters - what counts as a competitor, the
+// ordering, what "CMS published X of Y" means, and which hospices may carry a
+// Best Hospice partner badge - lives in cms-hospice-competitors.js and is
+// covered by scripts/test-cms-hospice-competitors.js. This handler adds no
+// logic of its own and reshapes nothing, so the API and the service cannot
+// drift apart.
+//
+// Read-only, and CMS supply data only. It returns no Best Hospice account
+// information about anyone: not the caller's billing or contact details, and
+// nothing about an overlapping hospice beyond the CMS facility identity and a
+// single partner boolean. The service excludes internal accounts from that
+// boolean in SQL, so an internal reference record can never surface here as a
+// partner organisation.
+//
+// Every unresolved case comes back as a structured status rather than an error
+// or a zero. A provider with no overlapping hospice is a RESOLVED market with an
+// empty list, not a failure - the UI shows a neutral zero-overlap state.
+app.get('/api/provider-intelligence/competitors', requireProviderAuth, async (req, res) => {
+  try {
+    // Defence in depth behind the release gate, exactly as the quality endpoint
+    // does. requireProviderAuth has already run, so this weakens no
+    // authentication - it only refuses to serve a module that has not been
+    // activated yet, even to a caller holding a valid token.
+    //
+    // 404 rather than a structured competitor response: while the gate is off the
+    // feature genuinely is not live, and returning a fail-closed status such as
+    // no_service_area would imply it is and would be the misleading message this
+    // gate exists to prevent. No competitor row, count or partner flag is
+    // computed, because the service is never called.
+    if (!CMS_COMPETITOR_INTELLIGENCE_ENABLED) return res.status(404).json({ error: 'Not found' });
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await buildProviderCmsCompetitors(prisma, ctx.providerId);
+    res.json(result);
+  } catch (err) {
+    console.error('Provider CMS competitors failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Head-to-head CMS quality comparison against ONE overlapping hospice.
+//
+// This is the first provider-intelligence endpoint that takes a request
+// parameter, so the isolation contract is worth stating precisely. The
+// AUTHENTICATED PROVIDER still comes only from the bearer token - there is no
+// providerId in the path, query or body, and :ccn identifies the OTHER hospice,
+// never the caller.
+//
+// :ccn is validated against /^[0-9A-Z]{6}$/ and then checked against the
+// authenticated provider's own CMS overlap set before any quality data is
+// returned. Both checks live in the service, which fails closed with
+// invalid_ccn and competitor_not_in_market. Without the second check this would
+// be an arbitrary lookup over every ingested CMS facility; the overlap set is
+// the authorization boundary, and a hospice that shares no CMS-reported service
+// ZIP code with the caller is simply not readable through it.
+//
+// Thin by design, exactly like the landscape route. Everything that matters -
+// the authorization rule, the single pinned quality release, the direction-aware
+// comparison, the suppression semantics and the partner badge - lives in
+// cms-hospice-competitor-detail.js and is covered by
+// scripts/test-cms-hospice-competitor-detail.js.
+app.get('/api/provider-intelligence/competitors/:ccn', requireProviderAuth, async (req, res) => {
+  try {
+    // The SAME release gate as the landscape endpoint. One gate protects both,
+    // checked before provider context is resolved and before any service runs.
+    if (!CMS_COMPETITOR_INTELLIGENCE_ENABLED) return res.status(404).json({ error: 'Not found' });
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await buildProviderCmsCompetitorDetail(prisma, ctx.providerId, req.params.ccn);
+    res.json(result);
+  } catch (err) {
+    console.error('Provider CMS competitor detail failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── PROVIDER MARKET INTELLIGENCE ────────────────────────────────────────────
 // Capability model for the intelligence shell. Every module reports one of
 // three states, and the difference between them matters:
@@ -6079,6 +6183,7 @@ const INTELLIGENCE_MODULES = [
   'bestHospiceLeadAnalytics',
   'cmsMarketOverlap',
   'cmsQuality',
+  'cmsCompetitors',
   'cmsRatings',
   'cahps',
   'competitorBenchmarking',
@@ -6152,6 +6257,34 @@ function providerIntelligenceCapabilities(provider) {
       ? (cmsCovered
         ? { status: 'available', reason: 'Built from CMS-published hospice quality measures for your CCN.' }
         : { status: 'not_applicable', reason: `Medicare does not publish hospice quality measures for ${typePhrase}.` })
+      : cmsState,
+    // The third CMS dataset we can resolve per provider: the hospices that
+    // overlap this provider's CMS-reported service area.
+    //
+    // A NEW key rather than a flip of competitorBenchmarking, deliberately.
+    // competitorBenchmarking backs the Relative Performance and Position Over
+    // Time cards, which are head-to-head comparison and historical trend - one
+    // is a later phase and the other is not planned. Flipping it would mark all
+    // three Available now and promise two features that do not exist. This is
+    // exactly how Quality was activated: cmsQuality went available while
+    // cmsRatings and cahps stayed on cmsState.
+    //
+    // Same PRECONDITION meaning as cmsMarketOverlap: it says this care type maps
+    // to a CMS source whose service areas we ingest, NOT that this particular
+    // hospice resolved to a CMS facility. The competitors endpoint remains the
+    // authority - an unmatched, ambiguous, unfound or service-arealess hospice
+    // still receives a fail-closed status from it, and the UI then renders a
+    // plain-language reason with no metrics and nothing to expand.
+    //
+    // GATE OFF is the default and yields cmsState verbatim - the same Coming soon
+    // card this module showed before Competitor Intelligence existed, for every
+    // care type. The page reads this key to decide whether to offer the module at
+    // all, so with the gate off it renders no expand control and issues no
+    // request.
+    cmsCompetitors: CMS_COMPETITOR_INTELLIGENCE_ENABLED
+      ? (cmsCovered
+        ? { status: 'available', reason: 'Built from the hospices that share your CMS-reported service area.' }
+        : { status: 'not_applicable', reason: `Medicare does not publish a hospice service area for ${typePhrase}, so there is no CMS overlap to compare.` })
       : cmsState,
     // Deliberately unchanged. The star-rating and CAHPS CARDS still describe
     // work we have not built as its own module; the family-caregiver survey
