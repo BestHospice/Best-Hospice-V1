@@ -290,18 +290,60 @@ section('A. ordering and structure of the handler');
         { cwd: ROOT, encoding: 'utf8' });
     } catch (_e) { diff = ''; }
     const changed = diff.split('\n').filter((l) => /^[+-][^+-]/.test(l));
-    ok(changed.length > 0, '10c. the diff against origin/main was readable', `${changed.length} changed lines`);
-    for (const forbidden of ['CONSUMER_LEAD_ELIGIBLE_WHERE', 'providerCoversLocation',
-                             'isProviderEligibleForConsumerLead', 'careType', 'billingMode',
-                             'receiveClientLeads', 'serviceZipCodes', 'serviceRadiusKm',
-                             'internalRole', 'buildProviderCms', 'Cms']) {
-      ok(!changed.some((l) => l.includes(forbidden)),
-         `10d. no changed line mentions ${forbidden}`);
+    const FORBIDDEN = ['CONSUMER_LEAD_ELIGIBLE_WHERE', 'providerCoversLocation',
+                       'isProviderEligibleForConsumerLead', 'careType', 'billingMode',
+                       'receiveClientLeads', 'serviceZipCodes', 'serviceRadiusKm',
+                       'internalRole', 'buildProviderCms', 'Cms'];
+
+    // The previous version of this block asserted `changed.length > 0` and then
+    // inspected the diff. That only held while this change was UNMERGED: once it
+    // landed on origin/main there was no diff left, and the assertion failed for
+    // a reason that had nothing to do with routing safety. It also allow-listed
+    // the whole tree to `server.js` plus test scripts, so any unrelated feature
+    // branch that added a file broke it too.
+    //
+    // Both were proxies for one invariant: THE WAITLIST ROUTE MUST NOT TOUCH
+    // CONSUMER LEAD ROUTING. That is now asserted directly, three ways, none of
+    // which depends on this change being unmerged or on what else a branch holds.
+
+    // (1) The load-bearing check: the LIVE waitlist route mentions no routing
+    //     identifier. True on any branch, merged or not, forever.
+    for (const forbidden of FORBIDDEN) {
+      ok(!CODE.includes(forbidden), `10c. the live waitlist route mentions no ${forbidden}`);
     }
-    const files = execFileSync('git', ['diff', '--name-only', 'origin/main'], { cwd: ROOT, encoding: 'utf8' })
-      .split('\n').filter(Boolean).sort();
-    ok(files.every((f) => f === 'server.js' || f.startsWith('scripts/test-')),
-       '10e. only server.js and test scripts differ from origin/main', files.join(' '));
+
+    // (2) No file that DECIDES consumer eligibility differs from origin/main. A
+    //     deny-list of the deciding files, not an allow-list of the tree: an
+    //     allow-list is what made the old assertion brittle.
+    const ROUTING_FILES = ['consumer-lead-eligibility.js', 'prisma/schema.prisma',
+                           'prisma/migrations', 'cms-hospice-market.js', 'cms-hospice-quality.js',
+                           'cms-hospice-competitors.js', 'cms-hospice-competitor-detail.js',
+                           'cms-partner-badge.js', 'cms-provider-resolver.js'];
+    let routingChanged = [];
+    try {
+      routingChanged = execFileSync('git',
+        ['diff', '--name-only', 'origin/main', '--'].concat(ROUTING_FILES),
+        { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+    } catch (_e) { routingChanged = ['<git diff unavailable>']; }
+    ok(routingChanged.length === 0,
+       '10d. no file that decides consumer eligibility differs from origin/main',
+       routingChanged.join(' '));
+
+    // (3) If server.js DOES differ, no changed line may mention a routing
+    //     identifier. Skipped honestly when there is no diff, because (1)
+    //     already covers the merged state.
+    if (changed.length > 0) {
+      for (const forbidden of FORBIDDEN) {
+        ok(!changed.some((l) => l.includes(forbidden)),
+           `10e. no changed server.js line mentions ${forbidden}`);
+      }
+    } else {
+      ok(true, '10e. server.js matches origin/main — this change is merged, so (1) is the check');
+    }
+
+    // (4) And the route still does the durable thing this suite exists to guard.
+    ok(/await prisma\.waitlistRequest\.create\(/.test(CODE),
+       '10f. the live route still persists the request durably');
     const elig = fs.readFileSync(path.join(ROOT, 'consumer-lead-eligibility.js'), 'utf8');
     ok(!/waitlist/i.test(elig), '13a. consumer-lead-eligibility.js has no waitlist coupling');
     const notify = (SRC.match(/app\.post\('\/api\/notify'[\s\S]*?\n\}\);/) || [''])[0];
