@@ -332,6 +332,7 @@ model CmsRelease {
   serviceAreasFirstSeen CmsFacilityServiceArea[] @relation("CmsServiceAreaFirstSeen")
   serviceAreasLastSeen  CmsFacilityServiceArea[] @relation("CmsServiceAreaLastSeen")
   facilityMeasures      CmsFacilityMeasure[]
+  facilityObservations  CmsFacilityObservation[]
 
   @@unique([source, releaseKey])
   /// Target for the composite foreign keys below. Guarantees a facility or
@@ -393,6 +394,7 @@ model CmsFacility {
   lastSeenRelease  CmsRelease               @relation("CmsFacilityLastSeen", fields: [lastSeenReleaseId, source], references: [id, source])
   serviceAreas     CmsFacilityServiceArea[]
   measures         CmsFacilityMeasure[]
+  observations     CmsFacilityObservation[]
 
   @@unique([source, ccn])
   /// Target for CmsFacilityServiceArea's composite foreign key.
@@ -434,6 +436,88 @@ model CmsFacilityServiceArea {
   @@index([lastSeenReleaseId])
 }
 
+/// What CMS published about one facility in one release. APPEND-ONLY HISTORY.
+///
+/// WHY THIS EXISTS
+/// CmsFacility is current state: its ON CONFLICT clause overwrites name, address,
+/// city, state, zip, county, phone, ownershipType and certificationDate on every
+/// ingest, so the previous release's values are destroyed. Measured on the two
+/// archived hospice releases (2026-05-01 -> 2026-08-19), a single 3.5-month
+/// interval changed ownershipType for 1,310 of 6,610 shared facilities, name for
+/// 220 and address for 982. None of that was recoverable from the database.
+///
+/// PRESENCE IS ROW EXISTENCE, NOT A FLAG. A facility observed in a release has a
+/// row for it; one absent from that release has none. That is what makes a GAP
+/// representable - present in R1, absent in R2, present again in R3 - which
+/// CmsFacility's single firstSeen/lastSeen interval structurally cannot express.
+///
+/// RAW VALUES ONLY. Everything here is stored exactly as CMS published it, with
+/// the same parsing the current-state upsert uses (NA sentinels -> null,
+/// MM/DD/YYYY -> date, Address Line 1 + 2 joined). Interpretation belongs to
+/// future intelligence, not to storage. Two measured consequences future
+/// consumers MUST handle:
+///   - `county` must be compared CASE-INSENSITIVELY. CMS changed its casing
+///     convention wholesale between the two releases ("Maricopa" -> "MARICOPA"),
+///     which is 6,490 of 6,553 observed county changes. Raw equality would
+///     manufacture thousands of false alerts.
+///   - `ownershipType` value -> null is a CMS COVERAGE REGRESSION, not an
+///     ownership change. 788 of 1,310 observed transitions were value -> null;
+///     only 522 were value -> value. Null is preserved exactly as published.
+///
+/// A NEW RELEASE NEVER UPDATES AN OLDER ROW: releaseId is part of the natural
+/// key, so a later release inserts a new row and leaves prior rows untouched.
+/// This is the same shape CmsFacilityMeasure already uses, and it is what makes
+/// a future history-only backfill of an older release safe - appending rows for
+/// an earlier releaseId cannot mutate current state.
+model CmsFacilityObservation {
+  id String @id @default(uuid())
+
+  facilityId String
+  /// Denormalised from the facility, exactly as on CmsFacilityServiceArea and
+  /// CmsFacilityMeasure. It is what makes both composite foreign keys below
+  /// possible, so the database guarantees an observation, its facility and its
+  /// release all belong to one source.
+  source     String
+  releaseId  String
+  /// Denormalised as published. Preserves the identifier CMS actually printed if
+  /// a CCN is ever reassigned to a different organisation - the case the
+  /// current-state row cannot record, because it would silently overwrite one
+  /// organisation's attributes with another's under the same (source, ccn) key.
+  ccn        String
+
+  name              String
+  address           String
+  city              String
+  state             String
+  zip               String
+  county            String?
+  phone             String?
+  ownershipType     String?
+  /// Date-only for the same reason as CmsFacility.certificationDate: CMS
+  /// publishes MM/DD/YYYY and there is no time component to invent.
+  certificationDate DateTime? @db.Date
+
+  createdAt DateTime @default(now())
+
+  facility CmsFacility @relation(fields: [facilityId, source], references: [id, source])
+  release  CmsRelease  @relation(fields: [releaseId, source], references: [id, source])
+
+  /// One observation per facility per release. This is the rerun-safety key: an
+  /// idempotent re-ingest of the same release rewrites the same row rather than
+  /// adding a second one, and the database - not importer logic - is what
+  /// prevents duplicates.
+  ///
+  /// It also serves as the "this facility over time" index, so a separate
+  /// @@index([facilityId, releaseId]) is deliberately NOT declared: it would be
+  /// a second btree over identical columns.
+  @@unique([facilityId, releaseId])
+  /// "Everything CMS published in release R" - the release-scoped scan behind
+  /// any future release-over-release diff.
+  @@index([source, releaseId])
+  /// Ownership mix within one release, without reading every column.
+  @@index([source, releaseId, ownershipType])
+}
+
 /// The measure dictionary for Quality Intelligence. One row per CMS measure code
 /// we surface, seeded from data/cms-hospice-quality-measures.json by
 /// scripts/import-cms-hospice-quality.js.
@@ -450,9 +534,9 @@ model CmsFacilityServiceArea {
 /// a lower-is-better indicator a higher CMS percentile means WORSE care. It is
 /// deliberately not modelled and must never be surfaced as a quality rank.
 model CmsMeasureDefinition {
-  id     String @id @default(uuid())
+  id          String @id @default(uuid())
   /// "cms_hospice" | "cms_home_health". Same namespace as CmsFacility.source.
-  source String
+  source      String
   /// The CMS measure code exactly as published, e.g. "H_012_00_OBSERVED".
   measureCode String
 
@@ -513,12 +597,12 @@ model CmsMeasureDefinition {
 model CmsFacilityMeasure {
   id String @id @default(uuid())
 
-  facilityId String
+  facilityId  String
   /// Denormalised from the facility, exactly as on CmsFacilityServiceArea. It is
   /// what makes all three composite foreign keys below possible, so the database
   /// guarantees a measurement, its facility, its measure definition and its
   /// release all belong to one source.
-  source     String
+  source      String
   /// References CmsMeasureDefinition, so an undefined measure code cannot be
   /// stored at all - unknown codes are refused by the database, not just by the
   /// ingester.
