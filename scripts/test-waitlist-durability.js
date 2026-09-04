@@ -315,8 +315,15 @@ section('A. ordering and structure of the handler');
     // (2) No file that DECIDES consumer eligibility differs from origin/main. A
     //     deny-list of the deciding files, not an allow-list of the tree: an
     //     allow-list is what made the old assertion brittle.
-    const ROUTING_FILES = ['consumer-lead-eligibility.js', 'prisma/schema.prisma',
-                           'prisma/migrations', 'cms-hospice-market.js', 'cms-hospice-quality.js',
+    //
+    //     `prisma/schema.prisma` and `prisma/migrations` used to sit in this list
+    //     as whole paths. That was a proxy, and too coarse a one: it treated ANY
+    //     schema edit or ANY new migration as an eligibility change, so an
+    //     authorised additive CMS model - which Provider eligibility never reads -
+    //     failed a consumer-routing guard. The schema half is now asserted
+    //     SEMANTICALLY in 10d2-10d4 against the fields eligibility actually uses.
+    const ROUTING_FILES = ['consumer-lead-eligibility.js',
+                           'cms-hospice-market.js', 'cms-hospice-quality.js',
                            'cms-hospice-competitors.js', 'cms-hospice-competitor-detail.js',
                            'cms-partner-badge.js', 'cms-provider-resolver.js'];
     let routingChanged = [];
@@ -328,6 +335,145 @@ section('A. ordering and structure of the handler');
     ok(routingChanged.length === 0,
        '10d. no file that decides consumer eligibility differs from origin/main',
        routingChanged.join(' '));
+
+    // (2a) THE SCHEMA CONTRACT eligibility depends on. Every input to
+    //      isProviderEligibleForConsumerLead() is a field on Provider:
+    //        internalRole        - internal/test account exclusion
+    //        receiveClientLeads  - provider opt-out
+    //        billingMode         - 'off' excludes; 'billed' defers to status
+    //        subscriptionStatus  - gates billingMode 'billed'
+    //        serviceZipCodes     - exclusive ZIP list (coverage)
+    //        serviceRadiusKm     - radius mode (coverage)
+    //        lat, lon            - provider coordinates (coverage)
+    //      A type, nullability, default or removal change on any of these can
+    //      silently move the eligible set even with no code change at all - e.g.
+    //      receiveClientLeads defaulting to false, or billingMode defaulting to
+    //      'off', would quietly stop routing. careType is deliberately NOT here:
+    //      consumer routing is cross-care-type by policy, and a change that
+    //      STARTED filtering on it would have to edit consumer-lead-eligibility.js,
+    //      which 10d already pins byte-for-byte.
+    //
+    //      Whitespace is collapsed because `prisma format` realigns a model block
+    //      whenever an unrelated field name changes its column width. Defaults,
+    //      types and nullability all survive that normalisation.
+    const ELIGIBILITY_FIELDS = ['internalRole', 'receiveClientLeads', 'billingMode',
+                                'subscriptionStatus', 'serviceZipCodes', 'serviceRadiusKm',
+                                'lat', 'lon'];
+    const providerEligibilityContract = (schemaText) => {
+      const block = (String(schemaText).match(/^model Provider \{[\s\S]*?^\}/m) || [''])[0];
+      return ELIGIBILITY_FIELDS.map((f) => {
+        const m = block.match(new RegExp(`^\\s+${f}\\s+.*$`, 'm'));
+        return `${f}=${m ? m[0].trim().replace(/\s+/g, ' ') : '<ABSENT>'}`;
+      }).join('\n');
+    };
+    let baseSchema = null;
+    try {
+      baseSchema = execFileSync('git', ['show', 'origin/main:prisma/schema.prisma'],
+        { cwd: ROOT, encoding: 'utf8' });
+    } catch (_e) { baseSchema = null; }
+    const headSchema = fs.readFileSync(path.join(ROOT, 'prisma', 'schema.prisma'), 'utf8');
+    if (baseSchema == null) {
+      ok(false, '10d2. could not read origin/main:prisma/schema.prisma to compare the contract');
+    } else {
+      const mine = providerEligibilityContract(headSchema);
+      const base = providerEligibilityContract(baseSchema);
+      ok(mine === base,
+         '10d2. the Provider eligibility schema contract is unchanged from origin/main',
+         mine === base ? '' : `\n    origin/main:\n${base}\n    HEAD:\n${mine}`);
+      ok(!/<ABSENT>/.test(mine),
+         '10d2b. every eligibility field is still declared on Provider', mine);
+    }
+
+    // (2b) An APPLIED migration must never be edited. The old whole-path rule gave
+    //      this for free; keep it explicitly, because it is a real invariant and
+    //      losing it would be a genuine weakening. Only ADDED files are allowed.
+    let migTouched = [];
+    try {
+      migTouched = execFileSync('git',
+        ['diff', '--name-status', '--diff-filter=MDR', 'origin/main', '--', 'prisma/migrations'],
+        { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+    } catch (_e) { migTouched = ['<git diff unavailable>']; }
+    ok(migTouched.length === 0,
+       '10d3. no already-applied migration was modified, deleted or renamed',
+       migTouched.join(' '));
+
+    // (2c) A NEW migration may not alter the Provider table's eligibility columns.
+    //      Additive work on unrelated tables is fine; reaching into Provider is not.
+    //      Both TRACKED additions and UNTRACKED files are considered: `git diff`
+    //      never reports an untracked file, so scanning only the diff would let an
+    //      uncommitted migration walk straight past this check.
+    let addedMigrations = [];
+    try {
+      const tracked = execFileSync('git',
+        ['diff', '--name-only', '--diff-filter=A', 'origin/main', '--', 'prisma/migrations'],
+        { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+      const untracked = execFileSync('git',
+        ['ls-files', '--others', '--exclude-standard', '--', 'prisma/migrations'],
+        { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+      addedMigrations = [...new Set([...tracked, ...untracked])].filter((f) => /\.sql$/i.test(f));
+    } catch (_e) { addedMigrations = ['<git unavailable>']; }
+    const providerTouching = addedMigrations.filter((rel) => {
+      let sql = '';
+      try { sql = fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (_e) { return true; }
+      const statements = sql.split(';');
+      return statements.some((s) => /ALTER\s+TABLE\s+"Provider"/i.test(s)
+        && ELIGIBILITY_FIELDS.some((f) => new RegExp(`"${f}"`).test(s)));
+    });
+    ok(providerTouching.length === 0,
+       '10d4. no newly added migration alters a Provider eligibility column',
+       providerTouching.join(' '));
+
+    // (2d) NEGATIVE CONTROLS for the narrowed guard itself. A guard that cannot
+    //      fail is not a guard, so prove this one still bites - on in-memory
+    //      copies of the schema text. The real schema is never mutated.
+    {
+      const mutate = (from, to) => headSchema.replace(from, to);
+      const contract = providerEligibilityContract;
+      const real = contract(headSchema);
+
+      // Each of these is a change that WOULD move the eligible set.
+      const cases = [
+        ['receiveClientLeads default flipped to false',
+          mutate('receiveClientLeads       Boolean                    @default(true)',
+                 'receiveClientLeads       Boolean                    @default(false)')],
+        ['billingMode default flipped to "off"',
+          mutate('billingMode              String                     @default("free")',
+                 'billingMode              String                     @default("off")')],
+        ['internalRole made non-nullable',
+          mutate('internalRole             String?', 'internalRole             String')],
+        ['subscriptionStatus removed from Provider',
+          mutate('  subscriptionStatus       String?\n', '')],
+        ['serviceRadiusKm made nullable',
+          mutate('serviceRadiusKm          Float', 'serviceRadiusKm          Float?')],
+        ['lat made nullable',
+          mutate('  lat                      Float\n', '  lat                      Float?\n')]
+      ];
+      for (const [label, text] of cases) {
+        ok(text !== headSchema, `10d5. negative control is a real mutation: ${label}`);
+        ok(contract(text) !== real, `10d5. narrowed guard DETECTS: ${label}`);
+      }
+
+      // And the inverse: unrelated additive work must NOT trip it. This is the
+      // whole reason the guard was narrowed, so it is asserted, not assumed.
+      const additive = headSchema + `
+
+model TotallyUnrelatedAdditiveModel {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+}
+`;
+      ok(contract(additive) === real,
+         '10d6. narrowed guard IGNORES an unrelated additive model');
+      const withObservation = headSchema.replace(/^model CmsFacilityObservation \{[\s\S]*?^\}/m, '');
+      ok(contract(withObservation) === real,
+         '10d6b. …and removing/adding CmsFacilityObservation does not change the contract');
+      // A cosmetic realignment of the whole block must also be tolerated.
+      const realigned = headSchema.replace(/^model Provider \{[\s\S]*?^\}/m,
+        (b) => b.split('\n').map((l) => l.replace(/^(\s+\w+)\s+/, '$1 ')).join('\n'));
+      ok(realigned !== headSchema, '10d7. realignment control is a real mutation');
+      ok(contract(realigned) === real,
+         '10d7. narrowed guard tolerates prisma-format whitespace realignment');
+    }
 
     // (3) If server.js DOES differ, no changed line may mention a routing
     //     identifier. Skipped honestly when there is no diff, because (1)
