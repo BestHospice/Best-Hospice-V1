@@ -40,6 +40,7 @@ const CAPS_SRC = [grab(/const INTELLIGENCE_MODULES = \[[\s\S]*?\n\];/, 'modules'
    grab(/const TYPE_LABELS = \{[^}]*\};/, 'labels'),
    grab(/const CMS_QUALITY_INTELLIGENCE_ENABLED = [^\n]*/, 'quality release gate'),
    grab(/const CMS_COMPETITOR_INTELLIGENCE_ENABLED = [^\n]*/, 'competitor release gate'),
+   grab(/const PROVIDER_FUNNEL_V1_ENABLED = [^\n]*/, 'provider funnel release gate'),
    grab(/function providerIntelligenceCapabilities\(provider\) \{[\s\S]*?\n\}/, 'fn')].join('\n');
 const buildCaps = (env) => new Function('process',
   CAPS_SRC + '\nreturn { providerIntelligenceCapabilities, INTELLIGENCE_MODULES };')({ env: env || {} });
@@ -368,11 +369,12 @@ section('page wiring');
      '   …while the methodology note DOES disclose that CMS percentiles are unused');
   ok(/initQualityAccordion\(\);/.test(PAGE) && /loadCmsQuality\(data\.capabilities \|\| \{\}\);/.test(PAGE),
      '11. the module is initialised and loaded on page start');
-  // Three since Competitor Intelligence V1 Phase B added the Competitors
-  // module. Quality must remain exactly one of them and must not have gained a
-  // second registration of its own.
-  ok((PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length === 3,
-     '12. exactly three modules register with the accordion',
+  // Four since Provider Funnel V1 Phase B added the referral activity module,
+  // which followed Competitor Intelligence V1 Phase B. Quality must remain
+  // exactly one of them and must not have gained a second registration of its
+  // own.
+  ok((PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length === 4,
+     '12. exactly four modules register with the accordion',
      String((PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length));
   ok((PAGE.match(/INTEL_ACCORDION\.register\('quality'/g) || []).length === 1,
      '12b. …and Quality registers exactly once');

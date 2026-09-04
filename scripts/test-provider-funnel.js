@@ -111,14 +111,26 @@ section('A. leaf isolation, no forbidden metric, bounded queries');
   ok(JSON.stringify(Object.keys(FUNNEL_WINDOWS)) === JSON.stringify(['30d', '90d', 'all']),
      '4a. exactly three windows', Object.keys(FUNNEL_WINDOWS).join(','));
 
-  section('A. /api/provider/metrics remains untouched');
+  // PHASE B INVERTED THESE. Phase A asserted the OPPOSITE of 20f and 20g - that
+  // /api/provider/metrics still counted raw notification ROWS, and that
+  // server.js did not reference this service at all - because both were
+  // deliberately left alone until the canonical definition existed to reconcile
+  // them against. Phase B did the reconciliation and added the endpoint, so the
+  // guard now asserts the reconciled state. It is the same invariant either way:
+  // there is exactly ONE definition of "referrals sent" in the product.
+  section('A. /api/provider/metrics now agrees with this service');
   ok(/app\.get\('\/api\/provider\/metrics'/.test(SERVER),
      '20e. the existing metrics endpoint still exists');
   const metricsRoute = SERVER.match(/app\.get\('\/api\/provider\/metrics'[\s\S]*?\n\}\);/)[0];
-  ok(/prisma\.leadNotification\.count\(\{[\s\S]*?status: 'sent'/.test(metricsRoute),
-     '20f. …still using the raw COUNT(*) we deliberately did NOT change in Phase A');
-  ok(!/provider-funnel|buildProviderFunnel/.test(SERVER),
-     '20g. server.js does not reference the funnel service yet — no endpoint in Phase A');
+  ok(!/prisma\.leadNotification\.count\(/.test(metricsRoute),
+     '20f. …and no longer counts raw notification ROWS as referrals sent');
+  ok(/countNotifiedPairs\(/.test(metricsRoute),
+     '20f2. …it resolves the ONE shared distinct-pair definition instead');
+  ok(/require\('\.\/provider-funnel'\)/.test(SERVER)
+     && /buildProviderFunnel\(prisma, ctx\.providerId/.test(SERVER),
+     '20g. server.js calls this service with the AUTHENTICATED provider id');
+  ok(!/buildProviderFunnel\(prisma, req\.(query|body|params)/.test(SERVER),
+     '20h. …and never with a provider id taken from the request');
 }
 
 // ============================ B. PURE WINDOW LOGIC ===========================

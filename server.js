@@ -18,6 +18,7 @@ const { buildProviderCmsMarket } = require('./cms-hospice-market');
 const { buildProviderCmsQuality } = require('./cms-hospice-quality');
 const { buildProviderCmsCompetitors } = require('./cms-hospice-competitors');
 const { buildProviderCmsCompetitorDetail } = require('./cms-hospice-competitor-detail');
+const { buildProviderFunnel, FUNNEL_WINDOWS, FUNNEL_STATUS } = require('./provider-funnel');
 const {
   CONSUMER_LEAD_ELIGIBLE_WHERE,
   providerCoversLocation
@@ -412,6 +413,36 @@ const CMS_QUALITY_INTELLIGENCE_ENABLED = process.env.CMS_QUALITY_INTELLIGENCE_EN
 // nothing about it, and neither My Market, Quality, consumer routing, Prisma nor
 // any migration is touched by its value.
 const CMS_COMPETITOR_INTELLIGENCE_ENABLED = process.env.CMS_COMPETITOR_INTELLIGENCE_ENABLED === 'true';
+// ─── PROVIDER FUNNEL V1 RELEASE GATE ─────────────────────────────────────────
+// Provider Funnel Intelligence V1 ships DARK, on the same terms as the two CMS
+// gates above, but for a different reason. There is no ingestion to wait for -
+// the data is our own - so what this gate buys is the chance to read the module
+// the way a provider will read it before any provider can.
+//
+// 87.46% of recorded outcomes sit at the system default, and 30 of 37 providers
+// have never recorded a single status update. Most providers will therefore see
+// a module that says, correctly, that Best Hospice has no record of what
+// happened to nearly all of their referrals. That is the truth and the module
+// says so plainly, but it must be reviewed before it is shown, not after.
+//
+// FAILS CLOSED, with the identical comparison. Only the exact string 'true'
+// enables it. Absent, 'false', 'TRUE', 'True', '1', 'on', 'yes' and anything
+// else all leave it OFF, so a missing, misspelled or unexpected setting can only
+// ever hide the module - never expose it early.
+//
+// Read once at boot rather than per request, so a single process cannot serve
+// two different answers about whether the feature exists.
+//
+// It gates the ENDPOINT and the CAPABILITY only. provider-funnel.js knows
+// nothing about it. The /api/provider/metrics reconciliation is deliberately
+// NOT behind it: that fixed an overstatement which was wrong on its own terms,
+// and it must not silently revert when this gate is off.
+const PROVIDER_FUNNEL_V1_ENABLED = process.env.PROVIDER_FUNNEL_V1_ENABLED === 'true';
+// The window a provider sees when they have not chosen one. 90 days is wide
+// enough that a typical provider has some referrals in it - 30 days holds 212
+// pairs platform-wide against 781 for 90 - without reaching so far back that it
+// describes a service the provider no longer recognises.
+const PROVIDER_FUNNEL_DEFAULT_WINDOW = '90d';
 const LEAD_OUTCOME_VALUES = ['new', 'contacted', 'qualified', 'admitted', 'not_a_fit', 'no_response'];
 const LEAD_OUTCOME_LABELS = {
   new: 'Received',
@@ -1989,6 +2020,36 @@ async function getProviderContext(providerUserId) {
     providerUserId: user.id,
     providers: user.links.map((l) => l.provider)
   };
+}
+
+// ─── ONE DEFINITION OF "REFERRALS SENT" ──────────────────────────────────────
+// Every surface that reports how many referrals Best Hospice sent a provider
+// resolves it here, so the number cannot drift into two versions again.
+//
+// COUNT(DISTINCT leadId), never COUNT(*). A single referral legitimately
+// produces TWO LeadNotification rows - the initial send, and the follow-up when
+// the family adds details - and there is no unique constraint to prevent more.
+// Read-only production validation measured the resulting overstatement at 8.10%
+// of provider-lead pairs, affecting 21 of 38 active providers, with the worst
+// overstated by 13. Provider Funnel V1 counts distinct pairs, so leaving the raw
+// row count here would have put two different "referrals sent" numbers on the
+// same provider dashboard.
+//
+// The caller's where clause has already scoped these rows to ONE provider, so
+// leadId alone identifies the provider-lead pair.
+//
+// Both counts come from ONE fetch of the rows leadsGenerated already required,
+// so this reconciliation removes a round trip rather than adding one. Time scope
+// is the caller's: this changes what is counted, not which rows are in range.
+function countNotifiedPairs(notifications) {
+  const sentPairs = new Set();
+  const notifiedPairs = new Set();
+  for (const n of notifications) {
+    notifiedPairs.add(n.leadId);
+    // Only a successful send counts as a referral we delivered to the provider.
+    if (n.status === 'sent') sentPairs.add(n.leadId);
+  }
+  return { emailsSent: sentPairs.size, leadsGenerated: notifiedPairs.size };
 }
 
 function hashIp(ip) {
@@ -6227,6 +6288,7 @@ app.get('/api/provider-intelligence/competitors/:ccn', requireProviderAuth, asyn
 // real provider, and what a future ingestion phase flips rather than replaces.
 const INTELLIGENCE_MODULES = [
   'bestHospiceLeadAnalytics',
+  'providerFunnelV1',
   'cmsMarketOverlap',
   'cmsQuality',
   'cmsCompetitors',
@@ -6276,6 +6338,27 @@ function providerIntelligenceCapabilities(provider) {
       status: 'available',
       reason: 'Drawn from your own referral activity on Best Hospice.'
     },
+    // Provider Funnel V1, behind its release gate.
+    //
+    // Deliberately NOT derived from the provider's type of care: this is Best
+    // Hospice's own referral record, not a CMS dataset. A home care, palliative
+    // or not-yet-modelled provider receives referrals through Best Hospice
+    // exactly as a hospice does, so gating it on CMS coverage would hide a
+    // provider's own data from them for a reason that has nothing to do with it.
+    //
+    // The identifier itself is left out of this comment on purpose: the waitlist
+    // durability suite deny-lists consumer-routing identifiers on every changed
+    // line of server.js, and that guard is worth more blunt than precise.
+    //
+    // GATE OFF yields coming_soon, and the page reads this key to decide whether
+    // to reveal the module at all. With the gate off it renders no compact card,
+    // no expand control and no request - the Market Intelligence page looks
+    // exactly as it did before this feature existed. The reason string is
+    // written for that state, because with the gate off it is the only one a
+    // provider could ever see.
+    providerFunnelV1: PROVIDER_FUNNEL_V1_ENABLED
+      ? { status: 'available', reason: 'Drawn from the referrals Best Hospice sent you and the statuses you recorded.' }
+      : { status: 'coming_soon', reason: 'Your Best Hospice referral activity, drawn from your own records.' },
     // The first CMS dataset we can actually resolve per provider.
     //
     // "available" here is a PRECONDITION, not a promise that data exists: it says
@@ -6371,6 +6454,69 @@ function providerIntelligenceCapabilities(provider) {
 // quality measures are published per certified location rather than per
 // company, so a roll-up across locations would not be meaningful without a
 // separate design.
+// ─── PROVIDER REFERRAL FUNNEL ────────────────────────────────────────────────
+// What happened, inside Best Hospice, to the referrals we sent THIS provider.
+//
+// PROVIDER-PRIVATE. The provider identity comes from ctx.providerId, which is
+// resolved from the bearer token, and from nowhere else. There is no providerId
+// in the path, the query or the body, and no branch of this handler reads one:
+// a caller cannot name another provider even by guessing a real id. Unlike the
+// competitor detail route there is no second party here at all, so the only
+// parameter accepted is the window.
+//
+// The window is validated against the service's own closed set BEFORE any query
+// runs, so an unrecognised value costs no database work and returns 400 rather
+// than a zeroed funnel that would look like a real empty period. An absent
+// window takes the documented default; an EMPTY or repeated one does not, and
+// is rejected. `?window=30d&window=90d` arrives as an array, and
+// `?window[]=30d` as an array of one whose toString is exactly '30d', so the
+// typeof check is what stops the second from resolving by accident.
+//
+// options.now is NOT reachable over HTTP. The options object is built here from
+// the validated window alone, so no request can move the cohort boundary.
+//
+// Counts only. No consumer name, email, phone, address, free text, session id
+// or lead id is in the response, no other provider's data is, and no CMS,
+// competitor, routing or eligibility data is - provider-funnel.js is a leaf with
+// zero requires, so it cannot reach any of them.
+app.get('/api/provider/funnel', requireProviderAuth, async (req, res) => {
+  try {
+    // Defence in depth behind the release gate, exactly as the quality and
+    // competitor endpoints do. requireProviderAuth has already run, so this
+    // weakens no authentication - it refuses to serve a module that has not been
+    // activated yet, even to a caller holding a valid token. 404 rather than a
+    // structured response: while the gate is off the feature genuinely is not
+    // live, and the service is never called, so no count is computed.
+    if (!PROVIDER_FUNNEL_V1_ENABLED) return res.status(404).json({ error: 'Not found' });
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+
+    const requested = req.query.window;
+    const windowKey = requested === undefined ? PROVIDER_FUNNEL_DEFAULT_WINDOW : requested;
+    if (typeof windowKey !== 'string'
+        || !Object.prototype.hasOwnProperty.call(FUNNEL_WINDOWS, windowKey)) {
+      return res.status(400).json({
+        error: 'Invalid window',
+        allowed: Object.keys(FUNNEL_WINDOWS)
+      });
+    }
+
+    const result = await buildProviderFunnel(prisma, ctx.providerId, { window: windowKey });
+    if (result.status !== FUNNEL_STATUS.OK) {
+      // Unreachable: the window was validated above and ctx.providerId is an
+      // already-resolved provider. If it ever fires, an upstream contract
+      // changed, and the honest answer is an error - never a fail-closed status
+      // dressed up as a real funnel with four zeroed buckets.
+      console.error('Provider funnel returned an unexpected status', result.status);
+      return res.status(500).json({ error: 'Server error' });
+    }
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('Provider funnel failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/provider/intelligence/capabilities', requireProviderAuth, async (req, res) => {
   try {
     const ctx = await getProviderContext(req.providerUserId);
@@ -7241,19 +7387,17 @@ app.get('/api/provider/metrics', requireProviderAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid start/end date' });
     }
 
-    const [impressions, emailsSent, leadNotifications] = await Promise.all([
+    const [impressions, leadNotifications] = await Promise.all([
       prisma.providerImpression.count({
         where: { providerId: ctx.providerId, createdAt: { gte: start, lte: end } }
       }),
-      prisma.leadNotification.count({
-        where: { providerId: ctx.providerId, status: 'sent', createdAt: { gte: start, lte: end } }
-      }),
       prisma.leadNotification.findMany({
         where: { providerId: ctx.providerId, createdAt: { gte: start, lte: end } },
-        select: { leadId: true }
+        select: { leadId: true, status: true }
       })
     ]);
-    const leadsGenerated = new Set(leadNotifications.map((n) => n.leadId)).size;
+    // Canonical, matching Provider Funnel V1: distinct provider-lead pairs.
+    const { emailsSent, leadsGenerated } = countNotifiedPairs(leadNotifications);
 
     await logAdminAction(
       'provider_user',
@@ -7345,20 +7489,26 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
     }
     const providerId = ctx.providerId;
     await ensureProviderStripeColumns();
-    const [totalNotifications, totalImpressions, notifications30d, impressions30d] = await Promise.all([
-      prisma.leadNotification.count({ where: { providerId, status: 'sent' } }),
-      prisma.providerImpression.count({ where: { providerId } }),
-      prisma.leadNotification.count({
-        where: {
-          providerId,
-          status: 'sent',
-          createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-        }
+    // totalNotifications is rendered as "Referrals Sent to You" and multiplied by
+    // the provider's own revenue-per-client input, so the raw row count was not
+    // merely inconsistent with Provider Funnel V1 - it overstated a dollar
+    // figure. It is the SAME quantity as "Referrals sent" and resolves through
+    // the same canonical definition. Impressions are deliberately untouched: an
+    // impression is one appearance in results, which is a different thing from
+    // one family matched, and no reconciliation was asked for or is implied.
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [sentNotifications, totalImpressions, impressions30d] = await Promise.all([
+      prisma.leadNotification.findMany({
+        where: { providerId, status: 'sent' },
+        select: { leadId: true, status: true, createdAt: true }
       }),
-      prisma.providerImpression.count({
-        where: { providerId, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }
-      })
+      prisma.providerImpression.count({ where: { providerId } }),
+      prisma.providerImpression.count({ where: { providerId, createdAt: { gte: thirtyDaysAgo } } })
     ]);
+    const totalNotifications = countNotifiedPairs(sentNotifications).emailsSent;
+    const notifications30d = countNotifiedPairs(
+      sentNotifications.filter((n) => n.createdAt >= thirtyDaysAgo)
+    ).emailsSent;
     // The Stripe columns are added by raw SQL, so the typed client cannot see them.
     const subRows = await prisma.$queryRaw`
       SELECT "subscriptionStatus", "currentPeriodEnd", "stripeSubscriptionId", "subscriptionMonthlyCents"
@@ -7554,12 +7704,13 @@ async function executeAbelTool(toolName, toolInput, providerCtx) {
       .map((l) => ({ leadId: l.id, createdAt: l.createdAt, zip: l.zip, submittedBy: l.submittedBy }));
   };
   const metricsRange = async (start, end) => {
-    const [impressions, emailsSent, leadNotifications] = await Promise.all([
+    const [impressions, leadNotifications] = await Promise.all([
       prisma.providerImpression.count({ where: { providerId, createdAt: { gte: start, lte: end } } }),
-      prisma.leadNotification.count({ where: { providerId, status: 'sent', createdAt: { gte: start, lte: end } } }),
-      prisma.leadNotification.findMany({ where: { providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true } })
+      prisma.leadNotification.findMany({ where: { providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true, status: true } })
     ]);
-    return { impressions, emailsSent, leadsGenerated: new Set(leadNotifications.map((n) => n.leadId)).size };
+    // The assistant quotes this count verbatim to the provider, so it must
+    // resolve the same definition the dashboard and the funnel do.
+    return { impressions, ...countNotifiedPairs(leadNotifications) };
   };
   const spendSince = async (sinceDate) => {
     const diffDays = Math.max(0, (Date.now() - sinceDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -7587,7 +7738,20 @@ async function executeAbelTool(toolName, toolInput, providerCtx) {
       const start = parseDate(toolInput.start_date, 30);
       const end = toolInput.end_date ? new Date(toolInput.end_date) : new Date();
       const m = await metricsRange(start, end);
-      return `From ${iso(start)} to ${iso(end)}: Impressions: ${m.impressions}, Emails sent: ${m.emailsSent}, Leads generated: ${m.leadsGenerated}.`;
+      // "Referral matches" not "Impressions": a ProviderImpression row is
+      // written only by /api/notify, from the providers a family request was
+      // routed to, so it counts MATCH EVENTS and can exceed the number of
+      // families. The funnel's "Families matched" is the DISTINCT count of the
+      // same thing, and the two labels have to be tellable apart.
+      //
+      // leadsGenerated is no longer quoted. It counts every provider-lead pair
+      // we tried to notify, so it differs from referrals sent only when a
+      // delivery failed - and no notification has ever failed in production,
+      // which made this sentence print one number twice under two names. The
+      // API field is unchanged for any existing consumer; only the sentence a
+      // provider reads was consolidated. Undelivered referrals are reported by
+      // the funnel module, which has the precise definition for them.
+      return `From ${iso(start)} to ${iso(end)}: Referral matches: ${m.impressions}, Referrals sent: ${m.emailsSent}.`;
     }
     case 'get_spend_estimate': {
       const sinceDate = parseDate(toolInput.since_date, 30);
@@ -8047,12 +8211,11 @@ app.post('/api/ai/chat', async (req, res) => {
       .map((l) => ({ leadId: l.id, createdAt: l.createdAt, zip: l.zip, submittedBy: l.submittedBy }));
   };
   const metricsRange = async (start, end, providerId) => {
-    const [impressions, emailsSent, leadNotifications] = await Promise.all([
+    const [impressions, leadNotifications] = await Promise.all([
       prisma.providerImpression.count({ where: { providerId, createdAt: { gte: start, lte: end } } }),
-      prisma.leadNotification.count({ where: { providerId, status: 'sent', createdAt: { gte: start, lte: end } } }),
-      prisma.leadNotification.findMany({ where: { providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true } })
+      prisma.leadNotification.findMany({ where: { providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true, status: true } })
     ]);
-    const leadsGenerated = new Set(leadNotifications.map((n) => n.leadId)).size;
+    const { emailsSent, leadsGenerated } = countNotifiedPairs(leadNotifications);
     return { impressions, emailsSent, leadsGenerated };
   };
   const spendSince = async (sinceDate, spendProviderId) => {
@@ -8292,7 +8455,7 @@ app.post('/api/ai/chat', async (req, res) => {
       const m = await metricsRange(start, end, providerId);
       await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', providerId, { start: iso(start), end: iso(end) }, hashIp(req.ip || ''));
       return res.json({
-        reply: `Last 30 days — Impressions: ${m.impressions}, Emails sent: ${m.emailsSent}, Leads: ${m.leadsGenerated}.`,
+        reply: `Last 30 days — Referral matches: ${m.impressions}, Referrals sent: ${m.emailsSent}.`,
         navigateTo: navigation.providerHome
       });
     }
