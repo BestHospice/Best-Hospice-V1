@@ -17,6 +17,7 @@ const { resolveProviderCmsContext } = require('./cms-provider-resolver');
 const { buildProviderCmsMarket } = require('./cms-hospice-market');
 const { buildProviderCmsQuality } = require('./cms-hospice-quality');
 const { buildProviderCmsCompetitors } = require('./cms-hospice-competitors');
+const { buildProviderCmsCompetitorDetail } = require('./cms-hospice-competitor-detail');
 const {
   CONSUMER_LEAD_ELIGIBLE_WHERE,
   providerCoversLocation
@@ -6126,6 +6127,42 @@ app.get('/api/provider-intelligence/competitors', requireProviderAuth, async (re
     res.json(result);
   } catch (err) {
     console.error('Provider CMS competitors failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Head-to-head CMS quality comparison against ONE overlapping hospice.
+//
+// This is the first provider-intelligence endpoint that takes a request
+// parameter, so the isolation contract is worth stating precisely. The
+// AUTHENTICATED PROVIDER still comes only from the bearer token - there is no
+// providerId in the path, query or body, and :ccn identifies the OTHER hospice,
+// never the caller.
+//
+// :ccn is validated against /^[0-9A-Z]{6}$/ and then checked against the
+// authenticated provider's own CMS overlap set before any quality data is
+// returned. Both checks live in the service, which fails closed with
+// invalid_ccn and competitor_not_in_market. Without the second check this would
+// be an arbitrary lookup over every ingested CMS facility; the overlap set is
+// the authorization boundary, and a hospice that shares no CMS-reported service
+// ZIP code with the caller is simply not readable through it.
+//
+// Thin by design, exactly like the landscape route. Everything that matters -
+// the authorization rule, the single pinned quality release, the direction-aware
+// comparison, the suppression semantics and the partner badge - lives in
+// cms-hospice-competitor-detail.js and is covered by
+// scripts/test-cms-hospice-competitor-detail.js.
+app.get('/api/provider-intelligence/competitors/:ccn', requireProviderAuth, async (req, res) => {
+  try {
+    // The SAME release gate as the landscape endpoint. One gate protects both,
+    // checked before provider context is resolved and before any service runs.
+    if (!CMS_COMPETITOR_INTELLIGENCE_ENABLED) return res.status(404).json({ error: 'Not found' });
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await buildProviderCmsCompetitorDetail(prisma, ctx.providerId, req.params.ccn);
+    res.json(result);
+  } catch (err) {
+    console.error('Provider CMS competitor detail failed', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

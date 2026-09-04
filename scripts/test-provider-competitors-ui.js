@@ -60,6 +60,7 @@ const CAP_OFF = { cmsCompetitors: { status: 'coming_soon' } };
 
 // ---- the route handler, executed with injected stubs -----------------------
 const ROUTE = grab(/app\.get\('\/api\/provider-intelligence\/competitors'[\s\S]*?\n\}\);/, 'competitors route');
+const DETAIL_ROUTE = grab(/app\.get\('\/api\/provider-intelligence\/competitors\/:ccn'[\s\S]*?\n\}\);/, 'detail route');
 const HANDLER_BODY = ROUTE.match(/async \(req, res\) => \{([\s\S]*)\n\}\);$/)[1];
 const makeHandler = (getProviderContext, buildProviderCmsCompetitors, prismaStub, gateOn) =>
   new Function('CMS_COMPETITOR_INTELLIGENCE_ENABLED', 'getProviderContext',
@@ -115,15 +116,38 @@ function makeDom() {
    'comp-overlap-count', 'comp-overlap-note', 'comp-top-block', 'comp-top-list', 'comp-top-empty',
    'comp-top-note', 'comp-coverage', 'comp-list-block', 'comp-list-hint', 'comp-filter-wrap',
    'comp-filter', 'comp-filter-count', 'comp-table', 'comp-more', 'comp-empty', 'comp-note',
+   'comp-landscape-view', 'comp-h2h-view', 'comp-back', 'comp-h2h-title', 'comp-h2h-ccns',
+   'comp-h2h-status', 'comp-h2h-body', 'comp-h2h-overlap', 'comp-h2h-overlap-note',
+   'comp-h2h-summary', 'comp-h2h-summary-note', 'comp-h2h-table-hint', 'comp-h2h-table',
+   'comp-h2h-note',
    'q-card', 'q-summary', 'q-status', 'q-toggle', 'q-toggle-label', 'q-detail', 'q-collapse', 'q-body',
    'mm-card', 'mm-summary', 'mm-toggle', 'mm-toggle-label', 'mm-detail', 'mm-collapse',
    'cms-market-status', 'cms-market-body'].forEach(mk);
+  // Fidelity: an element the markup ships with `hidden` must START hidden here
+  // too, or the stub would silently mask a view that the page never reveals.
+  Object.keys(els).forEach((id) => {
+    const tag = PAGE.match(new RegExp('<[^>]*id="' + id + '"[^>]*>'));
+    if (tag && /\shidden(\s|>|=)/.test(tag[0])) els[id].hidden = true;
+  });
+  // Fires the page's DELEGATED click listener on #comp-table with a synthetic
+  // event target, exercising the real closest()-based dispatch rather than
+  // calling the handler directly.
+  const fireCompare = (ccn) => {
+    const target = {
+      closest(sel) {
+        if (sel !== '[data-compare-ccn]') return null;
+        return ccn === null ? null : { getAttribute: (k) => (k === 'data-compare-ccn' ? ccn : null) };
+      }
+    };
+    (els['comp-table']._listeners.click || []).forEach((f) => f({ target }));
+  };
   return {
-    els, tbodies,
+    els, tbodies, fireCompare,
     document: {
       getElementById: (id) => els[id] || mk(id),
       querySelector: (sel) => {
         if (sel === '#comp-table tbody') return (tbodies['comp-table'] = tbodies['comp-table'] || { innerHTML: '' });
+        if (sel === '#comp-h2h-table tbody') return (tbodies['comp-h2h-table'] = tbodies['comp-h2h-table'] || { innerHTML: '' });
         if (sel === '#cms-density tbody') return (tbodies.density = tbodies.density || { innerHTML: '' });
         return null;
       }
@@ -138,6 +162,9 @@ function loadRenderers(dom, apiImpl) {
                  'renderCompetitorTable', 'renderCompetitorNote', 'initCompetitorsAccordion',
                  'initCompetitors', 'ensureCompetitorsLoaded', 'toggleCompetitors',
                  'renderCompetitorsData', 'COMPETITOR_PROMPT', 'COMPETITOR_LOADING',
+                 'openCompetitorDetail', 'renderCompetitorDetail', 'initCompetitorCompare',
+                 'showCompetitorLandscape', 'showCompetitorH2H', 'h2hValue',
+                 'COMPETITOR_DETAIL_ERROR', 'COMPETITOR_DETAIL_MESSAGES', 'COMPETITOR_DETAIL_LOADING',
                  'INTEL_ACCORDION', 'initMyMarketAccordion',
                  'initQualityAccordion', 'esc', 'num', 'pctText', 'placeText', 'friendlyReleaseDate'];
   const start = SCRIPT_BODY.indexOf('  // ---- intelligence detail accordion');
@@ -201,7 +228,29 @@ section('A. endpoint wiring and isolation');
      '2. provider identity comes from the bearer token');
   ok(!/req\.(params|query|body)/.test(ROUTE),
      '3a. it accepts NO providerId from path, query or body');
-  ok(!/\/competitors\/:/.test(SRC), '3b. no :ccn route exists yet — head-to-head is Phase C');
+  ok(/app\.get\('\/api\/provider-intelligence\/competitors\/:ccn'/.test(SRC),
+     '3b. the Phase C head-to-head route exists');
+  ok(DETAIL_ROUTE && /requireProviderAuth/.test(DETAIL_ROUTE),
+     '3c. …behind provider authentication');
+  ok(DETAIL_ROUTE && /getProviderContext\(req\.providerUserId\)/.test(DETAIL_ROUTE),
+     '3d. …with the provider identity still from the bearer token');
+  ok(DETAIL_ROUTE && !/req\.(query|body)/.test(DETAIL_ROUTE)
+     && (DETAIL_ROUTE.match(/req\.params/g) || []).length === 1
+     && /req\.params\.ccn/.test(DETAIL_ROUTE),
+     '3e. …and req.params.ccn as the ONLY request input — never a providerId');
+  ok(DETAIL_ROUTE && /buildProviderCmsCompetitorDetail\(prisma, ctx\.providerId, req\.params\.ccn\)/.test(DETAIL_ROUTE),
+     '3f. …passing the token provider and the requested CCN to the service');
+  ok(DETAIL_ROUTE && /if \(!CMS_COMPETITOR_INTELLIGENCE_ENABLED\) return res\.status\(404\)/.test(DETAIL_ROUTE)
+     && DETAIL_ROUTE.indexOf('CMS_COMPETITOR_INTELLIGENCE_ENABLED') < DETAIL_ROUTE.indexOf('getProviderContext'),
+     '3g. …gated by the SAME release gate, checked before provider context');
+  ok((SRC.match(/const CMS_COMPETITOR_INTELLIGENCE_ENABLED =/g) || []).length === 1,
+     '3h. …and there is only ONE competitor gate in server.js');
+  {
+    const logic = DETAIL_ROUTE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    ok(!/\.map\(|\.filter\(|\.sort\(|for\s*\(/.test(logic),
+       '3i. …and the detail handler is thin, transforming nothing');
+    ok(/res\.json\(result\)/.test(logic), '3j. …returning the service result verbatim');
+  }
   ok(/buildProviderCmsCompetitors\(prisma, ctx\.providerId\)/.test(ROUTE),
      '4a. it calls the shared service for the authenticated provider only');
   ok(/res\.json\(result\)/.test(ROUTE),
@@ -698,6 +747,7 @@ function runGateTests() {
       ok(/loadCmsMarket\(/.test(startBody) && /loadCmsQuality\(/.test(startBody),
          'G29. …while start() still eagerly loads My Market and Quality');
 
+      await runHeadToHeadTests();
       runListTests();
     })();
   }
@@ -779,7 +829,8 @@ function runListTests() {
                    qualityAvailability: { publishedMeasureCount: 10, surfacedMeasureCount: 10 } })
     ];
     const o = renderList(byApi);
-    const emitted = (o.body().match(/U7100\d/g) || []);
+    const emitted = (o.body().match(/<td class="n">(U7100\d)<\/td>/g) || [])
+      .map((c) => c.replace(/[^U0-9]/g, ''));
     ok(JSON.stringify(emitted) === JSON.stringify(['U71001', 'U71002', 'U71003']),
        '28g. rendered row order is the API order exactly, with quality running opposite',
        emitted.join(','));
@@ -834,17 +885,17 @@ function runListTests() {
        '34b. …on the correct competitor');
     ok(!/partner[^<]*false/i.test(html), '34c. nothing is rendered for a false badge');
 
-    // HTML comments are stripped first: the markup deliberately RECORDS the
-    // decision ("No Compare control: head-to-head comparison is a later phase"),
-    // and matching that prose would pass while proving nothing.
-    const panelMarkup = PAGE.match(/data-section="Competitors"[\s\S]*?mi-competitors-grid/)[0]
-      .replace(/<!--[\s\S]*?-->/g, '');
-    ok(!/Compare/i.test(html) && !/Compare/i.test(panelMarkup),
-       '35. there is NO Compare control anywhere in Phase B');
-    ok(/No Compare control/.test(PAGE),
-       '35a. …and the omission is a recorded decision, not an oversight');
-    ok(!/coming soon/i.test(PAGE.match(/id="comp-table"[\s\S]*?<\/table>/)[0]),
-       '35b. …and no disabled placeholder pretending to be one');
+    // Phase C: Compare is now a real control on every row, carrying the CCN it
+    // will request. It is never disabled and never a placeholder.
+    ok((html.match(/class="comp-compare" data-compare-ccn="/g) || []).length === 3,
+       '35. every competitor row carries a real Compare control',
+       String((html.match(/comp-compare/g) || []).length));
+    ok(/data-compare-ccn="U70011"/.test(html) && /data-compare-ccn="U70013"/.test(html),
+       '35a. …each bound to its own CCN, never to a name');
+    ok(!/disabled/.test(html) && !/coming soon/i.test(html)
+       && !/Compare soon/i.test(html),
+       '35b. …live, not a disabled placeholder');
+    ok(/<th scope="col">Compare<\/th>/.test(PAGE), '35c. …under a Compare column header');
 
     ok(/<td class="n">—<\/td>/.test(html), '9. a competitor with no office ZIP shows an em dash');
     ok(/Alpha, ZZ/.test(html) && /Beta, YY/.test(html), '30d. location renders as city, state');
@@ -1183,6 +1234,321 @@ function maybeDatabase() {
     }
     finish();
   })().catch((e) => { console.error('\ne2e harness failed:', e.stack || e.message); process.exit(1); });
+}
+
+async function runHeadToHeadTests() {
+  // ============================ H. HEAD TO HEAD ==============================
+  section('H. Compare: lazy per competitor, cached per CCN');
+  {
+    const detail = (o) => Object.assign({
+      status: 'resolved',
+      provider: { source: 'cms_hospice', ccn: 'U70000', name: 'SYNTHETIC OWN HOSPICE' },
+      competitor: { source: 'cms_hospice', ccn: 'U80000', name: 'SYNTHETIC RIVAL HOSPICE',
+                    city: 'Northtown', state: 'ZZ', officeZip: '90222', bestHospicePartner: false },
+      overlap: { sharedZipCount: 4, providerZipCount: 8, competitorZipCount: 6,
+                 providerOverlapPct: 50, competitorOverlapPct: 66.67,
+                 sharedZips: ['70001', '70002', '70003', '70004'] },
+      comparisonSummary: { surfacedMeasureCount: 5, comparableMeasureCount: 3,
+                           providerFavorableCount: 1, competitorFavorableCount: 1,
+                           tiedCount: 1, unavailableCount: 2 },
+      measures: [
+        { measureCode: 'M_HI_UP', displayName: 'Synthetic upward measure', direction: 'higher_better',
+          decimals: 1, unitLabel: '%', providerValue: 80, competitorValue: 60,
+          providerPublished: true, competitorPublished: true, comparison: 'provider_higher',
+          comparisonText: 'Your value is higher', lowerIsBetter: false, directionNote: null },
+        { measureCode: 'M_HI_DN', displayName: 'Synthetic second measure', direction: 'higher_better',
+          decimals: 1, unitLabel: '%', providerValue: 40, competitorValue: 70,
+          providerPublished: true, competitorPublished: true, comparison: 'competitor_higher',
+          comparisonText: "Competitor's value is higher", lowerIsBetter: false, directionNote: null },
+        { measureCode: 'M_LO', displayName: 'Synthetic downward measure', direction: 'lower_better',
+          decimals: 1, unitLabel: '%', providerValue: 10, competitorValue: 10,
+          providerPublished: true, competitorPublished: true, comparison: 'same',
+          comparisonText: 'Same value', lowerIsBetter: true,
+          directionNote: 'Lower is better for this measure.' },
+        { measureCode: 'M_SUP', displayName: 'Synthetic suppressed measure', direction: 'higher_better',
+          decimals: 0, unitLabel: null, providerValue: null, competitorValue: 5,
+          providerPublished: false, competitorPublished: true, comparison: 'unavailable',
+          comparisonText: 'Not comparable', lowerIsBetter: false, directionNote: null },
+        { measureCode: 'M_ZERO', displayName: 'Synthetic zero measure', direction: 'lower_better',
+          decimals: 0, unitLabel: 'of 10', providerValue: 0, competitorValue: null,
+          providerPublished: true, competitorPublished: false, comparison: 'unavailable',
+          comparisonText: 'Not comparable', lowerIsBetter: true,
+          directionNote: 'Lower is better for this measure.' }
+      ],
+      freshness: response().freshness,
+      methodology: {
+        comparisonDefinition: 'SYNTHETIC comparison definition from the fixture.',
+        peerMedianDistinction: 'SYNTHETIC peer-median distinction from the fixture.',
+        suppression: 'SYNTHETIC suppression statement from the fixture.',
+        direction: 'SYNTHETIC direction statement from the fixture.',
+        noProprietaryScore: 'SYNTHETIC no-score statement from the fixture.',
+        consumerLeadSeparation: 'SYNTHETIC consumer lead separation from the fixture.'
+      },
+      detail: null
+    }, o);
+
+    const mount = async (impl) => {
+      const c = { n: 0, paths: [] };
+      const dom = makeDom();
+      const R = loadRenderers(dom, async (p) => { c.n += 1; c.paths.push(p); return impl(p); });
+      R.initMyMarketAccordion(); R.initQualityAccordion(); R.initCompetitorsAccordion();
+      R.initCompetitors(CAP_ON);
+      dom.els['comp-toggle'].click(); await tick(); await tick();
+      return { c, dom, R };
+    };
+    const listOf3 = [
+      competitor({ ccn: 'U80000', name: 'SYNTHETIC RIVAL HOSPICE' }),
+      competitor({ ccn: 'U80001', name: 'SECOND RIVAL HOSPICE' }),
+      competitor({ ccn: 'U80002', name: 'THIRD RIVAL HOSPICE' })
+    ];
+    const api = (p) => (p === '/api/provider-intelligence/competitors'
+      ? response({ competitors: listOf3, landscape: landscape({ overlappingFacilityCount: 3 }) })
+      : detail({ competitor: Object.assign({}, detail().competitor,
+          { ccn: p.split('/').pop(), name: 'HOSPICE ' + p.split('/').pop() }) }));
+
+    const m = await mount(api);
+    ok(m.c.n === 1, 'H1. loading the landscape is still ONE request', String(m.c.n));
+    ok(m.dom.els['comp-landscape-view'].hidden === false
+       && m.dom.els['comp-h2h-view'].hidden === true,
+       'H2. the landscape is the view on open, comparison hidden');
+
+    // 31. one detail request per Compare click
+    m.dom.fireCompare('U80000'); await tick(); await tick();
+    ok(m.c.n === 2 && m.c.paths[1] === '/api/provider-intelligence/competitors/U80000',
+       'H3. Compare issues exactly ONE request, for that CCN only', m.c.paths.join(' '));
+    ok(m.dom.els['comp-h2h-view'].hidden === false
+       && m.dom.els['comp-landscape-view'].hidden === true,
+       'H4. …and the comparison replaces the landscape inside the module');
+    ok(m.dom.els['comp-detail'].hidden === false,
+       'H5. …without leaving the Competitors module');
+    ok(m.dom.els['comp-h2h-body'].hidden === false && m.dom.els['comp-h2h-status'].hidden === true,
+       'H6. …rendering the comparison, not a loading state');
+
+    // 32. same CCN cached
+    m.dom.els['comp-back'].click();
+    ok(m.dom.els['comp-landscape-view'].hidden === false
+       && m.dom.els['comp-h2h-view'].hidden === true,
+       'H7. Back to competitors returns to the landscape');
+    ok(m.c.n === 2, 'H8. …with NO refetch of the landscape', String(m.c.n));
+    ok((m.dom.tbodies['comp-table'].innerHTML.match(/<tr>/g) || []).length === 3,
+       'H9. …and the cached list is still rendered');
+    m.dom.fireCompare('U80000'); await tick(); await tick();
+    ok(m.c.n === 2, 'H10. re-comparing the SAME hospice makes no new request', String(m.c.n));
+    ok(m.dom.els['comp-h2h-body'].hidden === false, 'H11. …and renders straight from cache');
+
+    // 33. a second CCN costs exactly one more
+    m.dom.fireCompare('U80001'); await tick(); await tick();
+    ok(m.c.n === 3 && m.c.paths[2] === '/api/provider-intelligence/competitors/U80001',
+       'H12. a DIFFERENT hospice costs exactly one new request', m.c.paths.join(' '));
+    m.dom.fireCompare('U80000'); await tick(); await tick();
+    m.dom.fireCompare('U80001'); await tick(); await tick();
+    ok(m.c.n === 3, 'H13. …after which switching between the two is free', String(m.c.n));
+    m.dom.fireCompare(null); await tick();
+    ok(m.c.n === 3, 'H14. a click that is not on a Compare control does nothing');
+
+    // 20 / 46. reopening the module returns to the landscape, nothing refetched
+    m.dom.fireCompare('U80000'); await tick(); await tick();
+    m.dom.els['comp-toggle'].click(); await tick();
+    m.dom.els['comp-toggle'].click(); await tick();
+    ok(m.dom.els['comp-landscape-view'].hidden === false
+       && m.dom.els['comp-h2h-view'].hidden === true,
+       'H15. collapsing and reopening returns to the landscape, not mid-comparison');
+    ok(m.c.n === 3, 'H16. …refetching neither the landscape nor any comparison', String(m.c.n));
+    m.dom.fireCompare('U80000'); await tick(); await tick();
+    ok(m.c.n === 3, 'H17. …and the comparison cache survived the collapse', String(m.c.n));
+
+    // 34 / 35. transport failure is retryable and never cached
+    let boom = 2;
+    const f = await mount((p) => {
+      if (p === '/api/provider-intelligence/competitors') {
+        return Promise.resolve(response({ competitors: listOf3 }));
+      }
+      if (boom-- > 0) return Promise.reject(new Error('synthetic detail failure'));
+      return Promise.resolve(detail());
+    });
+    f.dom.fireCompare('U80000'); await tick(); await tick();
+    ok(f.c.n === 2 && f.dom.els['comp-h2h-body'].hidden === true,
+       'H18. a failed comparison renders no partial report', String(f.c.n));
+    ok(f.dom.els['comp-h2h-status']._classes.has('is-error')
+       && /Go back and select Compare to try again/.test(f.dom.els['comp-h2h-status'].textContent),
+       'H19. …showing a neutral, explicitly retryable error',
+       f.dom.els['comp-h2h-status'].textContent);
+    ok(!/synthetic detail failure/.test(f.dom.els['comp-h2h-status'].textContent),
+       'H20. …that never leaks the transport error');
+    f.dom.fireCompare('U80000'); await tick(); await tick();
+    ok(f.c.n === 3, 'H21. a retry DOES re-request — a failure is never cached', String(f.c.n));
+    f.dom.fireCompare('U80000'); await tick(); await tick();
+    ok(f.c.n === 4 && f.dom.els['comp-h2h-body'].hidden === false,
+       'H22. …and the retry that succeeds renders the comparison', String(f.c.n));
+    f.dom.fireCompare('U80000'); await tick(); await tick();
+    ok(f.c.n === 4, 'H23. …after which it is cached like any other success', String(f.c.n));
+
+    // a structured unavailable response IS cached
+    const u = await mount((p) => (p === '/api/provider-intelligence/competitors'
+      ? Promise.resolve(response({ competitors: listOf3 }))
+      : Promise.resolve({ status: 'competitor_not_in_market', provider: null, competitor: null,
+          overlap: null, comparisonSummary: null, measures: null, freshness: null,
+          methodology: null, detail: null })));
+    u.dom.fireCompare('U80002'); await tick(); await tick();
+    ok(u.c.n === 2 && u.dom.els['comp-h2h-body'].hidden === true,
+       'H24. a structured unavailable status renders a reason, not a report');
+    ok(/does not share a CMS-reported service ZIP code/.test(u.dom.els['comp-h2h-status'].textContent)
+       && u.dom.els['comp-h2h-status'].textContent !== 'competitor_not_in_market',
+       'H25. …in plain language, never the raw status code',
+       u.dom.els['comp-h2h-status'].textContent);
+    u.dom.fireCompare('U80002'); await tick(); await tick();
+    u.dom.fireCompare('U80002'); await tick(); await tick();
+    ok(u.c.n === 2, 'H26. …and IS cached — repeated attempts do not refetch', String(u.c.n));
+
+    section('H. comparison hierarchy and measure table');
+    const d = makeDom();
+    const RD = loadRenderers(d, async () => null);
+    RD.renderCompetitorDetail(detail());
+    const head = d.els['comp-h2h-title'].innerHTML;
+    ok(/SYNTHETIC OWN HOSPICE/.test(head) && /SYNTHETIC RIVAL HOSPICE/.test(head)
+       && /class="comp-vs">vs</.test(head),
+       'H27. the header reads "your hospice vs competitor"', head);
+    ok(/Your CCN U70000/.test(d.els['comp-h2h-ccns'].innerHTML)
+       && /Their CCN U80000/.test(d.els['comp-h2h-ccns'].innerHTML),
+       'H28. …with BOTH CCNs shown clearly', d.els['comp-h2h-ccns'].innerHTML);
+    ok(/Northtown, ZZ/.test(d.els['comp-h2h-ccns'].innerHTML)
+       && /Office ZIP 90222/.test(d.els['comp-h2h-ccns'].innerHTML),
+       'H29. …plus location and Office ZIP, still never a plain "ZIP"');
+    ok(!/Best Hospice partner/.test(d.els['comp-h2h-ccns'].innerHTML),
+       'H30. no partner badge when the API says false');
+    RD.renderCompetitorDetail(detail({ competitor: Object.assign({}, detail().competitor,
+      { bestHospicePartner: true }) }));
+    ok(/Best Hospice partner/.test(d.els['comp-h2h-ccns'].innerHTML),
+       'H31. …and exactly one when it says true');
+    RD.renderCompetitorDetail(detail());
+
+    const ov = d.els['comp-h2h-overlap'].innerHTML;
+    ok(/Shared CMS service ZIP codes/.test(ov) && />4</.test(ov)
+       && /50\.00%/.test(ov) && /66\.67%/.test(ov),
+       'H32. overlap context shows shared ZIPs and both footprint shares', ov.slice(0, 100));
+    ok(/not market share, patient volume or referral competition/
+        .test(d.els['comp-h2h-overlap-note'].textContent),
+       'H33. …explicitly labelled service-area overlap, not market share',
+       d.els['comp-h2h-overlap-note'].textContent);
+
+    const sum = d.els['comp-h2h-summary'].innerHTML;
+    for (const [lbl, n] of [['Comparable measures', 3], ['Your values favorable on', 1],
+                            ['Competitor values favorable on', 1], ['Same', 1], ['Unavailable', 2]]) {
+      ok(new RegExp('<span class="n">' + n + '</span><span class="lbl">' + lbl).test(sum),
+         `H34. summary: ${lbl} = ${n}`);
+    }
+    ok(!/strength|review|even|favorable">|is-good|is-bad/.test(sum),
+       'H35. every summary count is styled identically — no scoreboard colouring', sum.slice(0, 90));
+    ok(/does not combine them into an overall score, rank or grade/
+        .test(d.els['comp-h2h-summary-note'].textContent),
+       'H36. …and the note says the counts are not combined into a score');
+    ok(/neither hospice is described as better overall/.test(d.els['comp-h2h-summary-note'].textContent),
+       'H37. …nor is either hospice called better overall');
+
+    const rows = d.tbodies['comp-h2h-table'].innerHTML;
+    ok((rows.match(/<tr>/g) || []).length === 5,
+       'H38. every surfaced measure gets a row, comparable or not',
+       String((rows.match(/<tr>/g) || []).length));
+    const order = (rows.match(/Synthetic [a-z]+ measure/g) || []);
+    ok(order[0] === 'Synthetic upward measure' && order[4] === 'Synthetic zero measure',
+       'H39. …in the API order, never re-sorted by who looks better', order.join(' | '));
+    ok(/Your value is higher/.test(rows) && /Competitor&#39;s value is higher/.test(rows)
+       && /Same value/.test(rows),
+       'H40. comparison wording is descriptive of the numbers');
+    ok((rows.match(/Not comparable/g) || []).length === 2,
+       'H41. …and unavailable measures read "Not comparable"');
+    ok((rows.match(/Not published/g) || []).length === 2,
+       'H42. a value CMS did not publish reads "Not published"',
+       String((rows.match(/Not published/g) || []).length));
+    ok(!/>0<\/td>|>0%</.test(rows.replace(/>0 of 10</g, '')),
+       'H43. …and is NEVER shown as zero');
+    ok(/<td class="n">0 of 10<\/td>/.test(rows),
+       'H44. while a genuine published zero IS shown, with its unit', 'M_ZERO row');
+    ok(/80%/.test(rows) && /66\.67|60%/.test(rows),
+       'H45. units are preserved on published values');
+    ok((rows.match(/Lower is better for this measure\./g) || []).length === 2,
+       'H46. the lower-is-better note appears on exactly the two such measures',
+       String((rows.match(/Lower is better for this measure\./g) || []).length));
+    // The brand name is stripped first: "Best Hospice" is who we are, not a claim
+    // that one hospice is best. Matching it would pass while proving nothing.
+    const spoken = (rows + sum + d.els['comp-h2h-summary-note'].textContent)
+      .replace(/Best Hospice/g, 'BH');
+    for (const bad of ['winner', 'loser', 'beats', 'best', 'worst', 'stronger', 'weaker',
+                       'superior', 'inferior', 'overall better', 'wins', 'lost']) {
+      ok(!new RegExp(bad, 'i').test(spoken), `H47. no "${bad}" language anywhere in the comparison`);
+    }
+    ok(!/class="q-chip|favorable|unfavorable/.test(rows),
+       'H48. no coloured win/loss chips — the comparison column is plain text');
+
+    const note = d.els['comp-h2h-note'].textContent;
+    for (const needle of ['SYNTHETIC comparison definition', 'SYNTHETIC peer-median distinction',
+                          'SYNTHETIC suppression statement', 'SYNTHETIC direction statement',
+                          'SYNTHETIC no-score statement', 'SYNTHETIC consumer lead separation']) {
+      ok(note.indexOf(needle) >= 0, `H49. methodology "${needle.slice(10, 34)}" comes from the API`);
+    }
+    RD.renderCompetitorDetail(detail({ methodology: null }));
+    const fb = d.els['comp-h2h-note'].textContent;
+    ok(/Missing values are never treated as zero/.test(fb)
+       && /does not determine which providers receive Best Hospice consumer enquiries/.test(fb)
+       && /does not calculate an overall competitor score, rank or grade/.test(fb),
+       'H50. …and a missing methodology still yields the mandatory statements');
+
+    section('H. head-to-head under the release gate');
+    let gcalls = 0;
+    const g = makeDom();
+    const RG = loadRenderers(g, async () => { gcalls += 1; return detail(); });
+    RG.initCompetitorsAccordion();
+    RG.initCompetitors(capsOff({ careType: 'hospice' }));
+    g.fireCompare('U80000'); await tick(); await tick();
+    ok(gcalls === 0, 'H51. gate OFF => Compare issues no detail request', String(gcalls));
+    ok(g.els['comp-h2h-view'].hidden === true && g.els['comp-card'].hidden === true,
+       'H52. …and there is no visible Compare control to reach at all');
+    await RG.openCompetitorDetail('U80000'); await tick();
+    ok(gcalls === 0, 'H53. …even called directly, the activation guard refuses', String(gcalls));
+
+    section('H. accordion still governs the module');
+    const a = await mount(api);
+    a.dom.fireCompare('U80000'); await tick(); await tick();
+    ok(a.dom.els['comp-h2h-view'].hidden === false, 'H54. a comparison is open');
+    a.R.INTEL_ACCORDION.open('quality');
+    ok(a.R.INTEL_ACCORDION.isOpen('quality') && !a.R.INTEL_ACCORDION.isOpen('competitors'),
+       'H55. opening Quality still closes Competitors, comparison and all');
+    a.R.INTEL_ACCORDION.open('myMarket');
+    ok(!a.R.INTEL_ACCORDION.isOpen('competitors'), 'H56. …and so does opening My Market');
+    a.dom.els['comp-toggle'].click(); await tick();
+    ok(a.R.INTEL_ACCORDION.isOpen('competitors')
+       && a.dom.els['comp-landscape-view'].hidden === false,
+       'H57. reopening Competitors lands on the cached landscape');
+    ok(a.c.n === 2, 'H58. …with nothing refetched', String(a.c.n));
+
+    section('H. static: no forbidden language, no second gate');
+    {
+      const panel = PAGE.match(/data-section="Competitors"[\s\S]*?id="mi-competitors-grid"/)[0]
+        .replace(/<!--[\s\S]*?-->/g, '');
+      const script = SCRIPT_BODY.slice(SCRIPT_BODY.indexOf('  // ---- head-to-head detail'),
+                                      SCRIPT_BODY.indexOf('  // ---- lazy load, cached'))
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const bad of ['winner', 'loser', 'beats', 'stronger', 'weaker', 'superior', 'inferior',
+                         'market share', 'patient volume', 'referral volume', 'revenue',
+                         'score', 'rank', 'grade', 'percentile']) {
+        ok(!new RegExp(bad, 'i').test(panel), `H59. no "${bad}" in the comparison markup`);
+      }
+      ok(!/\.sort\(/.test(script), 'H60. the comparison view never sorts the measures');
+      ok(!/Math\.round|\/ *2|composite/.test(script),
+         'H61. …and computes no metric of its own — every number comes from the API');
+      ok(/data-compare-ccn/.test(script) && /closest\('\[data-compare-ccn\]'\)/.test(script),
+         'H62. Compare uses ONE delegated listener keyed on the CCN');
+      ok(/competitorsActivated/.test(script), 'H63. …behind the same activation guard');
+      ok(/encodeURIComponent\(ccn\)/.test(script), 'H64. the CCN is encoded into the request path');
+      ok(!/\d+(\.\d+)?%/.test(panel) && !/\b[A-Z]\d{5}\b/.test(panel),
+         'H65. no example percentage or CCN in the static comparison markup');
+      ok(/<caption class="sr-only">Your CMS-published measures/.test(PAGE)
+         && /id="comp-h2h-status" role="status"/.test(PAGE),
+         'H66. the comparison table is captioned and its status announced');
+      ok(/<div class="q-table-wrap">\s*<table class="q-table" id="comp-h2h-table"/.test(PAGE),
+         'H67. …and scrolls horizontally rather than overflowing on a phone');
+    }
+  }
 }
 
 function finish() {

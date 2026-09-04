@@ -23,6 +23,10 @@ const SRC = fs.readFileSync(path.join(ROOT, 'cms-hospice-competitors.js'), 'utf8
 // asserting against its own module's prose instead of its behaviour.
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const MREG = require(path.join(ROOT, 'data', 'cms-hospice-quality-measures.json'));
+// The partner rule now lives in ONE module. Its structural guarantees are
+// asserted where the rule actually is, not where it used to be inlined.
+const BADGE_SRC = fs.readFileSync(path.join(ROOT, 'cms-partner-badge.js'), 'utf8');
+const BADGE_CODE = BADGE_SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const { buildProviderCmsCompetitors, CMS_COMPETITOR_STATUS: S, COMPETITOR_SOURCE } =
   require(path.join(ROOT, 'cms-hospice-competitors.js'));
 const { buildProviderCmsMarket } = require(path.join(ROOT, 'cms-hospice-market.js'));
@@ -69,8 +73,10 @@ section('A. reuse, isolation and safety by construction');
     ok(!new RegExp(`require\\('\\./${dep}'\\)`).test(CODE), `A5. no direct dependency on ${dep}`);
   }
   const requires = (CODE.match(/require\('[^']+'\)/g) || []).sort();
-  ok(requires.length === 1 && requires[0] === "require('./cms-hospice-market')",
-     'A6. exactly ONE dependency — a near-leaf module', requires.join(' '));
+  ok(JSON.stringify(requires) === JSON.stringify(
+       ["require('./cms-hospice-market')", "require('./cms-partner-badge')"]),
+     'A6. exactly two dependencies — the market definition and the partner rule',
+     requires.join(' '));
 
   for (const [re, label] of [
     [/serviceRadiusKm|serviceZipCodes|haversine|distance|mileage/, 'no distance/radius/coverage logic'],
@@ -85,7 +91,8 @@ section('A. reuse, isolation and safety by construction');
   // would trip on `name: c.name`, which PROJECTS a name rather than matching on
   // one, and would pass while proving nothing.
   const SQL = (SRC.match(/\$queryRaw`([\s\S]*?)`/) || ['', ''])[1];
-  const PARTNER = (SRC.match(/prisma\.providerExternalIdentity\.findMany\(\{[\s\S]*?\n  \}\);/) || [''])[0];
+  // The partner filter is audited where the rule now lives.
+  const PARTNER = (BADGE_SRC.match(/prisma\.providerExternalIdentity\.findMany\(\{[\s\S]*?\n  \}\);/) || [''])[0];
   ok(SQL.length > 200 && PARTNER.length > 100,
      'A7b. both query sites were located for auditing', `sql ${SQL.length} / partner ${PARTNER.length}`);
   for (const [re, label] of [
@@ -112,8 +119,17 @@ section('A. reuse, isolation and safety by construction');
   const raws = (CODE.match(/prisma\.\$queryRaw/g) || []).length;
   const finds = (CODE.match(/prisma\.\w+\.findMany|prisma\.\w+\.findFirst|prisma\.\w+\.findUnique|prisma\.\w+\.count/g) || []).length;
   ok(raws === 1, 'A11. exactly ONE bulk enrichment SQL query', String(raws));
-  ok(finds === 1, 'A12. exactly ONE bulk partner lookup', String(finds));
-  ok(raws + finds === 2, 'A13. the service adds exactly 2 round trips of its own', String(raws + finds));
+  // The partner lookup is now the shared rule's single query, not a second copy
+  // of it living here.
+  ok(finds === 0, 'A12. no independent Prisma model access remains in this service', String(finds));
+  ok(!/providerExternalIdentity/i.test(CODE),
+     'A12b. …and no independent ProviderExternalIdentity partner query at all');
+  ok((CODE.match(/verifiedPartnerCcns\(prisma, source, ccns\)/g) || []).length === 1,
+     'A12c. …the badge is resolved by the SHARED rule, once, in bulk');
+  ok((BADGE_CODE.match(/prisma\.\w+\.findMany/g) || []).length === 1,
+     'A13. the shared rule contributes exactly one bounded round trip',
+     String((BADGE_CODE.match(/prisma\.\w+\.findMany/g) || []).length));
+  ok(raws + 1 === 2, 'A13b. so the service still costs exactly 2 round trips of its own');
   ok(!/\$queryRawUnsafe|queryRawUnsafe/.test(CODE),
      'A14. parameterised tagged templates only — no queryRawUnsafe');
   const interpolated = new Set(
@@ -127,12 +143,22 @@ section('A. reuse, isolation and safety by construction');
   ok(/ORDER BY r\."releaseKey" DESC/.test(CODE) && /EXISTS \(/.test(CODE),
      'A18. the newest release CONTAINING measurements is selected, not simply the newest');
   ok(!/\.sort\(/.test(CODE), 'A19. the service never re-sorts — My Market ordering is preserved');
-  ok(/verifiedAt: \{ not: null \}/.test(CODE), 'A20. partner badge requires a human-accepted identity');
-  ok(/provider: \{ internalRole: null \}/.test(CODE),
-     'A21. partner badge excludes internal accounts IN SQL');
-  ok(/identifierType: 'ccn'/.test(CODE), 'A22. partner badge is scoped to the CCN identifier type');
-  ok(/select: \{ externalId: true \}/.test(CODE),
-     'A23. the partner lookup projects externalId ONLY — no Provider field can leak');
+  ok(/verifiedAt: \{ not: null \}/.test(BADGE_CODE),
+     'A20. the shared rule requires a human-accepted identity');
+  ok(/provider: \{ internalRole: null \}/.test(BADGE_CODE),
+     'A21. …and excludes internal accounts IN SQL');
+  ok(/IDENTIFIER_TYPE_BY_SOURCE = Object\.freeze\(\{ cms_hospice: 'ccn' \}\)/.test(BADGE_CODE)
+     && /identifierType,/.test(BADGE_CODE),
+     'A22. …scoped to the CCN identifier this source publishes');
+  ok(/select: \{ externalId: true \}/.test(BADGE_CODE),
+     'A23. …projecting externalId ONLY — no Provider field can leak');
+  ok((BADGE_CODE.match(/require\(/g) || []).length === 0,
+     'A23b. …from a pure leaf module with zero dependencies');
+  ok(!/INSERT|UPDATE|DELETE|\.create\(|\.update\(|\.delete\(/.test(BADGE_CODE),
+     'A23c. …that is read-only');
+  ok(/require\('\.\/cms-partner-badge'\)/.test(
+       fs.readFileSync(path.join(ROOT, 'cms-hospice-competitor-detail.js'), 'utf8')),
+     'A23d. …and the head-to-head detail service resolves the badge through the SAME rule');
   ok(!/sharedZips/.test(CODE.replace(/sharedZipCount/g, '')),
      'A24. sharedZips is never read into the landscape output');
   for (const forbidden of ['score', 'rank', 'ranking', 'grade', 'percentile', 'marketShare',

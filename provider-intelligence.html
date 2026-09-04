@@ -168,6 +168,25 @@
       .comp-filter { max-width:none; }
     }
 
+    /* ---- Competitors head-to-head (Phase C) ---- */
+    .comp-compare { background:#0f2744; color:#fff; border:1px solid #0f2744; border-radius:999px;
+                    padding:5px 12px; font-size:.78rem; font-weight:700; cursor:pointer;
+                    white-space:nowrap; }
+    .comp-compare:hover { background:#16355c; }
+    .comp-compare:focus-visible { outline:3px solid #93c5fd; outline-offset:2px; }
+    .comp-back { margin:0 0 14px; }
+    .comp-h2h-head { display:grid; gap:3px; margin:0 0 4px; }
+    .comp-h2h-title { margin:0; font-size:1.1rem; color:#0f2744; line-height:1.35;
+                      overflow-wrap:anywhere; }
+    .comp-vs { color:#64748b; font-weight:600; font-size:.9rem; }
+    /* EVERY summary count is styled identically. A larger number on either side
+       is not a verdict, so this must never read as a scoreboard - no green for
+       one hospice and red for the other. */
+    .comp-h2h-summary li .n { color:#0f2744; }
+    .comp-cmp { font-size:.86rem; color:#334155; }
+    /* Suppressed or missing. Quieter than a value, but never styled as a fault. */
+    .comp-np { font-size:.86rem; color:#64748b; }
+
     /* ---- CMS My Market ---- */
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
                clip:rect(0 0 0 0); white-space:nowrap; border:0; }
@@ -382,6 +401,7 @@
               </div>
 
               <div id="comp-body" hidden>
+                <div id="comp-landscape-view">
                 <!-- 1. Competitive landscape.
                      Same hierarchy as the Quality snapshot rather than four equally
                      weighted boxes: one headline number, one supporting block about
@@ -443,6 +463,7 @@
                         <th scope="col">% of your footprint</th>
                         <th scope="col">% of their footprint</th>
                         <th scope="col">CMS quality data</th>
+                        <th scope="col">Compare</th>
                       </tr></thead>
                       <tbody></tbody>
                     </table>
@@ -450,9 +471,65 @@
                   <button type="button" class="cms-more" id="comp-more" hidden></button>
                   <p class="q-empty" id="comp-empty" hidden></p>
                 </div>
+              </div><!-- /#comp-landscape-view -->
+
+              <!-- 3. Head-to-head detail (Phase C).
+                   Lives INSIDE the Competitors module and swaps with the
+                   landscape rather than navigating away, so Back is instant and
+                   the cached landscape is never rebuilt or refetched. -->
+              <div id="comp-h2h-view" hidden>
+                <button type="button" class="cms-more comp-back" id="comp-back">
+                  <span aria-hidden="true">&#8592;</span> Back to competitors
+                </button>
+
+                <div class="comp-h2h-head">
+                  <h4 class="comp-h2h-title" id="comp-h2h-title"></h4>
+                  <p class="cms-hint" id="comp-h2h-ccns"></p>
+                </div>
+
+                <p class="cms-status" id="comp-h2h-status" role="status"></p>
+
+                <div id="comp-h2h-body" hidden>
+                  <!-- Overlap context first, so the comparison is read against
+                       the CMS service-area relationship rather than in a vacuum. -->
+                  <div class="q-coverage" id="comp-h2h-overlap"></div>
+                  <p class="cms-hint" id="comp-h2h-overlap-note"></p>
+
+                  <!-- Measure-by-measure tallies. Every count is styled the same:
+                       a larger number on either side is not a verdict, and nothing
+                       here may read as a scoreboard. -->
+                  <div class="cms-block">
+                    <h4>Measure-by-measure summary</h4>
+                    <p class="q-prov bh"><span aria-hidden="true">&#9679;</span> Best Hospice comparison</p>
+                    <ul class="q-verdict-list comp-h2h-summary" id="comp-h2h-summary"></ul>
+                    <p class="q-primary-note" id="comp-h2h-summary-note"></p>
+                  </div>
+
+                  <div class="cms-block">
+                    <h4>CMS-published measures</h4>
+                    <p class="q-prov cms"><span aria-hidden="true">&#9679;</span> Reported by CMS</p>
+                    <p class="cms-hint" id="comp-h2h-table-hint"></p>
+                    <div class="q-table-wrap">
+                      <table class="q-table" id="comp-h2h-table">
+                        <caption class="sr-only">Your CMS-published measures beside this hospice's, measure by measure</caption>
+                        <thead><tr>
+                          <th scope="col">Measure</th>
+                          <th scope="col">Your hospice</th>
+                          <th scope="col">Competitor</th>
+                          <th scope="col">Comparison</th>
+                        </tr></thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <p class="cms-note" id="comp-h2h-note"></p>
               </div>
 
-              <!-- 3. Methodology + the mandatory consumer-lead separation -->
+              </div>
+
+              <!-- 4. Methodology + the mandatory consumer-lead separation -->
               <p class="cms-note" id="comp-note"></p>
 
               <button type="button" class="mm-toggle mm-collapse" id="comp-collapse"
@@ -1532,6 +1609,7 @@
   // hidden entirely and the ordinary capability card below speaks instead.
   function competitorsNotActivated() {
     competitorsActivated = false;
+    showCompetitorLandscape();
     const card = document.getElementById('comp-card');
     if (card) card.hidden = true;
     const status = document.getElementById('comp-status');
@@ -1650,7 +1728,7 @@
 
     const paint = function () {
       if (!filtered.length) {
-        body.innerHTML = '<tr><td colspan="8" class="comp-qa">'
+        body.innerHTML = '<tr><td colspan="9" class="comp-qa">'
           + 'No hospice in your CMS overlap matches that search.</td></tr>';
       } else {
         body.innerHTML = filtered.slice(0, shown).map(function (c) {
@@ -1669,6 +1747,8 @@
             + '<td class="n">' + esc(pctText(c.providerOverlapPct)) + '</td>'
             + '<td class="n">' + esc(pctText(c.competitorOverlapPct)) + '</td>'
             + '<td><span class="comp-qa">' + esc(competitorQualityText(c.qualityAvailability)) + '</span></td>'
+            + '<td><button type="button" class="comp-compare" data-compare-ccn="' + esc(c.ccn) + '">'
+              + 'Compare</button></td>'
           + '</tr>';
         }).join('');
       }
@@ -1746,6 +1826,217 @@
     // their existing eager behaviour and are untouched by this.
     toggle.addEventListener('click', () => { toggleCompetitors(toggle); });
     if (collapse) collapse.addEventListener('click', () => INTEL_ACCORDION.close('competitors', toggle));
+    initCompetitorCompare();
+  }
+
+  // ---- head-to-head detail (Phase C) ---------------------------------------
+  // Lazy per competitor, cached per CCN for the page session, and rendered
+  // INSIDE the Competitors module so Back is instant and the landscape is never
+  // rebuilt or refetched.
+  const COMPETITOR_DETAIL_MESSAGES = {
+    invalid_ccn:
+      'That hospice could not be identified. Go back and select a hospice from your competitor list.',
+    competitor_not_in_market:
+      'That hospice does not share a CMS-reported service ZIP code with you, so there is nothing to compare.',
+    no_quality_data:
+      'CMS quality measures are not configured for display, so there is nothing to compare yet.',
+    no_verified_identity:
+      "We're still connecting your provider profile to CMS data. This comparison will work once that match is confirmed.",
+    multiple_verified_identities:
+      'Your provider profile needs review before we can compare CMS data. Please contact support and we will sort it out.',
+    no_service_area:
+      'CMS does not currently publish a service-area footprint for this provider, so there is no comparison to draw.'
+  };
+  const COMPETITOR_DETAIL_FALLBACK = 'That comparison is not available right now.';
+  const COMPETITOR_DETAIL_LOADING = 'Loading this comparison…';
+  const COMPETITOR_DETAIL_ERROR =
+    "We couldn't load that comparison right now. Go back and select Compare to try again.";
+
+  // Cached per CCN. A structured status is a real answer about that hospice and
+  // is cached; a transport failure says nothing about it and is not.
+  const competitorDetailCache = {};
+  const competitorDetailPending = {};
+
+  function fetchCompetitorDetailOnce(ccn) {
+    if (competitorDetailCache[ccn]) return Promise.resolve(competitorDetailCache[ccn]);
+    if (competitorDetailPending[ccn]) return competitorDetailPending[ccn];
+    competitorDetailPending[ccn] =
+      callApi('/api/provider-intelligence/competitors/' + encodeURIComponent(ccn))
+        .then((d) => {
+          competitorDetailCache[ccn] = d || {};
+          delete competitorDetailPending[ccn];
+          return competitorDetailCache[ccn];
+        })
+        .catch((e) => { delete competitorDetailPending[ccn]; throw e; });
+    return competitorDetailPending[ccn];
+  }
+
+  function showCompetitorLandscape() {
+    const l = document.getElementById('comp-landscape-view');
+    const h = document.getElementById('comp-h2h-view');
+    if (l) l.hidden = false;
+    if (h) h.hidden = true;
+  }
+  function showCompetitorH2H() {
+    const l = document.getElementById('comp-landscape-view');
+    const h = document.getElementById('comp-h2h-view');
+    if (l) l.hidden = true;
+    if (h) h.hidden = false;
+  }
+
+  // Same formatting as Quality Intelligence, so one CMS value looks identical in
+  // both modules. A value CMS did not publish is stated, never shown as zero.
+  function h2hValue(m, v) {
+    if (typeof v !== 'number' || !isFinite(v)) return null;
+    const u = m.unitLabel || '';
+    if (u === '%') return fmtNum(v) + '%';
+    return u ? fmtNum(v) + ' ' + u : fmtNum(v);
+  }
+
+  function renderCompetitorDetail(data) {
+    const statusEl = document.getElementById('comp-h2h-status');
+    const body = document.getElementById('comp-h2h-body');
+    const title = document.getElementById('comp-h2h-title');
+    const ccns = document.getElementById('comp-h2h-ccns');
+
+    if (!data || data.status !== 'resolved') {
+      statusEl.hidden = false;
+      statusEl.classList.remove('is-error');
+      statusEl.textContent = COMPETITOR_DETAIL_MESSAGES[data && data.status] || COMPETITOR_DETAIL_FALLBACK;
+      body.hidden = true;
+      title.textContent = 'Comparison unavailable';
+      ccns.textContent = '';
+      document.getElementById('comp-h2h-note').textContent = '';
+      return;
+    }
+
+    const p = data.provider || {};
+    const c = data.competitor || {};
+    title.innerHTML = esc(p.name || 'Your hospice')
+      + ' <span class="comp-vs">vs</span> ' + esc(c.name || 'this hospice');
+    const bits = ['Your CCN ' + (p.ccn || '—'), 'Their CCN ' + (c.ccn || '—')];
+    const place = placeText(c.city, c.state);
+    if (place) bits.push(place);
+    if (c.officeZip) bits.push('Office ZIP ' + c.officeZip);
+    ccns.innerHTML = esc(bits.join(' · '))
+      + (c.bestHospicePartner === true
+        ? ' <span class="comp-partner">Best Hospice partner</span>' : '');
+
+    const o = data.overlap || {};
+    document.getElementById('comp-h2h-overlap').innerHTML = [
+      ['Shared CMS service ZIP codes', num(o.sharedZipCount)],
+      ['Of your CMS footprint', pctText(o.providerOverlapPct)],
+      ['Of their CMS footprint', pctText(o.competitorOverlapPct)]
+    ].map(function (row) {
+      return '<div><div class="k">' + esc(row[0]) + '</div><div class="v">' + esc(row[1]) + '</div></div>';
+    }).join('');
+    document.getElementById('comp-h2h-overlap-note').textContent =
+      'Both hospices are certified by CMS to serve ' + num(o.sharedZipCount)
+      + ' of the same ZIP codes. This is CMS service-area overlap, not market share, patient volume '
+      + 'or referral competition.';
+
+    const s = data.comparisonSummary || {};
+    document.getElementById('comp-h2h-summary').innerHTML = [
+      ['Comparable measures', s.comparableMeasureCount],
+      ['Your values favorable on', s.providerFavorableCount],
+      ['Competitor values favorable on', s.competitorFavorableCount],
+      ['Same', s.tiedCount],
+      ['Unavailable', s.unavailableCount]
+    ].map(function (row) {
+      return '<li><span class="n">' + esc(num(row[1])) + '</span>'
+        + '<span class="lbl">' + esc(row[0]) + '</span></li>';
+    }).join('');
+    document.getElementById('comp-h2h-summary-note').textContent =
+      'Counts of individual CMS measures out of ' + num(s.surfacedMeasureCount)
+      + '. Best Hospice does not combine them into an overall score, rank or grade, and neither '
+      + 'hospice is described as better overall.';
+
+    const measures = Array.isArray(data.measures) ? data.measures : [];
+    document.getElementById('comp-h2h-table-hint').textContent =
+      'Every measure Best Hospice surfaces, in a fixed order. The order never depends on which '
+      + 'hospice has more favorable values.';
+    // Backend order is authoritative. This never sorts.
+    document.querySelector('#comp-h2h-table tbody').innerHTML = measures.map(function (m) {
+      const pv = h2hValue(m, m.providerValue);
+      const cv = h2hValue(m, m.competitorValue);
+      const cell = (v) => (v === null
+        ? '<span class="comp-np">Not published</span>'
+        : esc(v));
+      return '<tr>'
+        + '<td><div class="q-measure">' + esc(m.displayName || m.measureCode) + '</div>'
+          + (m.directionNote ? '<div class="q-period">' + esc(m.directionNote) + '</div>' : '')
+        + '</td>'
+        + '<td class="n">' + cell(pv) + '</td>'
+        + '<td class="n">' + cell(cv) + '</td>'
+        + '<td><span class="comp-cmp">' + esc(m.comparisonText || 'Not comparable') + '</span></td>'
+      + '</tr>';
+    }).join('');
+
+    const meth = data.methodology || {};
+    document.getElementById('comp-h2h-note').textContent = [
+      meth.comparisonDefinition
+        || 'Each measure is compared directly between the two hospices, using the values CMS published for both.',
+      meth.peerMedianDistinction
+        || 'This is a direct comparison with one hospice, not the overlapping-hospice median shown in Quality Intelligence.',
+      meth.suppression
+        || 'A measure is compared only where CMS published a usable value for both hospices. Missing values are never treated as zero.',
+      meth.direction
+        || 'Whether a higher or a lower value is better is read from the measure definition CMS documents.',
+      meth.noProprietaryScore
+        || 'Best Hospice does not calculate an overall competitor score, rank or grade.',
+      meth.consumerLeadSeparation
+        || 'CMS service-area data is market intelligence only. It does not determine which providers receive Best Hospice consumer enquiries.'
+    ].join(' ');
+
+    statusEl.hidden = true;
+    statusEl.classList.remove('is-error');
+    body.hidden = false;
+  }
+
+  async function openCompetitorDetail(ccn) {
+    // Same activation guard as the landscape: the page cannot request a feature
+    // that was never switched on.
+    if (!competitorsActivated || !ccn) return;
+    const statusEl = document.getElementById('comp-h2h-status');
+    showCompetitorH2H();
+    document.getElementById('comp-h2h-body').hidden = true;
+    document.getElementById('comp-h2h-title').textContent = 'Loading comparison';
+    document.getElementById('comp-h2h-ccns').textContent = '';
+    statusEl.hidden = false;
+    statusEl.classList.remove('is-error');
+    statusEl.textContent = COMPETITOR_DETAIL_LOADING;
+    let data;
+    try {
+      data = await fetchCompetitorDetailOnce(ccn);
+    } catch (_err) {
+      // Nothing is cached, so Back then Compare tries again.
+      statusEl.hidden = false;
+      statusEl.classList.add('is-error');
+      statusEl.textContent = COMPETITOR_DETAIL_ERROR;
+      document.getElementById('comp-h2h-body').hidden = true;
+      document.getElementById('comp-h2h-title').textContent = 'Comparison unavailable';
+      return;
+    }
+    renderCompetitorDetail(data);
+  }
+
+  // One delegated listener on the table rather than a listener per row, so the
+  // list can re-render on filter or reveal without rebinding anything.
+  function initCompetitorCompare() {
+    const table = document.getElementById('comp-table');
+    if (table && table.addEventListener) {
+      table.addEventListener('click', (ev) => {
+        const t = ev && ev.target;
+        const btn = t && t.closest ? t.closest('[data-compare-ccn]') : null;
+        if (!btn) return;
+        openCompetitorDetail(btn.getAttribute('data-compare-ccn'));
+      });
+    }
+    const back = document.getElementById('comp-back');
+    if (back && back.addEventListener) {
+      // Instant: the landscape is already rendered and stays rendered.
+      back.addEventListener('click', () => showCompetitorLandscape());
+    }
   }
 
   // ---- lazy load, cached ---------------------------------------------------
@@ -1811,6 +2102,7 @@
     statusEl.hidden = true;
     statusEl.classList.remove('is-error');
     document.getElementById('comp-body').hidden = false;
+    showCompetitorLandscape();
 
     // Compact live summary from the same response. No second request and no
     // recalculation.
@@ -1865,7 +2157,12 @@
     // Only expand once there is real content. A failed request leaves the panel
     // closed and a retryable message on the card, rather than opening an empty
     // report.
-    if (await ensureCompetitorsLoaded()) INTEL_ACCORDION.open('competitors');
+    if (await ensureCompetitorsLoaded()) {
+      // Reopening returns to the landscape. Any comparison already fetched stays
+      // cached, but the module does not resume mid-comparison.
+      showCompetitorLandscape();
+      INTEL_ACCORDION.open('competitors');
+    }
   }
 
   // Page load. Reveals the compact card and its expand control for a provider

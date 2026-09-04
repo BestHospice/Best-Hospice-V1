@@ -61,6 +61,7 @@
  * to consumer lead eligibility.
  */
 const { buildProviderCmsMarket, CMS_MARKET_STATUS } = require('./cms-hospice-market');
+const { verifiedPartnerCcns } = require('./cms-partner-badge');
 
 // The only source this phase serves. Kept explicit so a future home-health
 // competitor view is an addition, not a loosening.
@@ -211,34 +212,17 @@ async function buildProviderCmsCompetitors(prisma, providerId) {
   `;
 
   // ---- round trip 11: ONE bulk verified-partner lookup -------------------
-  // @@unique([source, externalId]) makes CCN -> identity a single indexed
-  // lookup, so all competitors resolve in one query.
+  // Delegated to cms-partner-badge.js, which is the single implementation of the
+  // rule for every surface that shows the badge. The head-to-head comparison in
+  // cms-hospice-competitor-detail.js resolves it through the same function, so
+  // the two cannot drift into subtly different answers - the failure mode being
+  // a real hospice shown our own internal reference record as a partner.
   //
-  // Four conditions, all pushed into SQL rather than filtered in JavaScript:
-  //   identifierType = 'ccn'    the identifier this source publishes.
-  //   verifiedAt IS NOT NULL    the repo's acceptance marker. The identity
-  //                             importer writes it from the human reviewer's
-  //                             reviewedAt, so a null means no person ever
-  //                             accepted the mapping.
-  //   provider.internalRole     null only. An internal reference account can hold
-  //                             a perfectly valid verified identity; badging it
-  //                             would show a real hospice our own test record
-  //                             dressed as a partner organisation.
-  //
-  // select is externalId ONLY. The badge is a boolean, so there is no Provider
-  // id, email, phone, billing mode, subscription, plan tier or lead setting in
-  // the result set to leak - not by mistake and not by a later edit here.
-  const partnerRows = await prisma.providerExternalIdentity.findMany({
-    where: {
-      source,
-      identifierType: 'ccn',
-      externalId: { in: ccns },
-      verifiedAt: { not: null },
-      provider: { internalRole: null }
-    },
-    select: { externalId: true }
-  });
-  const partnerCcns = new Set(partnerRows.map((r) => r.externalId));
+  // The rule is unchanged by this delegation: source, identifierType = 'ccn',
+  // verifiedAt NOT NULL, and Provider.internalRole IS NULL, all pushed into SQL,
+  // projecting externalId only. @@unique([source, externalId]) keeps it one
+  // indexed lookup for every competitor at once.
+  const partnerCcns = await verifiedPartnerCcns(prisma, source, ccns);
 
   const header = enrichmentRows[0] || {};
   const releaseId = header.release_id || null;
