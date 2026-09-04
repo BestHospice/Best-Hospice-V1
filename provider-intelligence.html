@@ -126,6 +126,13 @@
     .q-verdict-list li.review .n { color:#9a3412; }
     .q-verdict-list li.even .n { color:#1d4ed8; }
     .q-verdict-empty { margin:6px 0 0; font-size:.95rem; font-weight:600; color:#52525b; }
+    /* Executive takeaways: value vs peer median on one compact line. */
+    .q-takeaways li { display:grid; gap:4px; }
+    .q-tvals { display:flex; flex-wrap:wrap; gap:8px 18px; margin:2px 0 0; }
+    .q-tv { display:flex; align-items:baseline; gap:6px; min-width:0; }
+    .q-tv .k { font-size:.72rem; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+    .q-tv .v { font-size:1rem; font-weight:700; color:#0f2744;
+               font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
     /* Coverage row: supporting context, deliberately quieter than the two above. */
     .q-coverage { display:grid; gap:8px; margin:14px 0 0;
                   grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
@@ -424,19 +431,26 @@
                   </div>
                 </div>
 
-                <!-- 4. Relative strengths -->
+                <!-- 4. Key relative strengths — an executive takeaway layer, not a second copy
+                     of the comparison table. Ordering comes from the direction-aware peer
+                     counts the API already returns; see prioritizeTakeaways(). -->
                 <div class="cms-block" id="q-strengths-block">
-                  <h4>Relative strengths</h4>
+                  <h4>Key relative strengths</h4>
                   <p class="q-prov bh"><span aria-hidden="true">&#9679;</span> Best Hospice comparison</p>
-                  <ul class="q-list" id="q-strengths"></ul>
+                  <p class="cms-hint" id="q-strengths-hint"></p>
+                  <ul class="q-list q-takeaways" id="q-strengths"></ul>
+                  <button type="button" class="cms-more" id="q-strengths-more" hidden></button>
                   <p class="q-empty" id="q-strengths-empty" hidden></p>
                 </div>
 
-                <!-- 5. Areas to review -->
+                <!-- 5. Areas to review — same executive treatment, ordered by how many
+                     comparable hospices directionally outperformed this provider. -->
                 <div class="cms-block" id="q-review-block">
                   <h4>Areas to review</h4>
                   <p class="q-prov bh"><span aria-hidden="true">&#9679;</span> Best Hospice comparison</p>
-                  <ul class="q-list" id="q-review"></ul>
+                  <p class="cms-hint" id="q-review-hint"></p>
+                  <ul class="q-list q-takeaways" id="q-review"></ul>
+                  <button type="button" class="cms-more" id="q-review-more" hidden></button>
                   <p class="q-empty" id="q-review-empty" hidden></p>
                 </div>
 
@@ -1115,19 +1129,110 @@
     }).join('');
   }
 
-  function renderQualityList(codes, byCode, listId, emptyId, emptyText) {
-    const ul = document.getElementById(listId);
-    const empty = document.getElementById(emptyId);
-    ul.innerHTML = codes.map((c) => {
-      const m = byCode[c];
-      if (!m) return '';
-      return '<li><span class="q-measure">' + esc(m.shortLabel) + '</span>'
-        + '<p class="q-sentence">' + esc(comparisonSentence(m)) + '</p></li>';
-    }).join('');
-    const has = codes.length > 0;
+  // ---- executive takeaway prioritisation -----------------------------------
+  //
+  // The comparison table is the complete evidence layer and answers "what is my
+  // value versus the peer median". These two sections answer a different
+  // question: "what should I notice first". So they are ORDERED, capped and
+  // stated as takeaways rather than replayed in table order.
+  //
+  // The ordering input is the direction-aware peer position that peerSplit()
+  // already derives from the API's lowerThanProvider / higherThanProvider /
+  // equalToProvider counts. It is used ONLY to decide which existing evidence
+  // appears first inside a section the service has already classified.
+  //
+  // It is deliberately NOT: a score, a rank, a percentile, a grade, a weighted
+  // composite, or a cross-measure quality magnitude. It is never displayed and
+  // never named to the provider.
+  //
+  // It also deliberately does NOT use provider-minus-median distance. That would
+  // compare a percentage-point gap, a 0-10 index gap and a 1-5 star gap as if
+  // their numeric distances were interchangeable, which they are not.
+  const TAKEAWAY_DEFAULT = 3;
+
+  // Peers on the relevant side of the comparison, oriented by the STORED measure
+  // direction via peerSplit(): the ones this provider outperformed for a
+  // strength, the ones that outperformed this provider for an area to review.
+  function peerPositionCount(m, side) {
+    const s = peerSplit(m);
+    return side === 'strength' ? s.behind : s.ahead;
+  }
+
+  // Proportion rather than raw count, because comparableCount legitimately
+  // differs between measures - 7 of 8 is a stronger signal than 7 of 9.
+  function prioritizeTakeaways(codes, byCode, side, orderIndex) {
+    const items = (codes || [])
+      .map((c) => byCode[c])
+      // A measure without a valid peer comparison can never be a takeaway.
+      .filter((m) => m && m.comparisonAllowed && m.peers
+        && Number(m.peers.comparableCount) > 0);
+    return items.slice().sort((a, b) => {
+      const na = peerPositionCount(a, side);
+      const nb = peerPositionCount(b, side);
+      const ta = Number(a.peers.comparableCount) || 0;
+      const tb = Number(b.peers.comparableCount) || 0;
+      const pa = ta > 0 ? na / ta : 0;
+      const pb = tb > 0 ? nb / tb : 0;
+      if (pb !== pa) return pb - pa;          // 1. directional peer proportion
+      if (nb !== na) return nb - na;          // 2. directional peer count
+      // 3. the existing measure order (the API returns measures by measureCode).
+      //    Chosen over the numeric gap on purpose, so no distance comparison
+      //    leaks back in as a tie-break.
+      return (orderIndex[a.measureCode] || 0) - (orderIndex[b.measureCode] || 0);
+    });
+  }
+
+  // One takeaway: the measure, its CMS-published value against the peer median,
+  // and Task 1's existing tie-safe evidence sentence. The sentence is reused
+  // verbatim rather than reworded - "higher"/"lower" is literally true of the
+  // numbers, where "better" would need its own correctness argument.
+  function renderTakeaways(cfg) {
+    const ul = document.getElementById(cfg.listId);
+    const empty = document.getElementById(cfg.emptyId);
+    const more = document.getElementById(cfg.moreId);
+    const hint = document.getElementById(cfg.hintId);
+    const items = prioritizeTakeaways(cfg.codes, cfg.byCode, cfg.side, cfg.orderIndex);
+    let shown = TAKEAWAY_DEFAULT;
+
+    const paint = () => {
+      ul.innerHTML = items.slice(0, shown).map((m) => {
+        const median = m.peers ? fmtValue(m, m.peers.median) : '—';
+        return '<li><span class="q-measure">' + esc(m.shortLabel) + '</span>'
+          + '<p class="q-tvals">'
+          + '<span class="q-tv"><span class="k">Yours</span><span class="v">'
+          + esc(fmtValue(m, m.provider.value)) + '</span></span>'
+          + '<span class="q-tv"><span class="k">Peer median</span><span class="v">'
+          + esc(median) + '</span></span>'
+          + '</p>'
+          + '<p class="q-sentence">' + esc(comparisonSentence(m)) + '</p></li>';
+      }).join('');
+      const remaining = items.length - shown;
+      if (more) {
+        more.hidden = remaining <= 0;
+        more.textContent = remaining > 0 ? 'Show ' + num(remaining) + ' more' : '';
+      }
+    };
+    // Reveals in place - no navigation and no second request.
+    if (more) more.onclick = () => { shown = items.length; paint(); };
+
+    const has = items.length > 0;
     ul.hidden = !has;
     empty.hidden = has;
-    if (!has) empty.textContent = emptyText;
+    if (hint) {
+      // Attribution stated once per section: CMS publishes the values, Best
+      // Hospice computes the median, the comparison and this ordering.
+      hint.textContent = has
+        ? 'Values are CMS-published. The peer median, the comparison and the order these appear in are calculated by Best Hospice.'
+        : '';
+      hint.hidden = !has;
+    }
+    if (has) {
+      paint();
+    } else {
+      ul.innerHTML = '';
+      empty.textContent = cfg.emptyText;
+      if (more) { more.hidden = true; more.textContent = ''; }
+    }
   }
 
   function renderQualityCahps(q, byCode) {
@@ -1202,10 +1307,28 @@
     renderQualityMetrics(data);
     renderQualityCms(data.measures || []);
     renderQualityBench(data);
-    renderQualityList(data.strengths || [], byCode, 'q-strengths', 'q-strengths-empty',
-      'No measure is above the overlapping-hospice median by enough comparable data to report yet.');
-    renderQualityList(data.areasToReview || [], byCode, 'q-review', 'q-review-empty',
-      'No measure falls below the overlapping-hospice median where a comparison is available.');
+    // The API returns measures ordered by measureCode; that index is the stable
+    // final tie-break, chosen so no numeric-gap comparison leaks into ordering.
+    const orderIndex = {};
+    (data.measures || []).forEach((m, idx) => { orderIndex[m.measureCode] = idx; });
+    const anyCompared = (data.measures || []).some((m) => m.comparisonAllowed);
+    const noComparisons = 'No peer comparisons available';
+    renderTakeaways({
+      codes: data.strengths || [], byCode: byCode, side: 'strength', orderIndex: orderIndex,
+      listId: 'q-strengths', emptyId: 'q-strengths-empty', moreId: 'q-strengths-more',
+      hintId: 'q-strengths-hint',
+      emptyText: anyCompared
+        ? 'No measure is above the overlapping-hospice median where a comparison is available.'
+        : noComparisons
+    });
+    renderTakeaways({
+      codes: data.areasToReview || [], byCode: byCode, side: 'review', orderIndex: orderIndex,
+      listId: 'q-review', emptyId: 'q-review-empty', moreId: 'q-review-more',
+      hintId: 'q-review-hint',
+      emptyText: anyCompared
+        ? 'No measure falls below the overlapping-hospice median where a comparison is available.'
+        : noComparisons
+    });
     renderQualityCahps(data, byCode);
     renderQualityNote(data);
 
