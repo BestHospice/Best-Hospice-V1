@@ -38,6 +38,7 @@ const capsFn = new Function('process',
    grab(/const KNOWN_INTELLIGENCE_TYPES = \{[\s\S]*?\n\};/, 'known types'),
    grab(/const TYPE_LABELS = \{[^}]*\};/, 'labels'),
    grab(/const CMS_QUALITY_INTELLIGENCE_ENABLED = [^\n]*/, 'quality release gate'),
+   grab(/const CMS_COMPETITOR_INTELLIGENCE_ENABLED = [^\n]*/, 'competitor release gate'),
    grab(/function providerIntelligenceCapabilities\(provider\) \{[\s\S]*?\n\}/, 'fn')].join('\n')
   + '\nreturn { providerIntelligenceCapabilities, INTELLIGENCE_MODULES };')({ env: {} });
 const caps = capsFn.providerIntelligenceCapabilities;
@@ -163,13 +164,15 @@ section('page wiring');
   // Coming Soon cards must remain inert.
   ok(!/mi-card[^>]*aria-expanded/.test(PAGE),
      '16h. generic Coming Soon module cards are not expandable');
-  // Two expandable modules exist since Quality Intelligence V1: My Market and
-  // Quality. This assertion stays load-bearing - a third registration, or a
-  // Coming Soon card accidentally becoming expandable, fails it.
+  // Three expandable modules exist since Competitor Intelligence V1 Phase B:
+  // My Market, Quality and Competitors. This assertion stays load-bearing - a
+  // fourth registration, or a Coming Soon card accidentally becoming
+  // expandable, fails it.
   const accReg = (PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length;
-  ok(accReg === 2, '16i. exactly two intelligence modules are registered as expandable today', String(accReg));
-  ok(/INTEL_ACCORDION\.register\('myMarket'/.test(PAGE) && /INTEL_ACCORDION\.register\('quality'/.test(PAGE),
-     '   …and they are myMarket and quality');
+  ok(accReg === 3, '16i. exactly three intelligence modules are registered as expandable today', String(accReg));
+  ok(/INTEL_ACCORDION\.register\('myMarket'/.test(PAGE) && /INTEL_ACCORDION\.register\('quality'/.test(PAGE)
+     && /INTEL_ACCORDION\.register\('competitors'/.test(PAGE),
+     '   …and they are myMarket, quality and competitors');
   ok(/one detail module open at a time|Only one detail/i.test(PAGE),
      '16j. the one-open-at-a-time contract is documented in code');
 }
