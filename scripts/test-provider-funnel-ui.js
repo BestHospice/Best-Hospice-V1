@@ -567,13 +567,13 @@ async function uiTests() {
     R.initFunnelAccordion(); R.initFunnel(CAP_ON);
     dom.els['pf-toggle'].click(); await tick(); await tick();
     const metrics = dom.els['pf-metrics'].innerHTML;
-    for (const [label, value] of [['Times matched', 12], ['Referrals sent', 11],
+    for (const [label, value] of [['Families matched', 12], ['Referrals sent', 11],
                                   ['Responses recorded', 5], ['No response recorded', 6]]) {
       ok(metrics.includes(label), `11a. "${label}" is displayed`);
       ok(new RegExp('>' + value + '<[\\s\\S]{0,80}' + label).test(metrics),
          `11b. …showing ${value}`);
     }
-    ok(metrics.indexOf('Times matched') < metrics.indexOf('Referrals sent')
+    ok(metrics.indexOf('Families matched') < metrics.indexOf('Referrals sent')
        && metrics.indexOf('Referrals sent') < metrics.indexOf('Responses recorded')
        && metrics.indexOf('Responses recorded') < metrics.indexOf('No response recorded'),
        '11c. …in the approved order');
@@ -669,7 +669,7 @@ async function uiTests() {
     matched.dom.els['pf-toggle'].click(); await tick(); await tick();
     ok(matched.dom.els['pf-empty'].hidden === true,
        '13i. matched but never sent is NOT treated as an empty period');
-    ok(matched.dom.els['pf-body'].hidden === false && /Times matched/.test(matched.dom.els['pf-metrics'].innerHTML),
+    ok(matched.dom.els['pf-body'].hidden === false && /Families matched/.test(matched.dom.els['pf-metrics'].innerHTML),
        '13j. …the counts are shown so the provider can see it happened');
   }
 
@@ -730,6 +730,110 @@ async function uiTests() {
     for (const pii of ['@example', 'clientEmail', 'firstName', 'lastName', '555-', 'Synthetic Family']) {
       ok(!shown.includes(pii), `15f. no "${pii}" reaches the screen`);
     }
+  }
+
+  section('15b. provider-facing labels and copy are consistent and accurate');
+  {
+    const OPS = fs.readFileSync(path.join(ROOT, 'provider-dashboard-home.html'), 'utf8');
+    // ---- the stale promises the Overview card used to make ----------------
+    // Response timing and an admission conversion measure. Neither exists
+    // anywhere in the product, and Provider Funnel V1 deliberately ships
+    // neither, so no provider-facing surface may advertise them.
+    for (const stale of ['how quickly your team responded', 'became admissions',
+                         'how many became admissions', 'Best Hospice Performance']) {
+      ok(!PAGE.includes(stale), `15g. the stale promise "${stale}" is gone from Market Intelligence`);
+      ok(!OPS.includes(stale), `15h. …and was never on the Operations dashboard`);
+    }
+    // Executed, not pattern-matched: the real MODULES object the page renders.
+    const MODULES = new Function('return ' + SCRIPT_BODY.match(/const MODULES = (\{[\s\S]*?\n  \});/)[1])();
+    const bh = MODULES.Overview.filter((m) => m.cap === 'bestHospiceLeadAnalytics');
+    ok(bh.length === 1, '15i. the Best Hospice data card is still present exactly once', String(bh.length));
+    const card = bh[0];
+    ok(card.title === 'Referrals & Lead Statuses', '15j. …retitled away from "Performance"', card.title);
+    ok(!/quick|fast|speed|respond(ed)?\b|time|admission|convert|rate|score|rank|benchmark|percentile/i
+        .test(card.title + ' ' + card.body + ' ' + (card.linkText || '')),
+       '15k. …and its copy promises no timing, conversion, score, rank or benchmark',
+       card.body);
+    ok(/matched and sent to you/.test(card.body) && /status your team recorded/.test(card.body),
+       '15l. …it describes what actually exists: matches, referrals sent, recorded statuses', card.body);
+    // Two things under one name in one panel is the collision this pass removes.
+    ok(card.title !== 'Your Best Hospice referral activity',
+       '15m. …and does not reuse the live funnel module heading');
+    ok(/<h3>Your Best Hospice referral activity<\/h3>/.test(PAGE),
+       '15n. the live module keeps that heading for itself');
+
+    // ---- impressions vs the funnel's matched count -----------------------
+    // A ProviderImpression row is written only by /api/notify from the routed
+    // provider list, so it is a match EVENT and can exceed the number of
+    // families. Only the DISTINCT count may be called families.
+    ok(/\['timesMatched', 'Families matched'\]/.test(PAGE),
+       '15o. the funnel labels its DISTINCT lead count "Families matched"');
+    ok(!/'Times matched'/.test(PAGE), '15p. …and the ambiguous "Times matched" is gone');
+    ok(/Referral matches: \$\{m\.impressions\}/.test(SRC),
+       '15q. the raw impression row count is labelled "Referral matches", not families');
+    ok(!/Impressions: \$\{m\.impressions\}/.test(SRC),
+       '15r. …and no longer as a bare "Impressions"');
+    ok(!/[Ff]amil(y|ies)[^\n]{0,40}\$\{m\.impressions\}/.test(SRC),
+       '15s. …and raw impression rows are NEVER called families');
+    const opsLabel = /<h4>([^<]*)<\/h4>\s*<div id="m-total-notifs">/.exec(OPS);
+    ok(opsLabel && opsLabel[1] === 'Referrals Sent to You',
+       '15t. Operations calls the same canonical count "Referrals Sent to You"',
+       opsLabel && opsLabel[1]);
+    ok(/\$\{totalNotificationsCache\} referrals x/.test(OPS),
+       '15u. …and the revenue basis says referrals, matching the number it prints');
+    ok(!/\$\{totalNotificationsCache\} leads x/.test(OPS),
+       '15v. …not "leads", which read as a different quantity');
+    // The dedup facts, in provider language, in static markup so they cannot
+    // go missing for one window or one provider.
+    ok(/Families matched counts each family request once/.test(PAGE),
+       '15w. the page explains that families matched is deduplicated');
+    ok(/Referrals sent counts each request once, however many notification emails/.test(PAGE),
+       '15x. …and that referrals sent is deduplicated too');
+
+    // ---- emailsSent / leadsGenerated no longer print twice ---------------
+    const sentences = SRC.match(/Referral matches: \$\{m\.impressions\}[^`]*/g) || [];
+    ok(sentences.length === 2, '15y. both assistant sentences were consolidated', String(sentences.length));
+    for (const s of sentences) {
+      ok(!/leadsGenerated/.test(s),
+         '15z. …and neither quotes leadsGenerated beside referrals sent', s);
+    }
+    // Backend compatibility retained: the fields still exist for any consumer.
+    ok(/leadsGenerated,?\n/.test(SRC) && /leadsGenerated: notifiedPairs\.size/.test(SRC),
+       '15aa. …while both API fields are still returned, unchanged');
+    const metricsRoute = grab(/app\.get\('\/api\/provider\/metrics'[\s\S]*?\n\}\);/, 'metrics route');
+    ok(/emailsSent,/.test(metricsRoute) && /leadsGenerated/.test(metricsRoute),
+       '15ab. /api/provider/metrics still returns both fields');
+
+    // ---- the qualification that must never be weakened -------------------
+    ok(METHODOLOGY.noResponseDefinition.includes('does not mean the provider did not'),
+       '15ac. the "no response recorded" qualification is still in the methodology');
+    ok(/contacted a family without updating the status here appears in this group/
+        .test(METHODOLOGY.noResponseDefinition),
+       '15ad. …including the sentence naming who lands in that group');
+    const dom2 = makeDom();
+    const R2 = loadRenderers(dom2, async () => payload());
+    R2.initFunnelAccordion(); R2.initFunnel(CAP_ON);
+    dom2.els['pf-toggle'].click();
+    await tick(); await tick();
+    ok(dom2.els['pf-method'].hidden === false
+       && dom2.els['pf-method-list'].innerHTML.includes('It does not mean the provider did not'),
+       '15ae. …and it is still RENDERED and visible, not merely present in the service');
+    ok(dom2.els['pf-method-list'].innerHTML.indexOf('It does not mean the provider did not')
+       < dom2.els['pf-method-list'].innerHTML.length / 2 + 400,
+       '15af. …and appears in the upper part of the block, not buried at the end');
+
+    // ---- nothing prohibited was introduced by this pass ------------------
+    const introduced = [card.title, card.body, card.linkText || '',
+                        'Referrals Sent to You',
+                        (/<p class="cms-hint" id="pf-metrics-note">([\s\S]*?)<\/p>/.exec(PAGE) || ['', ''])[1],
+                        ...sentences].join(' ');
+    for (const term of ['rate', 'score', 'rank', 'grade', 'percentile', 'benchmark', 'median',
+                        'average', 'mean', 'trend', 'conversion', 'response time', 'faster',
+                        'slower', 'quickly', 'speed', 'admission', 'peer', 'percent']) {
+      ok(!new RegExp('\\b' + term + '\\b', 'i').test(introduced),
+         `15ag. no "${term}" language was introduced by the copy pass`);
+    }
+    ok(!introduced.includes('%'), '15ah. …and no percentage');
   }
 
   section('16. UI — a failed request is an error, not a zero');

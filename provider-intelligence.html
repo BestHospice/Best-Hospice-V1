@@ -367,6 +367,16 @@
               <div id="pf-body" hidden>
                 <div class="cms-metrics" id="pf-metrics"></div>
 
+                <!-- Why these two counts are smaller than the number of emails
+                     and match events behind them. Static markup rather than
+                     rendered copy: it is true of every window and every
+                     provider, and it must not be able to go missing. -->
+                <p class="cms-hint" id="pf-metrics-note">
+                  Families matched counts each family request once, even if Best Hospice matched you to it
+                  more than once. Referrals sent counts each request once, however many notification emails
+                  it produced.
+                </p>
+
                 <!-- Operational, and only when it happened. Rendered from a
                      conditional branch rather than hidden by CSS, so a provider
                      with nothing undelivered never sees a zero card. -->
@@ -826,9 +836,24 @@
         body: 'Track available quality measures and understand how your organization performs against local, state, and national benchmarks.' },
       { cap: 'marketOpportunity', title: 'Market Opportunities',
         body: 'Identify markets and service areas that may present attractive growth opportunities.' },
-      { cap: 'bestHospiceLeadAnalytics', title: 'Best Hospice Performance',
-        body: 'Referrals received, how quickly your team responded, and how many became admissions.',
-        linkText: 'See it in Operations → Performance', linkHref: 'provider-dashboard-home.html' },
+      // Retitled and rewritten in Provider Funnel V1 Phase B. The old copy
+      // promised two things that do not exist anywhere in the product: how
+      // quickly the team replied, and how many referrals turned into
+      // admissions. Provider Funnel V1 deliberately ships neither - response
+      // timing measures dashboard habits rather than care, and there has been
+      // one current admission platform-wide. The card now describes what a
+      // provider can actually see. "Performance" went too, because it implied a
+      // score. The exact former wording is not repeated here, so a test can
+      // assert it is absent from this whole page.
+      //
+      // The title deliberately does NOT reuse "Your Best Hospice referral
+      // activity": that is the heading of the live funnel module in this same
+      // panel, and two things under one name in one view is the collision this
+      // pass exists to remove. This card names the records; the module shows
+      // the counts.
+      { cap: 'bestHospiceLeadAnalytics', title: 'Referrals & Lead Statuses',
+        body: 'The family requests Best Hospice matched and sent to you, and the status your team recorded for each.',
+        linkText: 'See your leads in Operations', linkHref: 'provider-dashboard-home.html' },
       { cap: 'reports', title: 'Reports',
         body: 'Receive concise reports summarizing your performance, market, quality, and opportunities.' }
     ],
@@ -2307,8 +2332,13 @@
   const FUNNEL_EMPTY_HINT = 'When a family is matched to your organization and we send you the referral, it will appear here. Try a longer period above.';
 
   // Display order fixed by the product: volume, then what came back.
+  // "Families matched", not "Times matched". The count is DISTINCT leads, so it
+  // is a number of family requests; the raw ProviderImpression row count that
+  // the provider assistant reports as "Referral matches" is the match-event
+  // count and can be larger. The labels have to be tellable apart, and only the
+  // deduplicated one may be called families. The counting is unchanged.
   const FUNNEL_METRICS = [
-    ['timesMatched', 'Times matched'],
+    ['timesMatched', 'Families matched'],
     ['referralsSent', 'Referrals sent'],
     ['responsesRecorded', 'Responses recorded'],
     ['noResponseRecorded', 'No response recorded']

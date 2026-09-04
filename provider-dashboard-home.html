@@ -110,8 +110,13 @@
       </nav>
 
       <div class="metrics">
+        <!-- "Referrals Sent to You", matching Provider Funnel V1's "Referrals
+             sent". The value is the same canonical count: distinct family
+             requests we successfully sent you, not notification rows. It reads
+             lower than it used to for any provider who received a follow-up
+             email about a request, and that is the correction. -->
         <div class="metric-card">
-          <h4>Leads Sent to You</h4>
+          <h4>Referrals Sent to You</h4>
           <div id="m-total-notifs">-</div>
         </div>
       </div>
@@ -572,7 +577,7 @@
       const basis = document.getElementById('bill-revenue-basis');
       if (basis) {
         const m = monthsPerClient();
-        basis.textContent = `${totalNotificationsCache} leads x $${revenuePerClient.toLocaleString()}/mo x ${m} month${m === 1 ? '' : 's'}`;
+        basis.textContent = `${totalNotificationsCache} referrals x $${revenuePerClient.toLocaleString()}/mo x ${m} month${m === 1 ? '' : 's'}`;
       }
       document.getElementById('bill-monthly').textContent = `$${enteredMonthly.toLocaleString()}`;
     }

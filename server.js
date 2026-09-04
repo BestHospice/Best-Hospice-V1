@@ -7489,7 +7489,7 @@ app.get('/api/provider-dashboard/metrics', requireProviderAuth, async (req, res)
     }
     const providerId = ctx.providerId;
     await ensureProviderStripeColumns();
-    // totalNotifications is rendered as "Leads Sent to You" and multiplied by
+    // totalNotifications is rendered as "Referrals Sent to You" and multiplied by
     // the provider's own revenue-per-client input, so the raw row count was not
     // merely inconsistent with Provider Funnel V1 - it overstated a dollar
     // figure. It is the SAME quantity as "Referrals sent" and resolves through
@@ -7708,7 +7708,7 @@ async function executeAbelTool(toolName, toolInput, providerCtx) {
       prisma.providerImpression.count({ where: { providerId, createdAt: { gte: start, lte: end } } }),
       prisma.leadNotification.findMany({ where: { providerId, createdAt: { gte: start, lte: end } }, select: { leadId: true, status: true } })
     ]);
-    // The assistant quotes "Emails sent" verbatim to the provider, so it must
+    // The assistant quotes this count verbatim to the provider, so it must
     // resolve the same definition the dashboard and the funnel do.
     return { impressions, ...countNotifiedPairs(leadNotifications) };
   };
@@ -7738,7 +7738,20 @@ async function executeAbelTool(toolName, toolInput, providerCtx) {
       const start = parseDate(toolInput.start_date, 30);
       const end = toolInput.end_date ? new Date(toolInput.end_date) : new Date();
       const m = await metricsRange(start, end);
-      return `From ${iso(start)} to ${iso(end)}: Impressions: ${m.impressions}, Emails sent: ${m.emailsSent}, Leads generated: ${m.leadsGenerated}.`;
+      // "Referral matches" not "Impressions": a ProviderImpression row is
+      // written only by /api/notify, from the providers a family request was
+      // routed to, so it counts MATCH EVENTS and can exceed the number of
+      // families. The funnel's "Families matched" is the DISTINCT count of the
+      // same thing, and the two labels have to be tellable apart.
+      //
+      // leadsGenerated is no longer quoted. It counts every provider-lead pair
+      // we tried to notify, so it differs from referrals sent only when a
+      // delivery failed - and no notification has ever failed in production,
+      // which made this sentence print one number twice under two names. The
+      // API field is unchanged for any existing consumer; only the sentence a
+      // provider reads was consolidated. Undelivered referrals are reported by
+      // the funnel module, which has the precise definition for them.
+      return `From ${iso(start)} to ${iso(end)}: Referral matches: ${m.impressions}, Referrals sent: ${m.emailsSent}.`;
     }
     case 'get_spend_estimate': {
       const sinceDate = parseDate(toolInput.since_date, 30);
@@ -8442,7 +8455,7 @@ app.post('/api/ai/chat', async (req, res) => {
       const m = await metricsRange(start, end, providerId);
       await logAdminAction('provider_user', 'PROVIDER_AI_METRICS', providerId, { start: iso(start), end: iso(end) }, hashIp(req.ip || ''));
       return res.json({
-        reply: `Last 30 days — Impressions: ${m.impressions}, Emails sent: ${m.emailsSent}, Leads: ${m.leadsGenerated}.`,
+        reply: `Last 30 days — Referral matches: ${m.impressions}, Referrals sent: ${m.emailsSent}.`,
         navigateTo: navigation.providerHome
       });
     }
