@@ -4222,20 +4222,76 @@ app.post('/api/notify', rateLimit, async (req, res) => {
   }
 });
 
+// New Territory Outreach. A family reaching this form has been told no provider
+// is available near them and is asking Best Hospice to retain their request and
+// follow up, so THE DATABASE RECORD IS THE COMMITMENT - an operational record,
+// not optional analytics.
+//
+// Email is only a notification side effect and must never gate persistence.
+// Previously EMAIL_ENABLED being off, absent credentials or a SendGrid outage
+// each discarded the request entirely, and the row itself was written
+// fire-and-forget after the response, so a family could be told "we will notify
+// you" with nothing stored anywhere.
+//
+// Order is therefore: validate -> persist (awaited) -> respond -> notify.
 app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
-  if (!EMAIL_ENABLED) return res.status(500).json({ error: 'Email not configured' });
-  try {
-    const { zip, timeline, contactEmail, contactPhone } = req.body || {};
-    const rawZip = String(zip || '').trim();
-    const zipMatch = rawZip.match(/\d{5}/);
-    const safeZip = zipMatch ? zipMatch[0] : (rawZip || 'unknown');
-    const safeTimeline = String(timeline || '').trim() || 'Not specified';
-    const safeContactEmail = String(contactEmail || '').trim() || 'Not provided';
-    const safeContactPhone = String(contactPhone || '').trim() || 'Not provided';
+  const { zip, timeline, contactEmail, contactPhone } = req.body || {};
 
-    const targetEmail = 'contact@besthospice.com';
-    const subject = `Coverage request for ZIP ${safeZip}`;
-    const html = `
+  // Exactly the format the client guarantees: search-results.js refuses to start
+  // the flow unless the ZIP matches /^\d{5}$/. The previous loose `\d{5}` search
+  // with an 'unknown' fallback could persist a row whose zip was not a ZIP,
+  // which is useless for follow-up and worse than no row at all.
+  //
+  // Only a string or a number is coerced. Without the type check `["85001"]`
+  // would pass, because Array.prototype.toString joins a single element to
+  // exactly "85001" - the right ZIP, but by accident, and the field contract is
+  // a string. A JSON number is still accepted because 85001 is genuinely the
+  // same ZIP; a number that lost a leading zero fails the pattern below, which
+  // is the outcome we want.
+  const safeZip = (typeof zip === 'string' || typeof zip === 'number')
+    ? String(zip).trim()
+    : '';
+  if (!/^\d{5}$/.test(safeZip)) {
+    return res.status(400).json({ error: 'A valid 5-digit ZIP code is required' });
+  }
+  const safeTimeline = String(timeline || '').trim() || 'Not specified';
+  const safeContactEmail = String(contactEmail || '').trim() || 'Not provided';
+  const safeContactPhone = String(contactPhone || '').trim() || 'Not provided';
+
+  // 1. PERSIST FIRST, AWAITED. If this fails the consumer is told so and NO
+  //    email is sent, because nothing has actually been retained. ensureWaitlistTable
+  //    is idempotent (memoised CREATE TABLE IF NOT EXISTS) and is awaited here so a
+  //    failure fails closed rather than detaching the write.
+  try {
+    await ensureWaitlistTable();
+    await prisma.waitlistRequest.create({
+      data: {
+        id: uuid(),
+        zip: safeZip,
+        contactEmail: safeContactEmail || null,
+        contactPhone: safeContactPhone || null,
+        timeline: safeTimeline || null
+      }
+    });
+  } catch (err) {
+    console.error('WaitlistRequest persistence failed', err);
+    return res.status(500).json({ error: 'Could not submit notification request' });
+  }
+
+  // 2. The commitment is recorded, so answer the family now instead of making
+  //    them wait on a third-party email round trip.
+  res.json({ ok: true });
+
+  // 3. Notify, best effort, AFTER responding - the same shape as
+  //    /api/provider/me, which also finishes async work after res.json(). The
+  //    rejection handler is mandatory: an unhandled rejection would take the
+  //    process down, and an email failure must neither reach the consumer nor
+  //    remove the row already persisted.
+  if (!EMAIL_ENABLED) {
+    console.warn('Waitlist request stored; notification email is not configured', safeZip);
+    return;
+  }
+  const html = `
       <div style="font-family: Arial, Helvetica, sans-serif; line-height:1.6; color:#222;">
         <p>A client at zipcode ${safeZip} has requested care but is unable to get in touch because no providers are nearby.</p>
         <p><strong>Client Email:</strong> ${safeContactEmail}<br />
@@ -4246,18 +4302,8 @@ app.post('/api/waitlist/notify', rateLimit, async (req, res) => {
         <p><em>Because your loved ones deserve the best, period.</em></p>
       </div>
     `;
-    await sendGenericEmail(targetEmail, subject, html);
-    // Save to DB for New Territory Outreach reporting (fire-and-forget)
-    ensureWaitlistTable()
-      .then(() => prisma.waitlistRequest.create({
-        data: { id: uuid(), zip: safeZip, contactEmail: safeContactEmail || null, contactPhone: safeContactPhone || null, timeline: safeTimeline || null }
-      }))
-      .catch((err) => console.error('WaitlistRequest save failed', err));
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('Waitlist notify failed', err);
-    res.status(500).json({ error: 'Could not submit notification request' });
-  }
+  sendGenericEmail('contact@besthospice.com', `Coverage request for ZIP ${safeZip}`, html)
+    .catch((err) => console.error('Waitlist notification email failed; request is stored', err));
 });
 
 app.post('/api/analytics/event', async (req, res) => {
