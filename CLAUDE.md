@@ -47,14 +47,37 @@ never move them back into `prisma/migrations/`.**
 - Develop locally only, and only through the guard:
   `DEV_DATABASE_URL=postgresql://localhost:5432/bh_dev npm run prisma:migrate:dev`.
 - **Never run `prisma migrate dev` against production** — it offers to reset on drift.
-- Production migrations will eventually run via `prisma migrate deploy`.
-- **`prisma migrate deploy` is deliberately NOT in the deploy pipeline.** `postinstall` runs
-  `prisma generate` only. Before it can be enabled, production must have the baseline recorded
-  with `prisma migrate resolve --applied 0_init`. If `migrate deploy` reaches production first,
-  `0_init` is treated as pending, its `CREATE TABLE` statements fail against the existing
-  tables, the migration is recorded as failed, and P3009 blocks every future deploy.
-- Production keeps its 15 historical `_prisma_migrations` rows as an audit record; Prisma
+- **Production migrations are applied through the Render Pre-Deploy step, which runs
+  `npx prisma migrate deploy --schema prisma/schema.prisma`.** That is the only sanctioned
+  path. `postinstall` still runs `prisma generate` only.
+- Production keeps its historical `_prisma_migrations` rows as an audit record; Prisma
   5.22.0 ignores rows whose directories are absent locally.
+
+### `migrate resolve` is NOT a production prerequisite
+
+An earlier version of this file said `migrate deploy` was deliberately absent from the
+pipeline and that production first needed the baseline recorded with
+`prisma migrate resolve --applied 0_init`. **Both statements are obsolete, and the second was
+never true of the production database.** They are corrected here rather than deleted, because
+the wrong instruction is more dangerous than the history of it.
+
+Production migration state was read directly in a read-only session and shows `0_init` already
+recorded in `_prisma_migrations` — `finished = true`, `rolled_back = false`,
+`applied_steps_count = 0`. Every deploy since has confirmed it from the other direction: the
+`CmsFacilityObservation` deploy reported *"6 migrations found"* and applied only the one
+pending migration, and the deploy after it reported *"6 migrations found. No pending migrations
+to apply."* Render has never attempted to replay `0_init`.
+
+So:
+
+- **Do NOT run `prisma migrate resolve --applied 0_init`.** It is not required, and running it
+  against an already-recorded baseline is a write to migration bookkeeping for no reason.
+- **`migrate resolve` is an exceptional reconciliation tool, not routine maintenance.** Use it
+  only after DIRECT production migration-state evidence — an actual read of
+  `_prisma_migrations` — establishes that a specific row is genuinely missing or failed.
+- **Never infer that requirement from local migration history, from a doc, or from an agent's
+  assumption.** Local history says nothing about what production has recorded. This exact
+  inference is what put the stale instruction here.
 
 ## Core Data Flow
 

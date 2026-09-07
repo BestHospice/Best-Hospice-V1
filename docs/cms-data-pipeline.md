@@ -450,33 +450,151 @@ is enough to answer "when did this first appear", "is this still present", "who
 entered the market", "who disappeared".
 
 Rows are never deleted when they stop appearing in CMS, so "current" is a
-*query*, not a stored flag. A row is CURRENT when its `lastSeenReleaseId` is the
-latest release for its source; otherwise it is HISTORICAL:
+*query*, not a stored flag.
+
+**The anchor for "current" is the highest `releaseKey` ACTUALLY REFERENCED by a
+service-area row for that source — NOT the newest `CmsRelease` row.** An earlier
+version of this document showed the newest-`CmsRelease` form. That form is
+unsafe and is corrected below: a `CmsRelease` can exist that no service-area row
+references — a history-only or backfill release, an incomplete or empty capture,
+or a release created by a different pipeline stage — and anchoring to it would
+match no row and silently **zero the current market**. Deriving the anchor from
+the rows themselves makes an empty anchor impossible whenever any row exists.
 
 ```sql
 -- Which facilities CURRENTLY serve ZIP 85016?
+WITH anchor AS (
+  SELECT r."releaseKey" AS key
+  FROM "CmsFacilityServiceArea" sa
+  JOIN "CmsRelease" r ON r.id = sa."lastSeenReleaseId" AND r.source = sa.source
+  WHERE sa.source = 'cms_hospice'
+  ORDER BY r."releaseKey" DESC
+  LIMIT 1
+)
 SELECT f.*
 FROM "CmsFacilityServiceArea" sa
 JOIN "CmsFacility" f ON f.id = sa."facilityId"
+JOIN "CmsRelease" fr ON fr.id = sa."firstSeenReleaseId" AND fr.source = sa.source
+JOIN "CmsRelease" lr ON lr.id = sa."lastSeenReleaseId"  AND lr.source = sa.source
 WHERE sa.source = 'cms_hospice'
   AND sa.zip    = '85016'
-  AND sa."lastSeenReleaseId" = (
-        SELECT id FROM "CmsRelease"
-        WHERE source = 'cms_hospice'
-        ORDER BY "releaseKey" DESC
-        LIMIT 1);
+  AND fr."releaseKey" <= (SELECT key FROM anchor)
+  AND lr."releaseKey" >= (SELECT key FROM anchor);
 ```
 
-Drop the `lastSeenReleaseId` predicate and the same query returns the full
+Drop the two `releaseKey` predicates and the same query returns the full
 history, including relationships CMS has since dropped. **No `active` boolean is
-needed** — it would duplicate state already implied by `lastSeenReleaseId` and
-would have to be rewritten across ~915k rows on every refresh. Tested both ways.
+needed** — it would duplicate state already implied by the interval and would
+have to be rewritten across ~915k rows on every refresh. Tested both ways.
+
+Chronology is ALWAYS `CmsRelease.releaseKey`. Release ids are UUIDs and carry no
+chronology, so they are never compared to order releases. A CMS dataset
+`modified` timestamp does not determine chronology either — see
+[CMS `modified` is not evidence of change](#cms-modified-is-not-evidence-of-change).
+
+### Release-scoped ("as of") market membership
+
+`buildProviderCmsMarket(prisma, providerId, { asOfReleaseId })` answers the same
+question at a chosen release instead of the current one. Both modes run the SAME
+interval predicate and differ only in which `releaseKey` anchors it, so "current"
+is simply "as of the latest represented release". There is deliberately **no
+second market implementation**.
+
+A service-area relationship participates at release R when:
+
+```
+firstSeen releaseKey <= R.releaseKey  AND  lastSeen releaseKey >= R.releaseKey
+```
+
+- Chronology uses `CmsRelease.releaseKey`. **Never compare release ids/UUIDs.**
+- CMS `modified` timestamps play no part.
+- An `asOfReleaseId` that does not exist, or belongs to another source, **fails
+  closed** with status `invalid_as_of_release`. It must never silently fall back
+  to the current market — that would answer a different question than the one
+  asked.
+
+**Why both modes exist.** My Market, Quality, Competitors and Competitor detail
+need CURRENT membership: a facility that has left the roster must stop counting
+as a current competitor. "What's Changed" needs HISTORICAL membership at both
+comparison releases, and a current-membership set can never contain a facility
+whose defining property is that it is no longer current. So `What's Changed`
+scopes across:
+
+```
+union( market as-of previous release, market as-of latest release )
+```
+
+while the market summary it *displays* remains the current one. That union is
+load-bearing: without it, a facility no longer present in the latest roster
+would be reported by nobody. With it, both directions stay visible — facilities
+newly present in the CMS roster, and facilities not present in the latest CMS
+roster.
+
+### Current vs. release-history models
+
+| Model | Nature |
+|---|---|
+| `CmsFacility` | **Mutable / current** facility representation. Its ingest upsert overwrites `name`, `address`, `city`, `state`, `zip`, `county`, `phone`, `ownershipType` and `certificationDate` in place, so prior values are gone. |
+| `CmsFacilityObservation` | **Immutable, release-stamped snapshot** — one row per facility per release. Presence is row existence, so a gap (present, absent, present again) is representable. |
+| `CmsFacilityServiceArea` | **Current / interval** representation, one contiguous `firstSeenReleaseId → lastSeenReleaseId` interval per (facility, ZIP). |
+| `CmsFacilityMeasure` | Release-stamped quality history; `releaseId` is part of its natural key. |
+
+There is intentionally **no `CmsServiceAreaObservation` model** (see below).
+
+"What's Changed" derives `ROSTER_ADDED`, `ROSTER_REMOVED`, `NAME_CHANGED`,
+`LOCATION_CHANGED` and `OWNERSHIP_CHANGED` from **`CmsFacilityObservation`
+history only**. It never reads a descriptive column of `CmsFacility` for an
+attribute delta — doing so would compare a value against itself, since the
+current row already holds the newest release's value.
+
+### Known limitation: service-area history is an interval, not a snapshot
+
+`CmsFacilityServiceArea` stores ONE contiguous interval per (facility, ZIP).
+Therefore this sequence **cannot be represented faithfully**:
+
+```
+present at R1  →  absent at R2  →  present at R3
+```
+
+The ingest advances `lastSeenReleaseId` when the relationship reappears, so the
+interval collapses to `R1 → R3` and as-of membership reports the ZIP as served
+at R2, when CMS did not publish it. **This is a real imprecision and is not
+hidden** — it is asserted directly in `scripts/test-cms-roster-changes.js`,
+which also proves the observation record correctly shows the facility absent at
+R2. Roster and attribute events are unaffected, because they come from
+observations rather than from service-area intervals.
+
+#### Why `CmsServiceAreaObservation` remains deferred
+
+Faithful per-release ZIP history would need an append-only
+`CmsServiceAreaObservation` table. It has deliberately **not** been introduced:
+the archived 2026-05-01 and 2026-08-19 hospice `zip.csv` payloads were
+**byte-identical** (verified by recomputed sha256), so among the 6,610
+facilities present in both releases there were **0 ZIP additions, 0 removals and
+0 churn**. No observed release has yet demonstrated ZIP churn that would justify
+roughly 350k additional rows per release.
+
+Revisit it only when a future legitimate CMS release shows **material ZIP /
+service-area content change**, or another concrete product requirement justifies
+it. A changed CMS `modified` date is **not** such evidence.
+
+<a id="cms-modified-is-not-evidence-of-change"></a>
+### CMS `modified` is not evidence of change
+
+Between those same two releases CMS advanced the `zip` dataset's `modified` date
+by roughly four months while the content stayed byte-identical. `releaseKey` is
+derived as `max(modified)` across a capture, so a "new release" can legitimately
+contain wholly unchanged datasets. Nothing in the change-detection path consults
+`modified` to decide whether anything changed; it is release metadata only.
 
 Explicitly **deferred, and not built**:
 
-- **`CmsMeasure`** — append-only, release-stamped quality and CAHPS history.
-- **`CmsFacilityHistory`** — per-release snapshots of slow-changing attributes
-  such as ownership or address.
+- **`CmsServiceAreaObservation`** — append-only, release-stamped ZIP history.
+- **`CmsMeasure`** — append-only, release-stamped quality and CAHPS history
+  beyond what `CmsFacilityMeasure` already holds.
+- **`CmsFacilityHistory`** — superseded by `CmsFacilityObservation`, which now
+  holds the per-release snapshots of slow-changing attributes such as ownership
+  and address.
 
 ### Indexes and scale
 
@@ -1484,6 +1602,73 @@ a time. The expanded report labels every section either **"Reported by CMS"** or
 CMS published nothing it shows one sentence — *"CMS has not published a family
 caregiver survey result for this hospice."* — and never a blank or a zero.
 
+## What's Changed — CMS roster and facility change intelligence
+
+Compares the two most recent `cms_hospice` releases that actually carry
+`CmsFacilityObservation` rows — not merely the two newest `CmsRelease` rows, since
+a release can exist with no observations and would otherwise read as though every
+facility were newly present. Market scope is
+`union(market as-of previous, market as-of latest)`, per
+[Release-scoped market membership](#release-scoped-as-of-market-membership).
+
+### Provider-facing language is deliberately conservative
+
+CMS sends Best Hospice no closure, termination, enforcement or
+ownership-transaction data, and no dataset in `data/cms-dataset-registry.json`
+carries any. Every finding is therefore a difference between two CMS
+*publications*, and the wording says so:
+
+| Event | Provider-facing wording |
+|---|---|
+| `ROSTER_ADDED` | "Newly present in CMS roster" |
+| `ROSTER_REMOVED` | "Not present in latest CMS roster" |
+| `NAME_CHANGED` | "CMS-published name changed" |
+| `LOCATION_CHANGED` | "CMS-published address changed" |
+| `OWNERSHIP_CHANGED` | "CMS ownership classification changed" |
+
+**Ownership `value → null` and `null → value` are publication-coverage
+transitions, NOT ownership changes.** They are reported separately as
+`ownershipCoverageChanged` ("CMS no longer publishes ownership for this
+facility" / "CMS now publishes ownership for this facility") and are never
+counted in `summary.ownershipChanged`. On the measured 2026-05-01 → 2026-08-19
+interval, 788 of 1,310 ownership transitions were `value → null` as CMS null
+coverage went from 11.16% to 23.39% of facilities; only 522 were
+`value → value`. Folding them together would have overstated ownership changes
+2.5×.
+
+Language implying **opened, closed, terminated, acquired, sold** or
+**relocated** must not be used unless a future authoritative source
+independently establishes that event. Absence from a roster file is an
+observation about the roster.
+
+County is excluded from `LOCATION_CHANGED` entirely: CMS recased its county
+convention wholesale between the two releases, which was 6,490 of 6,553 observed
+county differences.
+
+**Cross-release Quality improvement/decline remains unapproved.** All 67
+provider measure codes and all 22 CAHPS codes shifted their measurement period
+between the two archived releases — not one was comparable like-for-like — so a
+delta would often reflect a shifted reporting window rather than changed care.
+
+### Current implementation state
+
+- Derivation engine: `cms-hospice-roster-changes.js` — **exists**, derived
+  dynamically from observations, with no change-event table and no migration.
+- Authenticated API: `GET /api/provider-intelligence/roster-changes` —
+  **exists**, behind `requireProviderAuth`, provider resolved from the bearer
+  token only.
+- Capability key: `cmsRosterChanges`.
+- Env gate: `CMS_ROSTER_CHANGES_ENABLED`, **default OFF**, and **currently OFF in
+  production**.
+- **No provider-facing UI yet.** The feature is not visible to providers.
+
+`insufficient_history` is a valid **HTTP 200** product state, not an error. With
+production's single observation release (`2026-08-19`) the honest response today
+is `releasesAvailable: 1`, `previous: null`, and all six event arrays present and
+empty. Gate OFF returns `404 { error: 'Not found' }`, matching the Quality and
+Competitor gates, so a disabled feature is indistinguishable from an unknown
+path.
+
 ## Not implemented
 
 Named explicitly so this document is not mistaken for a description of a larger
@@ -1495,10 +1680,15 @@ system than exists:
   `CmsFacilityMeasure` have been ingested against disposable local databases
   only. The hospice facility roster and service areas ARE in production
   (release 2026-08-19).
-- **No `CmsFacilityHistory`.** Per-release snapshots of changing FACILITY
-  attributes are still deferred. Quality measures are no longer deferred: the
-  planned `CmsMeasure` shipped as `CmsMeasureDefinition` + `CmsFacilityMeasure`
-  (see Quality Intelligence V1 above).
+- **`CmsFacilityHistory` is no longer deferred — it shipped under a different
+  name.** Per-release snapshots of changing FACILITY attributes are held by
+  `CmsFacilityObservation` (migration `20260904212702_add_cms_facility_observation`),
+  which is in production and seeded for release 2026-08-19. Quality measures are
+  likewise no longer deferred: the planned `CmsMeasure` shipped as
+  `CmsMeasureDefinition` + `CmsFacilityMeasure` (see Quality Intelligence V1
+  above). What remains deferred is **`CmsServiceAreaObservation`** — per-release
+  ZIP history — for the reason given in
+  [Why `CmsServiceAreaObservation` remains deferred](#why-cmsserviceareaobservation-remains-deferred).
 - No home-health identity matching. No Provider currently holds a
   `cms_home_health` identity.
 - **One Market Intelligence module is provider-visible in production: My
