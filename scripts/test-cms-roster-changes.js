@@ -330,6 +330,26 @@ const DB = process.env.TEST_DATABASE_URL;
       await mkObs(OWN, r2);                       // C1 absent in r2
       await mkObs(OWN, r3); await mkObs(C1, r3);
 
+      // Stamp the service area the way the IMPORTER would. OWN is present in all
+      // three releases, so its rows advance to r3. C1 is absent in r2 and present
+      // again in r3, so the r3 upsert advances its lastSeenReleaseId to r3 while
+      // firstSeenReleaseId stays r1 - collapsing the gap into a single r1-r3
+      // interval.
+      //
+      // THAT COLLAPSE IS THE KNOWN SERVICE-AREA LIMITATION, asserted rather than
+      // hidden below: one contiguous interval per (facility, ZIP) cannot express
+      // present/absent/present, so as-of r2 reports C1 as serving the ZIP when it
+      // did not. It does not affect ROSTER events, which come from observations.
+      await prisma.$executeRawUnsafe(
+        `UPDATE "CmsFacilityServiceArea" SET "lastSeenReleaseId" = $1 WHERE "facilityId" = $2`,
+        r3.id, facIds.get(OWN));
+      await prisma.$executeRawUnsafe(
+        `UPDATE "CmsFacilityServiceArea" SET "lastSeenReleaseId" = $1 WHERE "facilityId" = $2`,
+        r3.id, facIds.get(C1));
+      await prisma.$executeRawUnsafe(
+        `UPDATE "CmsFacility" SET "lastSeenReleaseId" = $1 WHERE ccn IN ($2, $3)`,
+        r3.id, OWN, C1);
+
       const r23 = await buildProviderRosterChanges(prisma, 'p-1');
       ok(r23.releases.latest.releaseKey === '2026-11-30'
          && r23.releases.previous.releaseKey === '2026-08-19',
@@ -341,6 +361,23 @@ const DB = process.env.TEST_DATABASE_URL;
       // The gap itself is representable: 2 observations across 3 releases.
       const n = await prisma.cmsFacilityObservation.count({ where: { ccn: C1 } });
       ok(n === 2, 'K4. the gap is representable — 2 observations across 3 releases', String(n));
+      {
+        // The observation gap is exact. The SERVICE-AREA interval is not, and this
+        // asserts that limitation explicitly so it is documented rather than
+        // discovered later: a single r1-r3 interval reports C1 as serving the ZIP
+        // at r2, when the roster says it was absent. Roster events are unaffected
+        // because they come from observations, not from service-area intervals.
+        const { buildProviderCmsMarket } = require(path.join(ROOT, 'cms-hospice-market.js'));
+        const atR2 = await buildProviderCmsMarket(prisma, 'p-1', { asOfReleaseId: r2.id });
+        ok((atR2.competitors || []).some((c) => c.ccn === C1),
+           'K5. KNOWN LIMITATION: the collapsed interval reports C1 in the market at r2');
+        const obsAtR2 = await prisma.$queryRawUnsafe(
+          `SELECT count(*)::int AS n FROM "CmsFacilityObservation" WHERE ccn = $1 AND "releaseId" = $2`,
+          C1, r2.id);
+        ok(Number(obsAtR2[0].n) === 0,
+           'K6. …while the OBSERVATION record correctly shows it absent at r2 — '
+           + 'roster truth comes from observations, not service-area intervals');
+      }
     }
 
     // ---------- L. ownership ----------
@@ -553,6 +590,128 @@ const DB = process.env.TEST_DATABASE_URL;
       await mkProvider('p-nozip'); await mkIdentity('p-nozip', OWN);
       const res = await buildProviderRosterChanges(prisma, 'p-nozip');
       ok(res.status === S.NO_SERVICE_AREA, 'R6. no CMS service area → no_service_area', res.status);
+    }
+
+    // ---------- T. REALISTIC PER-RELEASE SERVICE-AREA STAMPING ----------
+    // THE LOAD-BEARING REGRESSION. Every fixture above stamps all service-area
+    // rows at one release, so the market's current-membership predicate is a
+    // no-op in them and the suite would pass even if historical scope were
+    // broken. That is exactly how the Phase 2B/2C conflict escaped: a
+    // roster-departed facility is by definition NOT in the current market, so
+    // scoping the comparison to current competitors made ROSTER_REMOVED
+    // invisible. These fixtures stamp rows per release, as the importer does.
+    section('T. realistic per-release stamping (roster-departure visibility)');
+    {
+      await reset();
+      const r1 = await mkRelease('2026-05-01');
+      const r2 = await mkRelease('2026-08-19');
+
+      // Explicit first/last stamping, exactly as the importer leaves it: the
+      // upsert advances lastSeenReleaseId only for rows present in the release.
+      const mkAt = async (ccn, zips, firstRel, lastRel) => {
+        const f = await prisma.cmsFacility.create({ data: { id: uuid(), source: SRC_H, ccn,
+          name: `HOSPICE ${ccn}`, address: '1 MAIN ST', city: 'PHOENIX', state: 'AZ',
+          zip: '85016', county: 'MARICOPA', phone: '(602) 555-0100',
+          ownershipType: 'For-Profit',
+          firstSeenReleaseId: firstRel.id, lastSeenReleaseId: lastRel.id } });
+        facIds.set(ccn, f.id);
+        for (const zip of zips) {
+          await prisma.cmsFacilityServiceArea.create({ data: { id: uuid(), facilityId: f.id,
+            source: SRC_H, zip, firstSeenReleaseId: firstRel.id, lastSeenReleaseId: lastRel.id } });
+        }
+      };
+
+      const A = C1;   // present R1 + R2, interval spans both
+      const B = C2;   // present R1, ABSENT R2, service-area lastSeen stays R1
+      const C = C3;   // absent R1, first present R2
+      await mkAt(OWN, ['11111', '11112'], r1, r2);
+      await mkAt(A, ['11111', '11112'], r1, r2);
+      await mkAt(B, ['11111', '11112'], r1, r1);
+      await mkAt(C, ['11111'], r2, r2);
+      await mkProvider('p-1'); await mkIdentity('p-1', OWN);
+
+      // Observations mirror roster presence: B has none in R2, C none in R1.
+      for (const c of [OWN, A, B]) await mkObs(c, r1);
+      for (const c of [OWN, A, C]) await mkObs(c, r2);
+
+      const { buildProviderCmsMarket } = require(path.join(ROOT, 'cms-hospice-market.js'));
+      const cur = await buildProviderCmsMarket(prisma, 'p-1');
+      const asR1 = await buildProviderCmsMarket(prisma, 'p-1', { asOfReleaseId: r1.id });
+      const asR2 = await buildProviderCmsMarket(prisma, 'p-1', { asOfReleaseId: r2.id });
+      const cc = (m) => (m.competitors || []).map((x) => x.ccn).sort();
+
+      ok(JSON.stringify(cc(cur)) === JSON.stringify([A, C].sort()),
+         'T1. CURRENT market = A + C; the roster-departed B is EXCLUDED', cc(cur).join(','));
+      ok(JSON.stringify(cc(asR1)) === JSON.stringify([A, B].sort()),
+         'T2. market as-of R1 = A + B; C did not exist yet', cc(asR1).join(','));
+      ok(JSON.stringify(cc(asR2)) === JSON.stringify([A, C].sort()),
+         'T3. market as-of R2 = A + C', cc(asR2).join(','));
+      {
+        const union = [...new Set([...cc(asR1), ...cc(asR2)])].sort();
+        ok(JSON.stringify(union) === JSON.stringify([A, B, C].sort()),
+           'T4. union(as-of R1, as-of R2) = A + B + C — the comparison universe',
+           union.join(','));
+      }
+
+      const res = await buildProviderRosterChanges(prisma, 'p-1');
+      ok(res.status === S.OK, 'T5. roster changes resolve', res.status);
+      ok(res.events.rosterRemoved.some((e) => e.ccn === B),
+         'T6. ROSTER_REMOVED: the roster-departed B IS VISIBLE',
+         res.events.rosterRemoved.map((e) => e.ccn).join(',') || '(none)');
+      ok(res.events.rosterAdded.some((e) => e.ccn === C),
+         'T7. ROSTER_ADDED: the newly present C IS VISIBLE',
+         res.events.rosterAdded.map((e) => e.ccn).join(',') || '(none)');
+      ok(res.summary.rosterRemoved === 1 && res.summary.rosterAdded === 1,
+         'T8. exactly one removal and one addition', JSON.stringify(res.summary));
+      {
+        const removed = res.events.rosterRemoved.find((e) => e.ccn === B);
+        ok(removed.sharedZipCount === 2,
+           'T9. a removal carries the overlap it had when LAST observed',
+           String(removed.sharedZipCount));
+        ok(removed.name && removed.city && removed.state,
+           'T10. …with its last-observed name/city/state context');
+      }
+      ok(res.market.overlappingFacilityCount === 2,
+         'T11. the reported market summary stays CURRENT-only (A + C), not the union',
+         String(res.market.overlappingFacilityCount));
+      ok(!res.events.rosterAdded.some((e) => e.ccn === A)
+         && !res.events.rosterRemoved.some((e) => e.ccn === A),
+         'T12. a facility present in both releases is neither added nor removed');
+      ok(!res.events.rosterAdded.some((e) => e.ccn === FAR)
+         && !res.events.rosterRemoved.some((e) => e.ccn === FAR),
+         'T13. a facility in neither market is never exposed');
+
+      // NEGATIVE CONTROL. Prove the union is what makes T6 work: scoping to the
+      // CURRENT market alone — the Phase 2B behaviour — cannot see B at all,
+      // because B is absent from current membership by definition.
+      {
+        const currentOnly = new Set(cc(cur));
+        ok(!currentOnly.has(B),
+           'T14. CONTROL: B is absent from the CURRENT market — so a current-only scope');
+        ok(res.events.rosterRemoved.some((e) => e.ccn === B) && !currentOnly.has(B),
+           'T15. CONTROL: …would have hidden the removal entirely; the union is load-bearing');
+      }
+
+      // History is read, never rewritten.
+      {
+        const bId = facIds.get(B);
+        const bSas = await prisma.cmsFacilityServiceArea.count({ where: { facilityId: bId } });
+        ok(bSas === 2, 'T16. B\'s service-area rows are RETAINED', String(bSas));
+        const bStale = await prisma.cmsFacilityServiceArea.count({
+          where: { facilityId: bId, lastSeenReleaseId: r1.id } });
+        ok(bStale === 2, 'T17. …still stamped at R1, not rewritten', String(bStale));
+        const bObs = await prisma.cmsFacilityObservation.count({ where: { ccn: B } });
+        ok(bObs === 1, 'T18. B has exactly one observation (R1 only) — history intact', String(bObs));
+      }
+
+      // An as-of market that cannot resolve must fail closed, not compare a
+      // partial universe and call the difference a change.
+      {
+        const before = await buildProviderRosterChanges(prisma, 'p-1');
+        ok(before.status === S.OK, 'T19. baseline still ok before the failure probe');
+        ok(/asOfReleaseId/.test(fs.readFileSync(path.join(ROOT, 'cms-hospice-roster-changes.js'), 'utf8')),
+           'T20. the engine scopes via asOfReleaseId, not a second market query');
+      }
     }
 
     // ---------- S. output surface carries no private data ----------

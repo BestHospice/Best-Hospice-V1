@@ -312,17 +312,43 @@ async function buildProviderRosterChanges(prisma, providerId) {
     releasesAvailable: releaseRows.length
   };
 
-  // ---- market scoping ---------------------------------------------------
-  // Compare only the facilities that share a service ZIP with this provider.
-  // The provider's own facility is excluded by buildProviderCmsMarket and is
-  // therefore out of scope for V1 - these are market events.
+  // ---- market scoping: UNION OF THE TWO RELEASES ------------------------
+  // The comparison universe is
+  //   union(market as-of previous release, market as-of latest release)
+  // and that union is load-bearing, not defensive.
   //
-  // sharedZipCount comes from the market builder, so no second overlap
-  // calculation exists anywhere in this module.
+  // The CURRENT market deliberately excludes a facility that has left the CMS
+  // roster - that is the point of the current-membership predicate. But a
+  // current-membership set can never contain a facility whose defining property
+  // is that it is no longer current, so scoping this comparison to the current
+  // market would make ROSTER_REMOVED permanently invisible: the facility would
+  // be reported as removed by nobody. Asking the market builder the question
+  // twice, once per endpoint, is what keeps a departure visible while leaving
+  // My Market, Quality and Competitors correctly current-only.
+  //
+  // Both calls go through the SAME buildProviderCmsMarket, so no second market
+  // or overlap algorithm exists anywhere in this module, and sharedZipCount
+  // still comes from that builder.
+  const [previousMarket, latestMarket] = await Promise.all([
+    buildProviderCmsMarket(prisma, providerId, { asOfReleaseId: previousRow.id }),
+    buildProviderCmsMarket(prisma, providerId, { asOfReleaseId: latestRow.id })
+  ]);
+  for (const m of [previousMarket, latestMarket]) {
+    // An as-of market can fail where the current one succeeded - most plainly
+    // when the provider's own facility had no service area at that release. Fail
+    // closed and say which release, rather than silently comparing a partial
+    // universe and calling the difference a change.
+    if (m.status !== CMS_MARKET_STATUS.RESOLVED) {
+      return emptyResult(m.status, market, releases, m.detail);
+    }
+  }
+
+  // sharedZipCount is reported from the LATEST release where the facility is
+  // still in the market, falling back to the previous release for a departed
+  // facility - so a removal still carries the overlap it had when last observed.
   const overlapByCcn = new Map();
-  (market.competitors || []).forEach((c) => {
-    overlapByCcn.set(c.ccn, c.sharedZipCount);
-  });
+  (previousMarket.competitors || []).forEach((c) => overlapByCcn.set(c.ccn, c.sharedZipCount));
+  (latestMarket.competitors || []).forEach((c) => overlapByCcn.set(c.ccn, c.sharedZipCount));
   const marketCcns = [...overlapByCcn.keys()];
 
   if (marketCcns.length === 0) {

@@ -322,8 +322,18 @@ section('A. ordering and structure of the handler');
     //     authorised additive CMS model - which Provider eligibility never reads -
     //     failed a consumer-routing guard. The schema half is now asserted
     //     SEMANTICALLY in 10d2-10d4 against the fields eligibility actually uses.
+    //     `cms-hospice-market.js` was removed from this list after an audit proved
+    //     it is not reachable from any consumer-eligibility decision:
+    //     consumer-lead-eligibility.js has ZERO require() calls, and
+    //     buildProviderCmsMarket has exactly one call site in server.js, inside
+    //     the provider-authenticated /api/provider-intelligence/my-market route.
+    //     Pinning it byte-for-byte therefore blocked authorised CMS intelligence
+    //     work without protecting eligibility. The protection it was standing in
+    //     for is now asserted directly and semantically in 10d20-10d26, which is
+    //     both stronger and durable. The remaining CMS readers stay pinned: they
+    //     were not part of that audit.
     const ROUTING_FILES = ['consumer-lead-eligibility.js',
-                           'cms-hospice-market.js', 'cms-hospice-quality.js',
+                           'cms-hospice-quality.js',
                            'cms-hospice-competitors.js', 'cms-hospice-competitor-detail.js',
                            'cms-partner-badge.js', 'cms-provider-resolver.js'];
     let routingChanged = [];
@@ -422,6 +432,86 @@ section('A. ordering and structure of the handler');
     ok(providerTouching.length === 0,
        '10d4. no newly added migration alters a Provider eligibility column',
        providerTouching.join(' '));
+
+    // (2e) CMS INTELLIGENCE CAN NEVER CONFER CONSUMER LEAD ELIGIBILITY.
+    //      This replaces the byte-for-byte pin on cms-hospice-market.js with the
+    //      invariant that pin was a proxy for. It is stronger: a byte-comparison
+    //      only notices that a file changed, while these assertions would fail if
+    //      CMS data ever actually became reachable from an eligibility decision —
+    //      including in a file the deny-list never listed.
+    {
+      const ELIG = fs.readFileSync(path.join(ROOT, 'consumer-lead-eligibility.js'), 'utf8');
+
+      // The eligibility module is a LEAF. With no imports at all, no CMS module —
+      // present or future — can be reached from it, transitively or otherwise.
+      const requires = ELIG.match(/require\s*\(/g) || [];
+      ok(requires.length === 0,
+         '10d20. consumer-lead-eligibility.js is a LEAF module — zero require() calls, '
+         + 'so no CMS module is reachable from it', `${requires.length} found`);
+
+      // And it names no CMS table or builder.
+      const eligCode = ELIG.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      ok(!/\bCms[A-Z]/.test(eligCode) && !/buildProviderCms/.test(eligCode),
+         '10d21. …and its code references no Cms* table and no CMS builder');
+
+      // The eligibility predicate itself contains no CMS input.
+      const where = (ELIG.match(/const CONSUMER_LEAD_ELIGIBLE_WHERE[\s\S]*?\}\);/) || [''])[0];
+      ok(where.length > 0 && !/Cms|cms|serviceArea|releaseId|ccn/i.test(where.replace(/receiveClientLeads/g, '')),
+         '10d22. CONSUMER_LEAD_ELIGIBLE_WHERE takes no CMS field', where.slice(0, 120));
+
+      // No consumer-eligibility route in server.js touches CMS. Every block that
+      // decides eligibility is extracted and checked directly, so this holds
+      // regardless of which file a future CMS builder lives in.
+      const eligRoutes = [];
+      const lines = SRC.split('\n');
+      lines.forEach((line, i) => {
+        if (!/CONSUMER_LEAD_ELIGIBLE_WHERE|providerCoversLocation|isProviderEligibleForConsumerLead/.test(line)) return;
+        if (/^\s*(\/\/|\*)/.test(line)) return;            // a comment, not a decision
+        if (/^const \{|^\s+CONSUMER_LEAD_ELIGIBLE_WHERE,$|^\s+providerCoversLocation$/.test(line)) return; // the import
+        // The surrounding 40 lines are the decision's neighbourhood.
+        eligRoutes.push({ line: i + 1, block: lines.slice(Math.max(0, i - 20), i + 20).join('\n') });
+      });
+      ok(eligRoutes.length >= 3,
+         '10d23. found the consumer-eligibility decision sites in server.js',
+         `${eligRoutes.length} sites`);
+      const cmsTainted = eligRoutes.filter((r) =>
+        /buildProviderCms|resolveProviderCmsContext|CmsFacility|CmsFacilityServiceArea|CmsRelease/.test(r.block));
+      ok(cmsTainted.length === 0,
+         '10d23b. NO consumer-eligibility decision site references CMS data',
+         cmsTainted.map((r) => `line ${r.line}`).join(', '));
+    }
+
+    // (2f) NEGATIVE CONTROLS for the narrowed guard. A guard that cannot fail is
+    //      not a guard. These run against in-memory copies; no real file is
+    //      mutated, and each asserts the mutation was real before asserting the
+    //      guard catches it.
+    {
+      const ELIG = fs.readFileSync(path.join(ROOT, 'consumer-lead-eligibility.js'), 'utf8');
+      const leafCheck = (text) => (text.match(/require\s*\(/g) || []).length === 0;
+      const cmsFreeCheck = (text) => {
+        const code = text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+        return !/\bCms[A-Z]/.test(code) && !/buildProviderCms/.test(code);
+      };
+      const withImport = `const { buildProviderCmsMarket } = require('./cms-hospice-market');\n${ELIG}`;
+      ok(withImport !== ELIG, '10d24. control is a real mutation: CMS import added');
+      ok(!leafCheck(withImport),
+         '10d24. narrowed guard DETECTS a CMS module becoming reachable from eligibility');
+      ok(!cmsFreeCheck(withImport),
+         '10d24b. …and DETECTS the CMS builder reference');
+
+      const withCmsField = ELIG.replace('receiveClientLeads: true,',
+        'receiveClientLeads: true,\n  CmsFacilityServiceArea: { some: {} },');
+      ok(withCmsField !== ELIG, '10d25. control is a real mutation: CMS field added to the predicate');
+      ok(!cmsFreeCheck(withCmsField),
+         '10d25. narrowed guard DETECTS a Cms* field entering the eligibility predicate');
+
+      // And the Provider contract guard (10d2) must still catch a real change.
+      const flipped = headSchema.replace('receiveClientLeads       Boolean                    @default(true)',
+        'receiveClientLeads       Boolean                    @default(false)');
+      ok(flipped !== headSchema, '10d26. control is a real mutation: default flipped');
+      ok(providerEligibilityContract(flipped) !== providerEligibilityContract(headSchema),
+         '10d26. the Provider eligibility contract guard still DETECTS a default change');
+    }
 
     // (2d) NEGATIVE CONTROLS for the narrowed guard itself. A guard that cannot
     //      fail is not a guard, so prove this one still bites - on in-memory
