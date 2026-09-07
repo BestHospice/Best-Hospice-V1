@@ -56,12 +56,20 @@ section('reuse, no fuzzy matching, no production identifiers');
      && !/\.map\(\s*async/.test(MARKET_CODE)
      && !/forEach\(\s*async/.test(MARKET_CODE),
      '6. no query inside any loop — N+1 is structurally impossible');
-  ok((MARKET_CODE.match(/prisma\.\$queryRaw/g) || []).length === 2,
-     '7. exactly two aggregate SQL queries', String((MARKET_CODE.match(/prisma\.\$queryRaw/g) || []).length));
+  // Bounded, constant query count. Three appear in source: the two aggregates,
+  // plus the as-of validation query. The DEFAULT path runs exactly TWO - it
+  // derives the release anchor inline in an `anchor` CTE - so no shipped module's
+  // query budget changed. Only as-of mode runs the third, and only as-of mode
+  // needs it: it is the one case where a CALLER supplies a release id that may
+  // not exist, and it must fail closed rather than silently return a zeroed
+  // market. Assertion 6 remains the structural N+1 guard.
+  ok((MARKET_CODE.match(/prisma\.\$queryRaw/g) || []).length === 3,
+     '7. three SQL queries in source — two aggregates + the as-of validation',
+     String((MARKET_CODE.match(/prisma\.\$queryRaw/g) || []).length));
   ok(!/\$queryRawUnsafe|queryRawUnsafe/.test(MARKET_CODE),
      '8. parameterised tagged templates only — no queryRawUnsafe');
-  ok(!/\$\{(?!source|ccn)/.test(MARKET_SRC.match(/\$queryRaw`[\s\S]*?`/g).join('')),
-     '   …and only source/ccn are interpolated, both as bound parameters');
+  ok(!/\$\{(?!source|ccn|asOfReleaseKey|asOfReleaseId)/.test(MARKET_SRC.match(/\$queryRaw`[\s\S]*?`/g).join('')),
+     '   …and only source/ccn/asOfReleaseKey/asOfReleaseId are interpolated, all bound parameters');
 }
 
 section('authenticated endpoint wiring');
@@ -286,6 +294,236 @@ const DB = process.env.TEST_DATABASE_URL;
          '61. a successful market resolution stays within a small bounded query budget',
          `${roundTripsBig} round trips`);
       await counted.$disconnect().catch(() => {});
+    }
+
+    // ================= CURRENT-MARKET RELEASE PREDICATE =================
+    // My Market answers "which CMS facilities CURRENTLY overlap my market?".
+    //
+    // CmsFacilityServiceArea rows are never deleted when a facility stops
+    // appearing in CMS - "current" is a query, not a stored flag - so without a
+    // latest-release predicate a facility that has left the roster keeps its
+    // persisted service-area rows and is still counted as a current competitor.
+    // With one release that is unobservable, because every row's
+    // lastSeenReleaseId IS the latest release. It only appears from the second
+    // ingest onward, which is why this is fixed before the next one.
+    section('current-market release predicate (two releases)');
+    {
+      await prisma.$executeRawUnsafe(
+        'TRUNCATE TABLE "CmsFacilityServiceArea","CmsFacility","CmsRelease","ProviderExternalIdentity","Provider" CASCADE');
+
+      const r1 = await prisma.cmsRelease.create({ data: { id: uuid(), source: 'cms_hospice',
+        releaseKey: '2026-05-01', capturedAt: new Date('2026-05-01T00:00:00Z'), datasetCount: 6 } });
+      const r2 = await prisma.cmsRelease.create({ data: { id: uuid(), source: 'cms_hospice',
+        releaseKey: '2026-08-19', capturedAt: new Date('2026-08-19T00:00:00Z'), datasetCount: 6 } });
+
+      // firstSeen/lastSeen are set explicitly here, exactly as the importer would
+      // leave them: the upsert advances lastSeenReleaseId for facilities present
+      // in the new release and leaves it untouched for those absent from it.
+      const mkAt = async (ccn, name, zips, firstRel, lastRel) => {
+        const f = await prisma.cmsFacility.create({ data: { id: uuid(), source: 'cms_hospice',
+          ccn, name, address: '1 MAIN ST', city: 'PHOENIX', state: 'AZ', zip: '85016',
+          county: 'MARICOPA', phone: '(602) 555-0100', ownershipType: 'For-Profit',
+          firstSeenReleaseId: firstRel.id, lastSeenReleaseId: lastRel.id } });
+        for (const zip of zips) {
+          await prisma.cmsFacilityServiceArea.create({ data: { id: uuid(), facilityId: f.id,
+            source: 'cms_hospice', zip, firstSeenReleaseId: firstRel.id, lastSeenReleaseId: lastRel.id } });
+        }
+        return f;
+      };
+
+      const OWNC = 'M72000';   // the provider's own facility, present in both
+      const AC = 'M72001';     // present R1 and R2  -> CURRENT competitor
+      const BC = 'M72002';     // present R1, ABSENT R2 -> roster-departed
+      const NC = 'M72003';     // first appears in R2 -> CURRENT competitor
+      await mkAt(OWNC, 'OWN HOSPICE', ['11111', '11112'], r1, r2);
+      await mkAt(AC, 'FACILITY A CURRENT', ['11111', '11112'], r1, r2);
+      await mkAt(BC, 'FACILITY B DEPARTED', ['11111', '11112'], r1, r1);
+      await mkAt(NC, 'FACILITY N NEW IN R2', ['11111'], r2, r2);
+
+      await mkProvider('p-pred'); await mkIdentity('p-pred', OWNC);
+      const m = await buildProviderCmsMarket(prisma, 'p-pred');
+      const ccns = m.competitors.map((c) => c.ccn);
+
+      ok(m.status === S.RESOLVED, '62. two-release market resolves', m.status);
+      ok(ccns.includes(AC), '63. a facility present in the latest release is INCLUDED');
+      ok(ccns.includes(NC), '64. a facility first appearing in the latest release is INCLUDED');
+      // THE DEFECT. Pre-fix this fails: B is counted despite having left the roster.
+      ok(!ccns.includes(BC),
+         '65. a roster-departed facility whose OLD service-area rows remain is EXCLUDED',
+         `competitors = ${ccns.join(',')}`);
+      ok(m.market.overlappingFacilityCount === 2,
+         '66. overlappingFacilityCount counts only current facilities',
+         String(m.market.overlappingFacilityCount));
+      ok(m.market.totalSharedZipRelationships === 3,
+         '67. totalSharedZipRelationships excludes departed overlap (2 + 1)',
+         String(m.market.totalSharedZipRelationships));
+      ok(m.market.highestOverlapSharedZipCount === 2,
+         '68. highestOverlapSharedZipCount excludes the departed facility',
+         String(m.market.highestOverlapSharedZipCount));
+      {
+        const z11111 = m.zipDensity.find((z) => z.zip === '11111');
+        const z11112 = m.zipDensity.find((z) => z.zip === '11112');
+        ok(z11111 && z11111.competitorCount === 2,
+           '69. zipDensity 11111 counts only current competitors (A + N)',
+           z11111 && String(z11111.competitorCount));
+        ok(z11112 && z11112.competitorCount === 1,
+           '70. zipDensity 11112 counts only current competitors (A)',
+           z11112 && String(z11112.competitorCount));
+      }
+      ok(m.market.averageCompetitorsPerProviderZip === 1.5,
+         '71. averageCompetitorsPerProviderZip reflects current density only',
+         String(m.market.averageCompetitorsPerProviderZip));
+      ok(!ccns.includes(OWNC), '72. the provider\'s own facility is still excluded');
+
+      // HISTORY IS NOT DELETED. The correction is a read-time predicate; the
+      // departed facility and its service-area rows must remain stored, because
+      // CmsFacilityObservation-based change detection depends on them.
+      const bRow = await prisma.cmsFacility.findFirst({ where: { ccn: BC } });
+      ok(bRow != null, '73. the roster-departed facility row is RETAINED, not deleted');
+      ok(bRow.lastSeenReleaseId === r1.id,
+         '74. …and still carries its OLD lastSeenReleaseId', bRow && bRow.lastSeenReleaseId);
+      const bSas = await prisma.cmsFacilityServiceArea.count({ where: { facilityId: bRow.id } });
+      ok(bSas === 2, '75. its historical service-area rows are RETAINED', String(bSas));
+      const bSaStale = await prisma.cmsFacilityServiceArea.count({
+        where: { facilityId: bRow.id, lastSeenReleaseId: r1.id } });
+      ok(bSaStale === 2, '76. …still stamped with the older release', String(bSaStale));
+
+      // NEGATIVE CONTROL. The predicate must be load-bearing, not incidental:
+      // advance B's rows to the latest release and it must reappear.
+      await prisma.$executeRawUnsafe(
+        `UPDATE "CmsFacilityServiceArea" SET "lastSeenReleaseId" = $1 WHERE "facilityId" = $2`,
+        r2.id, bRow.id);
+      await prisma.$executeRawUnsafe(
+        `UPDATE "CmsFacility" SET "lastSeenReleaseId" = $1 WHERE id = $2`, r2.id, bRow.id);
+      const m2 = await buildProviderCmsMarket(prisma, 'p-pred');
+      ok(m2.competitors.map((c) => c.ccn).includes(BC),
+         '77. CONTROL: once its rows carry the latest release, B is included again',
+         m2.competitors.map((c) => c.ccn).join(','));
+      ok(m2.market.overlappingFacilityCount === 3,
+         '78. CONTROL: the count moves to 3, proving the predicate decided it',
+         String(m2.market.overlappingFacilityCount));
+
+      // Latest-release selection must not come from CMS `modified`, and must not
+      // be able to pick a release that no current row references - that would
+      // zero the market. A newer release with NO facility/service-area rows must
+      // be ignored entirely.
+      await prisma.cmsRelease.create({ data: { id: uuid(), source: 'cms_hospice',
+        releaseKey: '2026-12-31', capturedAt: new Date('2026-12-31T00:00:00Z'), datasetCount: 6 } });
+      const m3 = await buildProviderCmsMarket(prisma, 'p-pred');
+      ok(m3.status === S.RESOLVED && m3.market.overlappingFacilityCount === 3,
+         '79. a newer release with NO current rows does not zero the market',
+         `${m3.status} / ${m3.market && m3.market.overlappingFacilityCount}`);
+      ok(!/modified/.test(MARKET_CODE),
+         '80. latest-release selection never consults CMS `modified`');
+    }
+
+    // ============== AS-OF RELEASE MEMBERSHIP (interval semantics) ==========
+    // Same algorithm, different anchor: "current" is just "as of the latest
+    // represented release". These prove the interval predicate directly, on
+    // service-area rows stamped per release exactly as the importer leaves them.
+    section('as-of release market membership');
+    {
+      await prisma.$executeRawUnsafe(
+        'TRUNCATE TABLE "CmsFacilityServiceArea","CmsFacility","CmsRelease","ProviderExternalIdentity","Provider" CASCADE');
+
+      const r1 = await prisma.cmsRelease.create({ data: { id: uuid(), source: 'cms_hospice',
+        releaseKey: '2026-05-01', capturedAt: new Date('2026-05-01T00:00:00Z'), datasetCount: 6 } });
+      const r2 = await prisma.cmsRelease.create({ data: { id: uuid(), source: 'cms_hospice',
+        releaseKey: '2026-08-19', capturedAt: new Date('2026-08-19T00:00:00Z'), datasetCount: 6 } });
+      const rHH = await prisma.cmsRelease.create({ data: { id: uuid(), source: 'cms_home_health',
+        releaseKey: '2026-08-19', capturedAt: new Date('2026-08-19T00:00:00Z'), datasetCount: 5 } });
+
+      const mkAt = async (ccn, zips, firstRel, lastRel) => {
+        const f = await prisma.cmsFacility.create({ data: { id: uuid(), source: 'cms_hospice',
+          ccn, name: 'H ' + ccn, address: '1 MAIN ST', city: 'PHOENIX', state: 'AZ', zip: '85016',
+          county: 'MARICOPA', ownershipType: 'For-Profit',
+          firstSeenReleaseId: firstRel.id, lastSeenReleaseId: lastRel.id } });
+        for (const zip of zips) {
+          await prisma.cmsFacilityServiceArea.create({ data: { id: uuid(), facilityId: f.id,
+            source: 'cms_hospice', zip, firstSeenReleaseId: firstRel.id, lastSeenReleaseId: lastRel.id } });
+        }
+        return f;
+      };
+
+      const O = 'M73000';          // own, spans R1-R2
+      const SPAN = 'M73001';       // firstSeen R1, lastSeen R2  -> both
+      const ONLY1 = 'M73002';      // firstSeen R1, lastSeen R1  -> R1 only
+      const ONLY2 = 'M73003';      // firstSeen R2, lastSeen R2  -> R2 only
+      await mkAt(O, ['11111', '11112'], r1, r2);
+      await mkAt(SPAN, ['11111', '11112'], r1, r2);
+      await mkAt(ONLY1, ['11111', '11112'], r1, r1);
+      await mkAt(ONLY2, ['11111'], r2, r2);
+      await mkProvider('p-asof'); await mkIdentity('p-asof', O);
+
+      const at = async (opts) => {
+        const m = await buildProviderCmsMarket(prisma, 'p-asof', opts);
+        return { status: m.status, ccns: (m.competitors || []).map((c) => c.ccn).sort(), m };
+      };
+
+      const cur = await at(undefined);
+      const a1 = await at({ asOfReleaseId: r1.id });
+      const a2 = await at({ asOfReleaseId: r2.id });
+
+      ok(cur.status === S.RESOLVED && JSON.stringify(cur.ccns) === JSON.stringify([SPAN, ONLY2].sort()),
+         '81. DEFAULT (current) = spanning + latest-only; the R1-only facility is excluded',
+         cur.ccns.join(','));
+      ok(JSON.stringify(a1.ccns) === JSON.stringify([ONLY1, SPAN].sort()),
+         '82. as-of R1 = spanning + R1-only; the R2-only facility is excluded', a1.ccns.join(','));
+      ok(JSON.stringify(a2.ccns) === JSON.stringify([SPAN, ONLY2].sort()),
+         '83. as-of R2 = spanning + R2-only; the R1-only facility is excluded', a2.ccns.join(','));
+      ok(JSON.stringify(a2.ccns) === JSON.stringify(cur.ccns),
+         '84. as-of the latest represented release == the default answer (one algorithm)');
+      ok(a1.ccns.includes(ONLY1) && !a2.ccns.includes(ONLY1),
+         '85. firstSeen=R1,lastSeen=R1 → included as-of R1, EXCLUDED as-of R2');
+      ok(!a1.ccns.includes(ONLY2) && a2.ccns.includes(ONLY2),
+         '86. firstSeen=R2,lastSeen=R2 → EXCLUDED as-of R1, included as-of R2');
+      ok(a1.ccns.includes(SPAN) && a2.ccns.includes(SPAN),
+         '87. firstSeen=R1,lastSeen=R2 → included at BOTH');
+      {
+        const union = [...new Set([...a1.ccns, ...a2.ccns])].sort();
+        ok(JSON.stringify(union) === JSON.stringify([ONLY1, ONLY2, SPAN].sort()),
+           '88. union(as-of R1, as-of R2) is the full comparison universe', union.join(','));
+      }
+      // Fail closed. A caller asking about a release we cannot honour must get an
+      // error, never a silent fall back to a different question's answer.
+      {
+        const bad = await at({ asOfReleaseId: '00000000-0000-0000-0000-000000000000' });
+        ok(bad.status === S.INVALID_AS_OF_RELEASE,
+           '89. a nonexistent asOfReleaseId FAILS CLOSED', bad.status);
+        ok(bad.m.market === null && bad.m.competitors === null,
+           '90. …and returns no market rather than current-market data');
+        const wrongSource = await at({ asOfReleaseId: rHH.id });
+        ok(wrongSource.status === S.INVALID_AS_OF_RELEASE,
+           '91. an asOfReleaseId from ANOTHER CMS source FAILS CLOSED', wrongSource.status);
+      }
+      // An observation-less / history-only newer release must not become the
+      // current anchor, which would match no row and zero the market.
+      {
+        await prisma.cmsRelease.create({ data: { id: uuid(), source: 'cms_hospice',
+          releaseKey: '2027-01-31', capturedAt: new Date('2027-01-31T00:00:00Z'), datasetCount: 6 } });
+        const after = await at(undefined);
+        ok(after.status === S.RESOLVED && JSON.stringify(after.ccns) === JSON.stringify([SPAN, ONLY2].sort()),
+           '92. a newer release no service-area row references does NOT zero the market',
+           `${after.status} / ${after.ccns.join(',')}`);
+      }
+      // Release ordering must come from releaseKey, never from id ordering.
+      {
+        const orderBys = MARKET_CODE.match(/ORDER BY [^\n)]*/g) || [];
+        const idOrdered = orderBys.filter((o) => /\bid\b|ReleaseId/.test(o));
+        ok(/ORDER BY r\."releaseKey" DESC/.test(MARKET_CODE),
+           '93. the release anchor is ordered by releaseKey DESC');
+        ok(idOrdered.length === 0,
+           '93b. no ORDER BY keys on a release id — UUIDs carry no chronology',
+           JSON.stringify(idOrdered));
+      }
+      // History is read, never rewritten.
+      {
+        const total = await prisma.cmsFacilityServiceArea.count();
+        ok(total === 7, '94. no service-area row was deleted or added by any query', String(total));
+        const stale = await prisma.cmsFacilityServiceArea.count({
+          where: { lastSeenReleaseId: r1.id } });
+        ok(stale === 2, '95. the R1-only rows are still stamped at R1', String(stale));
+      }
     }
 
     await prisma.$executeRawUnsafe(
