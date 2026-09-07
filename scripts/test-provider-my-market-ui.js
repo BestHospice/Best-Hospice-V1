@@ -40,6 +40,7 @@ const capsFn = new Function('process',
    grab(/const CMS_QUALITY_INTELLIGENCE_ENABLED = [^\n]*/, 'quality release gate'),
    grab(/const CMS_COMPETITOR_INTELLIGENCE_ENABLED = [^\n]*/, 'competitor release gate'),
    grab(/const PROVIDER_FUNNEL_V1_ENABLED = [^\n]*/, 'provider funnel release gate'),
+   grab(/const CMS_ROSTER_CHANGES_ENABLED = [^\n]*/, 'roster changes release gate'),
    grab(/function providerIntelligenceCapabilities\(provider\) \{[\s\S]*?\n\}/, 'fn')].join('\n')
   + '\nreturn { providerIntelligenceCapabilities, INTELLIGENCE_MODULES };')({ env: {} });
 const caps = capsFn.providerIntelligenceCapabilities;
