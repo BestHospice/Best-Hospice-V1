@@ -18,6 +18,7 @@ const { buildProviderCmsMarket } = require('./cms-hospice-market');
 const { buildProviderCmsQuality } = require('./cms-hospice-quality');
 const { buildProviderCmsCompetitors } = require('./cms-hospice-competitors');
 const { buildProviderCmsCompetitorDetail } = require('./cms-hospice-competitor-detail');
+const { buildProviderRosterChanges } = require('./cms-hospice-roster-changes');
 const { buildProviderFunnel, FUNNEL_WINDOWS, FUNNEL_STATUS } = require('./provider-funnel');
 const {
   CONSUMER_LEAD_ELIGIBLE_WHERE,
@@ -438,6 +439,27 @@ const CMS_COMPETITOR_INTELLIGENCE_ENABLED = process.env.CMS_COMPETITOR_INTELLIGE
 // NOT behind it: that fixed an overstatement which was wrong on its own terms,
 // and it must not silently revert when this gate is off.
 const PROVIDER_FUNNEL_V1_ENABLED = process.env.PROVIDER_FUNNEL_V1_ENABLED === 'true';
+
+// ─── CMS ROSTER CHANGE INTELLIGENCE RELEASE GATE ─────────────────────────────
+// "What's Changed" ships DARK, on exactly the same terms as the two CMS gates
+// above and by the same exact-string comparison, so an unset variable, "TRUE",
+// "1" or "yes" all leave it OFF. There is no code path that turns it on because
+// data happens to exist.
+//
+// The reason to wait is specific to this module. Production holds ONE ingested
+// cms_hospice observation release, so the only honest answer the engine can give
+// today is insufficient_history. That is a correct product state and the module
+// is built to show it, but a provider opening a "What's Changed" panel that can
+// only ever say "nothing yet" learns nothing about whether the feature works -
+// and we would learn nothing either. The gate buys the chance to read the first
+// real release-over-release comparison ourselves, against the archived releases,
+// before any provider reads one.
+//
+// It gates the ENDPOINT and the CAPABILITY only. cms-hospice-roster-changes.js
+// knows nothing about it, and neither My Market, Quality, Competitors, the
+// provider funnel, consumer routing, Prisma nor any migration is touched by its
+// value.
+const CMS_ROSTER_CHANGES_ENABLED = process.env.CMS_ROSTER_CHANGES_ENABLED === 'true';
 // The window a provider sees when they have not chosen one. 90 days is wide
 // enough that a typical provider has some referrals in it - 30 days holds 212
 // pairs platform-wide against 781 for 90 - without reaching so far back that it
@@ -6274,6 +6296,62 @@ app.get('/api/provider-intelligence/competitors/:ccn', requireProviderAuth, asyn
   }
 });
 
+// Provider CMS roster and facility changes — "What's Changed".
+//
+// Same isolation contract as my-market, quality, competitors and cms-context:
+// the provider is resolved from the bearer token ONLY. There is no providerId in
+// the path, query or body, so one provider cannot read another's market changes,
+// and there is no admin override, no CCN lookup, no public variant and no
+// unauthenticated fallback.
+//
+// Thin by design, like its siblings. Every rule that matters - which two
+// releases are compared, what counts as a change, the normalisation that
+// suppresses cosmetic differences, why an ownership value becoming unpublished is
+// NOT an ownership change, and the union of the two release-scoped markets that
+// keeps a departed hospice visible - lives in cms-hospice-roster-changes.js and
+// is covered by scripts/test-cms-roster-changes.js. This handler adds no logic
+// and reshapes nothing, so the API and the service cannot drift apart. In
+// particular it does NOT re-scope the comparison to the current market: doing so
+// would silently reintroduce the defect that made roster departures invisible.
+//
+// EVERY UNRESOLVED CASE IS A STRUCTURED STATUS, NOT AN ERROR. The result is
+// passed through verbatim, exactly as quality and competitors do. That matters
+// most for insufficient_history: production holds one ingested observation
+// release, so today that is the honest and expected answer, and it is a 200 with
+// empty event arrays - never a 4xx, never a 5xx, and never zeroes dressed up as
+// findings. Turning it into an error would misreport a working feature as broken.
+//
+// Read-only, and public CMS supply data only. It returns no Best Hospice account
+// information about anyone - not the caller's billing, subscription or contact
+// details, and nothing about any other hospice beyond CMS facility identity. No
+// partner flag, no lead, referral, conversion or funnel data, and no ranking,
+// score, grade or percentile.
+app.get('/api/provider-intelligence/roster-changes', requireProviderAuth, async (req, res) => {
+  try {
+    // Defence in depth behind the release gate, exactly as the quality,
+    // competitor and funnel endpoints do. requireProviderAuth has already run, so
+    // this weakens no authentication - it refuses to serve a module that has not
+    // been activated yet, even to a caller holding a valid token.
+    //
+    // 404 rather than a structured response, matching the established convention:
+    // while the gate is off the feature genuinely is not live, the service is
+    // never called, and returning a status such as insufficient_history would
+    // imply the module exists and is merely short of data. It also makes the
+    // response indistinguishable from an unknown path, so the existence of an
+    // internal flag is not disclosed.
+    if (!CMS_ROSTER_CHANGES_ENABLED) return res.status(404).json({ error: 'Not found' });
+    const ctx = await getProviderContext(req.providerUserId);
+    if (!ctx) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await buildProviderRosterChanges(prisma, ctx.providerId);
+    res.json(result);
+  } catch (err) {
+    // The message is logged, never returned. No stack trace, no SQL and no
+    // provider identifier reaches the client.
+    console.error('Provider CMS roster changes failed', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── PROVIDER MARKET INTELLIGENCE ────────────────────────────────────────────
 // Capability model for the intelligence shell. Every module reports one of
 // three states, and the difference between them matters:
@@ -6292,6 +6370,7 @@ const INTELLIGENCE_MODULES = [
   'cmsMarketOverlap',
   'cmsQuality',
   'cmsCompetitors',
+  'cmsRosterChanges',
   'cmsRatings',
   'cahps',
   'competitorBenchmarking',
@@ -6414,6 +6493,28 @@ function providerIntelligenceCapabilities(provider) {
       ? (cmsCovered
         ? { status: 'available', reason: 'Built from the hospices that share your CMS-reported service area.' }
         : { status: 'not_applicable', reason: `Medicare does not publish a hospice service area for ${typePhrase}, so there is no CMS overlap to compare.` })
+      : cmsState,
+    // The release-over-release view of the same CMS data the three modules above
+    // read as a snapshot: which hospices entered or left this provider's market,
+    // and which changed their published name, address or ownership classification.
+    //
+    // A NEW key rather than a flip of competitorBenchmarking, for the same reason
+    // cmsCompetitors was a new key: competitorBenchmarking backs Relative
+    // Performance and Position Over Time, which are head-to-head comparison and
+    // historical TREND. Neither is this, and flipping it would promise two
+    // features that do not exist.
+    //
+    // "available" is a PRECONDITION, not a promise that findings exist. It says
+    // only that this care type maps to a CMS source we ingest. The endpoint
+    // remains the authority: with one ingested release it answers
+    // insufficient_history, which is a correct product state, not an error. The
+    // capability layer deliberately does not consult release counts - whether the
+    // FEATURE exists and whether THIS PROVIDER has a comparison to show are
+    // separate questions, answered in separate places.
+    cmsRosterChanges: CMS_ROSTER_CHANGES_ENABLED
+      ? (cmsCovered
+        ? { status: 'available', reason: 'Changes CMS published about the hospices in your service area since its previous data release.' }
+        : { status: 'not_applicable', reason: `Medicare does not publish a hospice service area for ${typePhrase}, so there is no CMS market to compare across releases.` })
       : cmsState,
     // Deliberately unchanged. The star-rating and CAHPS CARDS still describe
     // work we have not built as its own module; the family-caregiver survey
