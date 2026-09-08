@@ -645,6 +645,62 @@
               </button>
             </section>
 
+            <!-- What's Changed: the release-to-release delta of the roster above.
+                 Its own module rather than a section inside Competitors, because
+                 it answers a different question and carries its own release gate.
+                 Same progressive-disclosure pattern as every other module, so a
+                 provider learns one interaction and it works everywhere.
+
+                 Starts HIDDEN and is revealed only once the capability model says
+                 cmsRosterChanges is available. With the release gate off, this
+                 panel is exactly the Competitors panel that shipped before - no
+                 card, no control, no request. -->
+            <div class="mi-card rc-card" id="rc-card" hidden>
+              <h3>What's Changed</h3>
+              <p>Changes CMS published about the hospices in your market since its previous data release.</p>
+              <p class="mm-summary" id="rc-summary" hidden></p>
+              <p class="cms-status" id="rc-status" role="status"></p>
+              <button type="button" class="mm-toggle" id="rc-toggle"
+                      aria-expanded="false" aria-controls="rc-detail" hidden>
+                <span id="rc-toggle-label" data-toggle-label>View insights</span>
+                <span class="mm-chev" aria-hidden="true">&#8595;</span>
+              </button>
+            </div>
+
+            <section class="cms-market" id="rc-detail" aria-labelledby="rc-detail-h" hidden>
+              <div class="cms-market-head">
+                <h3 id="rc-detail-h">What CMS Changed In Your Market</h3>
+                <p class="cms-sub">Differences between the two most recent CMS hospice data releases, for the hospices that share a CMS-reported service ZIP code with you.</p>
+                <!-- Two vintage chips, never merged: which release this reflects,
+                     and which one it was compared against. The second is absent
+                     until there is a second release to compare. -->
+                <p class="cms-fresh" id="rc-fresh" hidden></p>
+                <p class="cms-fresh" id="rc-fresh-prev" hidden></p>
+              </div>
+
+              <div id="rc-body" hidden>
+                <div class="cms-metrics" id="rc-metrics"></div>
+                <div id="rc-groups"></div>
+              </div>
+
+              <!-- The honest state while only one release has been ingested.
+                   Rendered here INSTEAD of #rc-body, never alongside it, so a
+                   provider is never shown a screen of zeroes. -->
+              <div class="pf-empty" id="rc-pending" hidden></div>
+
+              <div class="pf-method" id="rc-method" hidden>
+                <h4>What these changes mean</h4>
+                <dl id="rc-method-list"></dl>
+              </div>
+
+              <p class="cms-note" id="rc-note"></p>
+
+              <button type="button" class="mm-toggle mm-collapse" id="rc-collapse"
+                      aria-expanded="true" aria-controls="rc-detail">
+                <span class="mm-chev" aria-hidden="true">&#8593;</span> <span data-toggle-label>Hide insights</span>
+              </button>
+            </section>
+
             <div class="mi-grid" id="mi-competitors-grid"></div>
           </div>
 
@@ -871,7 +927,9 @@
       { cap: 'competitorBenchmarking', title: 'Relative Performance',
         body: 'How your published measures compare with theirs, where both are available.' },
       { cap: 'competitorBenchmarking', title: 'Position Over Time',
-        body: 'Whether your standing in the local market is improving or slipping.' }
+        body: 'Whether your standing in the local market is improving or slipping.' },
+      { cap: 'cmsRosterChanges', title: "What's Changed",
+        body: 'Changes CMS published about the hospices in your market since its previous data release.' }
     ],
     'Quality': [
       { cap: 'cmsRatings', title: 'Star Ratings',
@@ -2585,6 +2643,324 @@
     limits.innerHTML = items.map((t) => '<li>' + esc(t) + '</li>').join('');
   }
 
+  // ---- What's Changed: CMS roster and facility changes ---------------------
+  // Renders cms-hospice-roster-changes.js output. Every rule that matters -
+  // which releases are compared, what counts as a change, the union of the two
+  // release-scoped markets - lives in the service. This renderer reshapes
+  // nothing and invents no value.
+  //
+  // Provider-facing wording is FROZEN and comes from the service's own labels
+  // where possible. Nothing here may say opened, closed, terminated, acquired,
+  // sold or relocated: CMS sends no closure, termination, enforcement or
+  // ownership-transaction data, so a roster difference is an observation about
+  // a publication, not a business event.
+  let rcActivated = false;
+  let rcCache = null;
+  let rcPending = false;
+  let rcExpandable = false;
+
+  const RC_PROMPT = 'Select View insights to load what CMS has changed since its previous release.';
+  const RC_LOADING = 'Loading your CMS change history…';
+  const RC_ERROR =
+    "We couldn't load your CMS change history right now. Select View insights to try again.";
+  const RC_FALLBACK = 'CMS change history is not available for this provider right now.';
+
+  // Structured statuses are PRODUCT STATES, not errors. Only a thrown request
+  // gets .is-error. No enum name ever reaches a provider.
+  const RC_MESSAGES = {
+    no_observations:
+      'Best Hospice has not recorded a CMS baseline for your market yet. This section will fill in once we have.',
+    no_verified_identity:
+      "We're still connecting your provider profile to CMS. This section will fill in once that match is confirmed.",
+    multiple_verified_identities:
+      'Your provider profile needs review before we can show CMS change history. Please contact support and we will sort it out.',
+    no_service_area:
+      'CMS does not currently publish a service-area footprint for this provider, so there is no market to compare across releases.',
+    unsupported_care_type:
+      'Medicare does not publish a hospice service area for this care type, so CMS change history is not available.'
+  };
+
+  // Two headline tiles only. Roster movement is the decision-relevant part; the
+  // three attribute categories carry their counts in their group headings, so
+  // this is one clear pair rather than five equally weighted boxes.
+  const RC_METRICS = [
+    ['rosterAdded', 'Newly present in CMS roster'],
+    ['rosterRemoved', 'Not present in latest CMS roster']
+  ];
+
+  // Group order: roster movement first, attribute changes after, publication
+  // coverage last and visually separate. `pair` marks the groups that show a
+  // Previously/Latest value pair.
+  const RC_GROUPS = [
+    { key: 'rosterAdded', heading: 'Newly present in CMS roster', pair: null },
+    { key: 'rosterRemoved', heading: 'Not present in latest CMS roster', pair: null },
+    { key: 'nameChanged', heading: 'CMS-published name changed', pair: 'name' },
+    { key: 'locationChanged', heading: 'CMS-published address changed', pair: 'location' },
+    { key: 'ownershipChanged', heading: 'CMS ownership classification changed', pair: 'ownership' },
+    { key: 'ownershipCoverageChanged', heading: 'Ownership information CMS publishes', pair: 'coverage' }
+  ];
+
+  const RC_METHOD_ORDER = [
+    ['basis', 'What this compares'],
+    ['rosterAbsence', 'Facilities no longer listed'],
+    ['ownershipCoverage', 'Ownership information']
+  ];
+
+  function rcSetStatus(text, isError) {
+    const el = document.getElementById('rc-status');
+    if (!el) return;
+    el.hidden = !text;
+    el.textContent = text || '';
+    if (isError) el.classList.add('is-error'); else el.classList.remove('is-error');
+  }
+
+  function rosterChangesNotActivated() {
+    rcActivated = false;
+    const card = document.getElementById('rc-card');
+    const toggle = document.getElementById('rc-toggle');
+    if (card) card.hidden = true;
+    if (toggle) toggle.hidden = true;
+    rcSetStatus('', false);
+    const summary = document.getElementById('rc-summary');
+    if (summary) { summary.hidden = true; summary.textContent = ''; }
+    const body = document.getElementById('rc-body');
+    if (body) body.hidden = true;
+    if (INTEL_ACCORDION.isOpen('rosterChanges')) INTEL_ACCORDION.close('rosterChanges');
+  }
+
+  // Availability comes from the capability model ONLY - never from the endpoint
+  // existing. A missing capability object is treated exactly like coming_soon.
+  function initRosterChanges(caps) {
+    const cap = (caps && caps.cmsRosterChanges) || { status: 'coming_soon' };
+    if (cap.status !== 'available') { rosterChangesNotActivated(); return; }
+    rcActivated = true;
+    const card = document.getElementById('rc-card');
+    if (card) card.hidden = false;
+    const toggle = document.getElementById('rc-toggle');
+    if (toggle) toggle.hidden = false;
+    rcSetStatus(RC_PROMPT, false);
+    const summary = document.getElementById('rc-summary');
+    if (summary) summary.hidden = true;
+    const body = document.getElementById('rc-body');
+    if (body) body.hidden = true;
+  }
+
+  function initRosterChangesAccordion() {
+    const toggle = document.getElementById('rc-toggle');
+    const collapse = document.getElementById('rc-collapse');
+    const detail = document.getElementById('rc-detail');
+    if (!toggle || !collapse || !detail) return;
+    toggle.dataset.labelClosed = 'View insights';
+    toggle.dataset.labelOpen = 'Hide insights';
+    collapse.dataset.labelClosed = 'View insights';
+    collapse.dataset.labelOpen = 'Hide insights';
+    INTEL_ACCORDION.register('rosterChanges', detail, [toggle, collapse]);
+    toggle.onclick = () => { toggleRosterChanges(toggle); };
+    collapse.onclick = () => { toggleRosterChanges(toggle); };
+  }
+
+  // Lazy, on the same terms as Competitors: nothing is requested until the
+  // provider asks. A successful response - including a structured non-OK one -
+  // is cached for the page session, so collapse and reopen costs nothing. A
+  // THROWN request is deliberately not cached, so a later click retries.
+  async function ensureRosterChangesLoaded() {
+    if (!rcActivated) return false;
+    if (rcCache) { return rcExpandable; }
+    if (rcPending) return false;
+    rcPending = true;
+    rcSetStatus(RC_LOADING, false);
+    let data;
+    try {
+      data = await callApi('/api/provider-intelligence/roster-changes');
+    } catch (_err) {
+      rcSetStatus(RC_ERROR, true);
+      const body = document.getElementById('rc-body');
+      if (body) body.hidden = true;
+      rcExpandable = false;
+      return false;
+    } finally {
+      rcPending = false;
+    }
+    rcCache = data;
+    rcExpandable = renderRosterChanges(data);
+    return rcExpandable;
+  }
+
+  async function toggleRosterChanges(focusEl) {
+    if (INTEL_ACCORDION.isOpen('rosterChanges')) {
+      INTEL_ACCORDION.close('rosterChanges', focusEl);
+      return;
+    }
+    if (await ensureRosterChangesLoaded()) INTEL_ACCORDION.open('rosterChanges');
+  }
+
+  // One readable address line from the raw publication values. No inference:
+  // this is what CMS printed, joined for reading.
+  function rcAddressLine(v) {
+    if (!v) return '—';
+    const head = [v.address, v.city].filter(Boolean).join(', ');
+    const tail = [v.state, v.zip].filter(Boolean).join(' ');
+    return [head, tail].filter(Boolean).join(', ') || '—';
+  }
+
+  // Previously / Latest, using the existing labelled value-pair structure.
+  // Deliberately NOT "Before/After", which would imply an event.
+  function rcPair(previous, latest) {
+    return '<p class="q-tvals">'
+      + '<span class="q-tv"><span class="k">Previously</span><span class="v">'
+      + esc(previous == null || previous === '' ? '—' : previous) + '</span></span>'
+      + '<span class="q-tv"><span class="k">Latest</span><span class="v">'
+      + esc(latest == null || latest === '' ? '—' : latest) + '</span></span>'
+      + '</p>';
+  }
+
+  function rcEventRow(ev, pairKind, position) {
+    const bits = [];
+    if (ev.city || ev.state) bits.push([ev.city, ev.state].filter(Boolean).join(', '));
+    if (ev.ccn) bits.push('CCN ' + ev.ccn);
+    // Omitted entirely when the service did not supply it. Never "0 shared ZIPs".
+    if (typeof ev.sharedZipCount === 'number' && ev.sharedZipCount > 0) {
+      bits.push(ev.sharedZipCount + (ev.sharedZipCount === 1 ? ' shared ZIP code' : ' shared ZIP codes'));
+    }
+    let pair = '';
+    if (pairKind === 'name') pair = rcPair(ev.from, ev.to);
+    else if (pairKind === 'location') pair = rcPair(rcAddressLine(ev.from), rcAddressLine(ev.to));
+    else if (pairKind === 'ownership') pair = rcPair(ev.from, ev.to);
+    else if (pairKind === 'coverage') {
+      // The service's own frozen sentence. Nothing is re-worded here.
+      pair = '<div class="cms-comp-stats"><div>' + esc(ev.label || '') + '</div></div>';
+    }
+    // .cms-rank is list POSITION only. It is not a rank and is never labelled one.
+    return '<li class="cms-comp">'
+      + '<span class="cms-rank" aria-hidden="true">' + esc(String(position)) + '</span>'
+      + '<div><div class="cms-comp-name">' + esc(ev.name || ev.ccn || '—') + '</div>'
+      + (bits.length ? '<div class="cms-comp-loc">' + esc(bits.join(' · ')) + '</div>' : '')
+      + pair
+      + '</div></li>';
+  }
+
+  function rcRenderGroups(events) {
+    const host = document.getElementById('rc-groups');
+    if (!host) return;
+    const html = RC_GROUPS.map((g) => {
+      const list = (events && Array.isArray(events[g.key])) ? events[g.key] : [];
+      if (!list.length) return '';                 // empty groups are omitted, not shown empty
+      const isCoverage = g.key === 'ownershipCoverageChanged';
+      return '<div class="cms-block">'
+        + '<h4>' + esc(g.heading) + ' (' + esc(String(list.length)) + ')</h4>'
+        + '<p class="q-prov cms"><span aria-hidden="true">&#9679;</span> Reported by CMS</p>'
+        + (isCoverage
+          ? '<p class="cms-hint">These are changes in what CMS publishes, not confirmed changes of ownership.</p>'
+          : '')
+        + '<ol class="cms-comp-list">'
+        + list.map((ev, i) => rcEventRow(ev, g.pair, i + 1)).join('')
+        + '</ol></div>';
+    }).join('');
+    host.innerHTML = html;
+  }
+
+  function rcRenderMethodology(methodology) {
+    const wrap = document.getElementById('rc-method');
+    const list = document.getElementById('rc-method-list');
+    if (!wrap || !list) return;
+    if (!methodology) { wrap.hidden = true; list.innerHTML = ''; return; }
+    const rows = RC_METHOD_ORDER.filter(([key]) => methodology[key]);
+    if (!rows.length) { wrap.hidden = true; list.innerHTML = ''; return; }
+    wrap.hidden = false;
+    list.innerHTML = rows
+      .map(([key, label]) => '<dt>' + esc(label) + '</dt><dd>' + esc(methodology[key]) + '</dd>')
+      .join('');
+  }
+
+  function rcRenderVintage(releases, showPrevious) {
+    const fresh = document.getElementById('rc-fresh');
+    const prev = document.getElementById('rc-fresh-prev');
+    const latestKey = releases && releases.latest && releases.latest.releaseKey;
+    const prevKey = releases && releases.previous && releases.previous.releaseKey;
+    if (fresh) {
+      const pretty = friendlyReleaseDate(latestKey);
+      if (pretty) { fresh.textContent = 'CMS data current through ' + pretty; fresh.hidden = false; }
+      else { fresh.hidden = true; fresh.textContent = ''; }
+    }
+    if (prev) {
+      const pretty = showPrevious ? friendlyReleaseDate(prevKey) : '';
+      if (pretty) { prev.textContent = 'Compared with the release published ' + pretty; prev.hidden = false; }
+      else { prev.hidden = true; prev.textContent = ''; }
+    }
+  }
+
+  // Returns whether the module has anything worth expanding into.
+  function renderRosterChanges(data) {
+    const status = data && data.status;
+    const body = document.getElementById('rc-body');
+    const pending = document.getElementById('rc-pending');
+    const summary = document.getElementById('rc-summary');
+    const metrics = document.getElementById('rc-metrics');
+    const note = document.getElementById('rc-note');
+
+    // Unresolved: plain-language reason on the card, no summary numbers, and
+    // nothing to expand into.
+    if (status !== 'ok' && status !== 'insufficient_history') {
+      rcSetStatus(RC_MESSAGES[status] || RC_FALLBACK, false);
+      if (summary) { summary.hidden = true; summary.textContent = ''; }
+      if (body) body.hidden = true;
+      if (pending) { pending.hidden = true; pending.innerHTML = ''; }
+      if (metrics) metrics.innerHTML = '';
+      rcRenderGroups(null);
+      rcRenderMethodology(null);
+      rcRenderVintage(null, false);
+      if (note) note.textContent = '';
+      return false;
+    }
+
+    rcSetStatus('', false);
+    rcRenderVintage(data.releases, status === 'ok');
+    rcRenderMethodology(data.methodology);
+    if (note) {
+      note.textContent = 'CMS market intelligence only. Nothing here affects which families '
+        + 'Best Hospice sends you, and it contains no Best Hospice information about any other provider.';
+    }
+
+    if (status === 'insufficient_history') {
+      // No comparison exists yet, so NO metric is rendered - not even a zero.
+      // The metrics container is emptied and the whole body stays hidden.
+      if (metrics) metrics.innerHTML = '';
+      rcRenderGroups(null);
+      if (body) body.hidden = true;
+      if (summary) { summary.hidden = true; summary.textContent = ''; }
+      const pretty = friendlyReleaseDate(data.releases && data.releases.latest
+        && data.releases.latest.releaseKey);
+      if (pending) {
+        pending.hidden = false;
+        pending.innerHTML = '<strong>Change tracking is active.</strong> '
+          + esc('Best Hospice has recorded the current CMS baseline'
+            + (pretty ? ', published on ' + pretty : '')
+            + '. Changes will appear here automatically after CMS publishes its next hospice '
+            + 'data release and Best Hospice ingests it.');
+      }
+      return true;
+    }
+
+    // status === 'ok'
+    if (pending) { pending.hidden = true; pending.innerHTML = ''; }
+    const s = (data && data.summary) || {};
+    if (metrics) {
+      metrics.innerHTML = RC_METRICS.map(([key, label]) =>
+        '<div class="cms-metric"><div class="v">' + esc(String(Number(s[key]) || 0))
+        + '</div><div class="l">' + esc(label) + '</div></div>').join('');
+    }
+    rcRenderGroups(data.events);
+    if (body) body.hidden = false;
+    if (summary) {
+      const added = Number(s.rosterAdded) || 0;
+      const removed = Number(s.rosterRemoved) || 0;
+      summary.hidden = false;
+      summary.textContent = added + ' newly present, ' + removed
+        + ' not present in the latest CMS roster.';
+    }
+    return true;
+  }
+
   // ---- section navigation ----
   const panels = Array.from(document.querySelectorAll('.mi-panel'));
   const nav = document.getElementById('mi-nav');
@@ -2680,6 +3056,7 @@
       initQualityAccordion();
       initCompetitorsAccordion();
       initFunnelAccordion();
+      initRosterChangesAccordion();
       loadCmsMarket(data.capabilities || {});
       loadCmsQuality(data.capabilities || {});
       // NOT loadCms*: Competitors is lazy. This only reveals the card and its
@@ -2689,6 +3066,10 @@
       // With the gate off the capability is not `available`, so this hides the
       // card and issues no request.
       initFunnel(data.capabilities || {});
+      // What's Changed is lazy on the same terms, behind its own release
+      // gate. With the gate off the capability is not `available`, so this
+      // hides the card and issues no request.
+      initRosterChanges(data.capabilities || {});
       status.classList.add('hidden');
       document.getElementById('mi-shell').classList.remove('hidden');
       show(initialSection());

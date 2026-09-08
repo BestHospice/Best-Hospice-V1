@@ -171,14 +171,16 @@ section('page wiring');
   // fourth registration, or a Coming Soon card accidentally becoming
   // expandable, fails it.
   const accReg = (PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length;
-  // Four since Provider Funnel V1 Phase B. My Market must remain exactly one of
-  // them, and every module must still share the single accordion so the
-  // one-open-at-a-time contract holds across all four.
-  ok(accReg === 4, '16i. exactly four intelligence modules are registered as expandable today', String(accReg));
+  // Five since What's Changed (CMS roster changes) Phase 2E-B, which followed
+  // Provider Funnel V1 Phase B. My Market must remain exactly one of them, and
+  // every module must still share the single accordion so the
+  // one-open-at-a-time contract holds across all five.
+  ok(accReg === 5, '16i. exactly five intelligence modules are registered as expandable today', String(accReg));
   ok(/INTEL_ACCORDION\.register\('myMarket'/.test(PAGE) && /INTEL_ACCORDION\.register\('quality'/.test(PAGE)
      && /INTEL_ACCORDION\.register\('competitors'/.test(PAGE)
-     && /INTEL_ACCORDION\.register\('providerFunnel'/.test(PAGE),
-     '   …and they are myMarket, quality, competitors and providerFunnel');
+     && /INTEL_ACCORDION\.register\('providerFunnel'/.test(PAGE)
+     && /INTEL_ACCORDION\.register\('rosterChanges'/.test(PAGE),
+     '   …and they are myMarket, quality, competitors, providerFunnel and rosterChanges');
   ok((PAGE.match(/INTEL_ACCORDION\.register\('myMarket'/g) || []).length === 1,
      '16i2. …and My Market registers exactly once');
   ok(/one detail module open at a time|Only one detail/i.test(PAGE),

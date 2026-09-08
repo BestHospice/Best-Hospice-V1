@@ -370,12 +370,12 @@ section('page wiring');
      '   …while the methodology note DOES disclose that CMS percentiles are unused');
   ok(/initQualityAccordion\(\);/.test(PAGE) && /loadCmsQuality\(data\.capabilities \|\| \{\}\);/.test(PAGE),
      '11. the module is initialised and loaded on page start');
-  // Four since Provider Funnel V1 Phase B added the referral activity module,
-  // which followed Competitor Intelligence V1 Phase B. Quality must remain
-  // exactly one of them and must not have gained a second registration of its
-  // own.
-  ok((PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length === 4,
-     '12. exactly four modules register with the accordion',
+  // Five since What's Changed (CMS roster changes) Phase 2E-B, which followed
+  // Provider Funnel V1 Phase B and Competitor Intelligence V1 Phase B. Quality
+  // must remain exactly one of them and must not have gained a second
+  // registration of its own.
+  ok((PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length === 5,
+     '12. exactly five modules register with the accordion',
      String((PAGE.match(/INTEL_ACCORDION\.register\(/g) || []).length));
   ok((PAGE.match(/INTEL_ACCORDION\.register\('quality'/g) || []).length === 1,
      '12b. …and Quality registers exactly once');
