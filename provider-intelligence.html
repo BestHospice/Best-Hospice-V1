@@ -2833,7 +2833,7 @@
     // .cms-rank is list POSITION only. It is not a rank and is never labelled one.
     return '<li class="cms-comp">'
       + '<span class="cms-rank" aria-hidden="true">' + esc(String(position)) + '</span>'
-      + '<div><div class="cms-comp-name">' + esc(ev.name || ev.ccn || '—') + '</div>'
+      + '<div><div class="cms-comp-name">' + esc((pairKind === 'name' ? ev.to : ev.name) || ev.ccn || '—') + '</div>'
       + (bits.length ? '<div class="cms-comp-loc">' + esc(bits.join(' · ')) + '</div>' : '')
       + pair
       + '</div></li>';
