@@ -444,6 +444,15 @@ section('D. frozen labels and conservative language in the renderer');
        'I2. pairs are labelled Previously / Latest');
     ok(html.includes('SYNTHETIC OLD NAME') && html.includes('SYNTHETIC NEW NAME'),
        'I3. name: both published names rendered');
+    const nameRow = (html.match(/<li class="cms-comp">[\s\S]*?<\/li>/g) || [])
+      .find((row) => row.includes('CCN 099004')) || '';
+    ok(nameRow.includes('<div class="cms-comp-name">SYNTHETIC NEW NAME</div>'),
+       'I3a. name change: latest CMS name is the row heading');
+    ok(/<div class="cms-comp-loc">[^<]*CCN 099004/.test(nameRow),
+       'I3b. name change: CCN remains in metadata');
+    ok(nameRow.includes('<span class="k">Previously</span><span class="v">SYNTHETIC OLD NAME</span>')
+       && nameRow.includes('<span class="k">Latest</span><span class="v">SYNTHETIC NEW NAME</span>'),
+       'I3c. name change: Previously and Latest retain their published values');
     ok(html.includes('1 OLD ST, Phoenix, AZ 85016') && html.includes('2 NEW AVE, Glendale, AZ 85302'),
        'I4. location: readable previous/latest address strings');
     ok(html.includes('For-Profit') && html.includes('Non-Profit'),
