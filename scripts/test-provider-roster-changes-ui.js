@@ -30,7 +30,7 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 
 const RC_IDS = ['rc-card', 'rc-summary', 'rc-status', 'rc-toggle', 'rc-toggle-label',
   'rc-detail', 'rc-detail-h', 'rc-fresh', 'rc-fresh-prev', 'rc-body', 'rc-metrics',
-  'rc-groups', 'rc-pending', 'rc-method', 'rc-method-list', 'rc-note', 'rc-collapse'];
+  'rc-groups', 'rc-pending', 'rc-method', 'rc-method-toggle', 'rc-method-list', 'rc-note', 'rc-collapse'];
 const OTHER_IDS = ['mm-detail', 'mm-toggle', 'mm-toggle-label', 'q-detail', 'q-toggle',
   'q-toggle-label', 'comp-detail', 'comp-toggle', 'comp-toggle-label', 'comp-card',
   'comp-body', 'pf-detail', 'pf-toggle', 'pf-toggle-label', 'pf-card', 'pf-body'];
@@ -361,8 +361,8 @@ section('D. frozen labels and conservative language in the renderer');
     const d = h.dom.els;
     ok(d['rc-detail'].hidden === false, 'G1. the module still expands — it is useful, not blocked');
     ok(d['rc-pending'].hidden === false, 'G2. the pending state is shown');
-    ok(/Change tracking is active\./.test(d['rc-pending'].innerHTML),
-       'G3. contains "Change tracking is active."');
+    ok(d['rc-pending'].innerHTML.includes('recorded your Aug 19, 2026 CMS baseline. Changes will appear here automatically after the next CMS hospice release is ingested.'),
+       'G3. compact baseline copy preserves the ingestion prerequisite');
     ok(/Aug 19, 2026/.test(d['rc-pending'].innerHTML),
        'G4. the baseline date is rendered from releases.latest.releaseKey',
        d['rc-pending'].innerHTML.slice(0, 160));
@@ -386,6 +386,42 @@ section('D. frozen labels and conservative language in the renderer');
     ok(d['rc-method'].hidden === false, 'G15. methodology IS shown in this state');
     ok(/not necessarily closed/i.test(d['rc-method-list'].innerHTML),
        'G16. …including the roster-absence disclaimer');
+  }
+
+  section('G disclosure. Accessible methodology in both resolved states');
+  ok(/<button type="button" class="mm-toggle" id="rc-method-toggle"\s+aria-expanded="false" aria-controls="rc-method-list">How this works<\/button>/.test(PAGE),
+     'Disclosure is a native keyboard-accessible button with a label and controlled region');
+  for (const payload of [insufficientPayload(), okPayload()]) {
+    const h = harness(() => payload);
+    h.R.initRosterChangesAccordion();
+    h.R.initRosterChanges(CAP_ON);
+    h.dom.els['rc-toggle'].click(); await tick(); await tick();
+    const d = h.dom.els;
+    const toggle = d['rc-method-toggle'];
+    const list = d['rc-method-list'];
+    const events = d['rc-groups'].innerHTML;
+    ok(!d['rc-method'].hidden && list.hidden && toggle.getAttribute('aria-expanded') === 'false',
+       `${payload.status}: methodology disclosure is available and collapsed by default`);
+    toggle.click();
+    ok(!list.hidden && toggle.getAttribute('aria-expanded') === 'true',
+       `${payload.status}: disclosure expands with accessible state`);
+    for (const text of Object.values(payload.methodology)) {
+      ok(list.innerHTML.includes(text), `${payload.status}: original methodology remains available after expansion`);
+    }
+    toggle.click();
+    ok(list.hidden && toggle.getAttribute('aria-expanded') === 'false',
+       `${payload.status}: disclosure collapses with accessible state`);
+    ok(d['rc-groups'].innerHTML === events, `${payload.status}: disclosure leaves event rendering unchanged`);
+  }
+  {
+    const payload = insufficientPayload();
+    payload.releases.latest.releaseKey = '2027-02-10';
+    const h = harness(() => payload);
+    h.R.initRosterChangesAccordion();
+    h.R.renderRosterChanges(payload);
+    ok(h.dom.els['rc-pending'].innerHTML.includes('Feb 10, 2027 CMS baseline')
+       && !h.dom.els['rc-pending'].innerHTML.includes('Aug 19, 2026'),
+       'Baseline date changes with the API release key');
   }
 
   section('H. status ok — summary, metrics, groups');

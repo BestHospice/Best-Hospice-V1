@@ -689,8 +689,9 @@
               <div class="pf-empty" id="rc-pending" hidden></div>
 
               <div class="pf-method" id="rc-method" hidden>
-                <h4>What these changes mean</h4>
-                <dl id="rc-method-list"></dl>
+                <button type="button" class="mm-toggle" id="rc-method-toggle"
+                        aria-expanded="false" aria-controls="rc-method-list">How this works</button>
+                <dl id="rc-method-list" hidden></dl>
               </div>
 
               <p class="cms-note" id="rc-note"></p>
@@ -2746,6 +2747,16 @@
   }
 
   function initRosterChangesAccordion() {
+    const methodToggle = document.getElementById('rc-method-toggle');
+    const methodList = document.getElementById('rc-method-list');
+    if (methodToggle && methodList) {
+      methodList.hidden = true;
+      methodToggle.setAttribute('aria-expanded', 'false');
+      methodToggle.onclick = () => {
+        methodList.hidden = !methodList.hidden;
+        methodToggle.setAttribute('aria-expanded', String(!methodList.hidden));
+      };
+    }
     const toggle = document.getElementById('rc-toggle');
     const collapse = document.getElementById('rc-collapse');
     const detail = document.getElementById('rc-detail');
@@ -2932,11 +2943,9 @@
         && data.releases.latest.releaseKey);
       if (pending) {
         pending.hidden = false;
-        pending.innerHTML = '<strong>Change tracking is active.</strong> '
-          + esc('Best Hospice has recorded the current CMS baseline'
-            + (pretty ? ', published on ' + pretty : '')
-            + '. Changes will appear here automatically after CMS publishes its next hospice '
-            + 'data release and Best Hospice ingests it.');
+        pending.innerHTML = esc("We've recorded your "
+          + (pretty ? pretty + ' ' : '')
+          + 'CMS baseline. Changes will appear here automatically after the next CMS hospice release is ingested.');
       }
       return true;
     }
