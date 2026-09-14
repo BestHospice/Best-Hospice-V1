@@ -39,22 +39,27 @@ function createProviderEnrollment({ prisma, secret, hashPassword, now = () => ne
     await tx.rateLimitEvent.create({ data: { id: crypto.randomUUID(), ipHash, createdAt: date } });
     return true;
   }
-  async function start({ providerId, providerEmail }) {
-    const email = normalize(providerEmail);
-    if (!email || typeof providerId !== 'string') return result('invalid_request', 'Provider and email required.');
+  async function startFlow({ providerId, providerEmail }, accountId = null) {
+    const adding = accountId !== null;
+    let email = normalize(providerEmail);
+    if ((!adding && !email) || typeof providerId !== 'string') return result('invalid_request', 'Provider and email required.');
     return transaction(async (tx) => {
       const date = now();
+      const authenticated = adding ? await tx.providerUser.findUnique({ where: { id: accountId }, include: { links: true } }) : null;
+      if (adding && !authenticated?.emailVerifiedAt) return result('unauthorized', 'A verified account is required.');
+      if (adding) email = normalize(authenticated.email);
       const p = await tx.provider.findUnique({ where: { id: providerId } });
       if (!validProvider(p, email)) return result('invalid_request', 'Select a valid provider and its configured login email.');
-      let u = await account(tx, email);
+      let u = adding ? authenticated : await account(tx, email);
       if (u?.anomaly) return result('manual_review', 'Please contact support to review this account.');
-      if (u?.emailVerifiedAt) return result('existing_account', 'An account already exists. Log in using your existing password and an associated location.');
-      if (u && !inert(u)) return result('manual_review', 'Please contact support to review this account.');
-      if (!await throttle(tx, email, 'start', date)) return result('rate_limited', 'Please wait before requesting another code.');
+      if (!adding && u?.emailVerifiedAt) return result('existing_account', 'An account already exists. Log in using your existing password and an associated location.');
+      if (!adding && u && !inert(u)) return result('manual_review', 'Please contact support to review this account.');
+      if (adding && u.links.some(l => l.providerId === providerId)) return result('already_associated', 'This location is already associated.');
+      if (!await throttle(tx, adding ? 'account:' + accountId : email, 'start', date)) return result('rate_limited', 'Please wait before requesting another code.');
       if (!u) u = await tx.providerUser.create({ data: { id: crypto.randomUUID(), email, passwordHash: '' } });
       const code = crypto.randomInt(100000, 1000000).toString();
       const expires = new Date(date.getTime() + 20 * 60000);
-      const c = { v: 1, accountId: u.id, providerId, purpose: 'first_enrollment',
+      const c = { v: 1, accountId: u.id, providerId, purpose: adding ? 'add_location' : 'first_enrollment',
         nonce: crypto.randomBytes(24).toString('hex'), emailDigest: mac(['email', email]), failedAttempts: 0 };
       c.codeDigest = digest(c, expires, code);
       await tx.providerUser.update({ where: { id: u.id }, data: { verifyCode: JSON.stringify(c), verifyCodeExpiresAt: expires } });
@@ -62,28 +67,34 @@ function createProviderEnrollment({ prisma, secret, hashPassword, now = () => ne
       return result('challenge_sent', 'Check your email. The code expires in 20 minutes.', { delivery: { email, code }, challengeId: c.nonce });
     });
   }
-  async function complete({ email: input, providerId, challengeId, code, password }) {
-    const email = normalize(input);
-    if (!email || typeof providerId !== 'string' || typeof challengeId !== 'string'
-      || typeof code !== 'string' || !/^\d{6}$/.test(code) || typeof password !== 'string' || password.length < 8)
-      return result('invalid_request', 'Enter the selected provider, six-digit code, and a password of at least 8 characters.');
-    const passwordHash = await hashPassword(password);
+  async function completeFlow({ email: input, providerId, challengeId, code, password }, accountId = null) {
+    const adding = accountId !== null;
+    let email = normalize(input);
+    if ((!adding && !email) || typeof providerId !== 'string' || typeof challengeId !== 'string'
+      || typeof code !== 'string' || !/^\d{6}$/.test(code) || (!adding && (typeof password !== 'string' || password.length < 8)))
+      return result('invalid_request', adding ? 'Enter the selected location and six-digit code.'
+        : 'Enter the selected provider, six-digit code, and a password of at least 8 characters.');
+    const passwordHash = adding ? null : await hashPassword(password);
     return transaction(async (tx) => {
       const date = now();
-      const u = await account(tx, email);
+      const u = adding ? await tx.providerUser.findUnique({ where: { id: accountId }, include: { links: true } }) : await account(tx, email);
       const restart = () => result('restart_required', 'Request a new signup code.');
-      if (!u || u.anomaly || u.emailVerifiedAt || !inert(u)) return restart();
-      if (!await throttle(tx, email, 'complete', date)) return result('rate_limited', 'Too many attempts. Please try later.');
+      if (adding && !u?.emailVerifiedAt) return result('unauthorized', 'A verified account is required.');
+      if (!adding && (!u || u.anomaly || u.emailVerifiedAt || !inert(u))) return restart();
+      if (adding) email = normalize(u.email);
+      if (!await throttle(tx, adding ? 'account:' + accountId : email, 'complete', date)) return result('rate_limited', 'Too many attempts. Please try later.');
       const p = await tx.provider.findUnique({ where: { id: providerId } });
+      if (adding && !validProvider(p, email)) return restart();
+      if (adding && u.links.some(l => l.providerId === providerId)) return result('already_associated', 'This location is already associated.');
       let c;
       try { c = JSON.parse(u.verifyCode); } catch (_) { return restart(); }
       const expires = u.verifyCodeExpiresAt;
       if (!validProvider(p, email) || !c || c.v !== 1 || c.accountId !== u.id || c.providerId !== providerId
-        || c.purpose !== 'first_enrollment' || typeof c.nonce !== 'string' || !/^[a-f0-9]{48}$/.test(c.nonce)
+        || c.purpose !== (adding ? 'add_location' : 'first_enrollment') || typeof c.nonce !== 'string' || !/^[a-f0-9]{48}$/.test(c.nonce)
         || c.nonce !== challengeId || !equal(c.emailDigest, mac(['email', email]))
         || !Number.isInteger(c.failedAttempts) || c.failedAttempts < 0 || c.failedAttempts >= 5
         || !expires || expires <= date || typeof c.codeDigest !== 'string' || !/^[a-f0-9]{64}$/.test(c.codeDigest)) return restart();
-      const where = { id: u.id, emailVerifiedAt: null, activeProviderId: null, verifyCode: u.verifyCode,
+      const where = { id: u.id, ...(adding ? { emailVerifiedAt: u.emailVerifiedAt } : { emailVerifiedAt: null, activeProviderId: null }), verifyCode: u.verifyCode,
         verifyCodeExpiresAt: { gt: date } };
       if (!equal(c.codeDigest, digest(c, expires, code))) {
         c.failedAttempts++;
@@ -93,13 +104,33 @@ function createProviderEnrollment({ prisma, secret, hashPassword, now = () => ne
         if (changed.count !== 1 || exhausted) return restart();
         return result('invalid_code', 'Incorrect code. Please try again.');
       }
-      const changed = await tx.providerUser.updateMany({ where, data: { passwordHash, emailVerifiedAt: date,
-        verifyCode: null, verifyCodeExpiresAt: null, activeProviderId: providerId } });
+      const changed = await tx.providerUser.updateMany({ where, data: { verifyCode: null, verifyCodeExpiresAt: null,
+        ...(!adding ? { passwordHash, emailVerifiedAt: date, activeProviderId: providerId } : {}) } });
       if (changed.count !== 1) return restart();
       await tx.providerUserProvider.create({ data: { id: crypto.randomUUID(), providerUserId: u.id, providerId } });
-      return result('enrolled', 'Signup complete.', { accountId: u.id });
+      return adding ? result('associated', 'Location added.') : result('enrolled', 'Signup complete.', { accountId: u.id });
     });
   }
-  return { start, complete };
+  const authenticatedCall = (fn, accountId, input) => typeof accountId === 'string' && accountId
+    ? fn(input, accountId) : Promise.resolve(result('unauthorized', 'Authentication required.'));
+  async function targets(accountId) {
+    if (typeof accountId !== 'string' || !accountId) return result('unauthorized', 'Authentication required.');
+    return transaction(async tx => {
+      const u = await tx.providerUser.findUnique({ where: { id: accountId } });
+      if (!u?.emailVerifiedAt) return result('unauthorized', 'A verified account is required.');
+      const email = normalize(u.email);
+      if (!email) return result('unauthorized', 'A verified account is required.');
+      const providers = await tx.$queryRaw`SELECT p.id, p.name, p.city, p.state
+        FROM "Provider" p WHERE p."internalRole" IS NULL
+        AND ${email} = lower(btrim(p."providerLoginEmail", ${trimCharacters}))
+        AND NOT EXISTS (SELECT 1 FROM "ProviderUserProvider" l
+          WHERE l."providerId" = p.id AND l."providerUserId" = ${u.id})
+        ORDER BY p.name, p.city, p.state, p.id`;
+      return result('ok', '', { providers });
+    });
+  }
+  return { start: input => startFlow(input), complete: input => completeFlow(input), targets,
+    startAddLocation: (id, input) => authenticatedCall(startFlow, id, input),
+    completeAddLocation: (id, input) => authenticatedCall(completeFlow, id, input) };
 }
 module.exports = { createProviderEnrollment };
