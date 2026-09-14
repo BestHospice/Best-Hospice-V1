@@ -109,6 +109,21 @@
         <a href="provider-intelligence.html">Market Intelligence</a>
       </nav>
 
+      <details id="add-location" hidden style="margin:12px 0;">
+        <summary style="cursor:pointer;font-weight:700;">Add a location</summary>
+        <p>Verify the configured login mailbox for each location you add. A new code replaces any previous code.</p>
+        <label for="add-location-target">Location</label>
+        <select id="add-location-target"></select>
+        <button type="button" class="dash-btn" id="add-location-start">Send verification code</button>
+        <div id="add-location-verification" hidden>
+          <label for="add-location-code">Six-digit email code</label>
+          <input id="add-location-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">
+          <button type="button" class="dash-btn" id="add-location-complete">Verify and switch location</button>
+          <button type="button" class="dash-btn" id="add-location-resend">Request a new code</button>
+        </div>
+        <p id="add-location-status" role="status" aria-live="polite"></p>
+      </details>
+
       <div class="metrics">
         <!-- "Referrals Sent to You", matching Provider Funnel V1's "Referrals
              sent". The value is the same canonical count: distinct family
@@ -387,6 +402,76 @@
   </div>
 
   <script>
+    // Add Location is revealed only after authenticated target eligibility succeeds.
+    (async function initAddLocation() {
+      const root = document.getElementById('add-location');
+      const target = document.getElementById('add-location-target');
+      const start = document.getElementById('add-location-start');
+      const panel = document.getElementById('add-location-verification');
+      const complete = document.getElementById('add-location-complete');
+      const resend = document.getElementById('add-location-resend');
+      const code = document.getElementById('add-location-code');
+      const status = document.getElementById('add-location-status');
+      let pending = null, associatedId = null;
+      async function request(path, body) {
+        const token = localStorage.getItem('provider_jwt');
+        if (!token) throw new Error('Please log in again.');
+        const response = await fetch(path, { method: body ? 'POST' : 'GET',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          ...(body ? { body: JSON.stringify(body) } : {}) });
+        const data = await response.json();
+        if (!response.ok) { const error = new Error(data.error || data.message || 'Request failed.'); error.status = data.status; throw error; }
+        return data;
+      }
+      function reset() { pending = null; associatedId = null; code.value = ''; panel.hidden = true; target.disabled = false; start.disabled = false; }
+      async function switchLocation(id) {
+        associatedId = id;
+        complete.textContent = 'Switch to added location';
+        await request('/api/provider/select', { providerId: id });
+        window.location.reload();
+      }
+      start.onclick = async () => {
+        if (!target.value) return;
+        start.disabled = true; target.disabled = true;
+        status.textContent = 'Sending verification code…';
+        try {
+          const providerId = target.value;
+          const data = await request('/api/provider-auth/add-location/start', { providerId });
+          if (data.status === 'already_associated') {
+            panel.hidden = false; await switchLocation(providerId); return;
+          }
+          if (data.status !== 'challenge_sent') throw new Error('Please restart verification.');
+          pending = { providerId, challengeId: data.challengeId };
+          panel.hidden = false; complete.textContent = 'Verify and switch location';
+          status.textContent = 'Code sent. It expires in 20 minutes. Please allow 60 seconds before requesting another.';
+          code.focus();
+        } catch (error) { status.textContent = error.message; if (!associatedId) { start.disabled = false; target.disabled = false; } }
+      };
+      resend.onclick = () => { reset(); status.textContent = 'Confirm your location and send a new code. Previous codes will no longer work.'; };
+      complete.onclick = async () => {
+        complete.disabled = true; resend.disabled = true;
+        try {
+          if (associatedId) { await switchLocation(associatedId); return; }
+          if (!pending) throw new Error('Request a new code.');
+          const data = await request('/api/provider-auth/add-location/complete', { ...pending, code: code.value.trim() });
+          if (!['associated', 'already_associated'].includes(data.status)) throw new Error('Please restart verification.');
+          status.textContent = 'Location added. Switching…';
+          await switchLocation(pending.providerId);
+        } catch (error) { status.textContent = error.message; if (error.status === 'restart_required') reset(); }
+        finally { complete.disabled = false; resend.disabled = false; }
+      };
+      try {
+        const data = await request('/api/provider-auth/add-location/targets');
+        if (data.status !== 'ok') return;
+        for (const p of data.providers || []) {
+          const option = document.createElement('option'); option.value = p.id;
+          option.textContent = p.name + ' — ' + [p.city, p.state].filter(Boolean).join(', ');
+          target.appendChild(option);
+        }
+        root.hidden = !target.options.length;
+      } catch (_) { root.hidden = true; }
+    })();
+
     const tokenKey = 'provider_jwt';
     const statusEl = document.getElementById('status');
     const leadStatusOptions = [

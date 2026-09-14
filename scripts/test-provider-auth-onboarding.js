@@ -105,7 +105,7 @@ function harness() {
   });
   await test('email is sent after commit; HTTP never exposes delivery code; email failure is safe',async()=>{
     const src=fs.readFileSync('server.js','utf8');
-    const region=src.slice(src.indexOf('// First-time enrollment deliberately'),src.indexOf('// Provider auth: login'));
+    const region=src.slice(src.indexOf('// First-time enrollment deliberately'),src.indexOf('// Add Location never uses getProviderContext'));
     const routes={};let committed=false, failEmail=false, delivered=false;
     const enrollment={start:async()=>{committed=true;return {status:'challenge_sent',message:'sent',challengeId:'nonce',delivery:{email:'owner@example.test',code:'123456'}};},complete:async()=>({status:'enrolled',accountId:'u'})};
     new Function('require','prisma','PROVIDER_JWT_SECRET','bcrypt','app','authRateLimit','EMAIL_ENABLED','sendGenericEmail','jwt',region)(

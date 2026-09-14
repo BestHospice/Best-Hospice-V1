@@ -7100,6 +7100,38 @@ app.post('/api/provider-auth/complete', authRateLimit, async (req, res) => {
   }
 });
 
+// Add Location never uses getProviderContext: that helper may save activeProviderId.
+app.get('/api/provider-auth/add-location/targets', requireProviderAuth, async (req, res) => {
+  try {
+    const outcome = await providerEnrollment.targets(req.providerUserId);
+    res.status(outcome.status === 'ok' ? 200 : 403).json(outcome);
+  } catch (_) { res.status(503).json({ error: 'Locations could not be loaded.' }); }
+});
+
+app.post('/api/provider-auth/add-location/start', requireProviderAuth, authRateLimit, async (req, res) => {
+  try {
+    const { delivery, ...outcome } = await providerEnrollment.startAddLocation(req.providerUserId, req.body || {});
+    if (delivery) {
+      if (!EMAIL_ENABLED) return res.status(503).json({ status: 'restart_required', error: 'Email unavailable. Please try later.' });
+      await sendGenericEmail(delivery.email, 'Verify your additional provider location',
+        '<p>Your Add Location code is <strong>' + delivery.code + '</strong>.</p>'
+        + '<p>It expires in 20 minutes. Return to the dashboard to complete verification for the selected location.</p>');
+    }
+    const status = ['challenge_sent', 'already_associated'].includes(outcome.status) ? 200
+      : outcome.status === 'unauthorized' ? 403 : enrollmentHttpStatus(outcome.status);
+    res.status(status).json({ ...outcome, error: outcome.message });
+  } catch (_) { res.status(503).json({ status: 'restart_required', error: 'Could not send a code. Please try again later.' }); }
+});
+
+app.post('/api/provider-auth/add-location/complete', requireProviderAuth, authRateLimit, async (req, res) => {
+  try {
+    const outcome = await providerEnrollment.completeAddLocation(req.providerUserId, req.body || {});
+    const status = ['associated', 'already_associated'].includes(outcome.status) ? 200
+      : outcome.status === 'unauthorized' ? 403 : enrollmentHttpStatus(outcome.status);
+    res.status(status).json({ ...outcome, error: outcome.message });
+  } catch (_) { res.status(409).json({ status: 'restart_required', error: 'Location could not be added. Please restart verification.' }); }
+});
+
 // Provider auth: login
 app.post('/api/provider-auth/login', authRateLimit, async (req, res) => {
   const { email, password, providerId } = req.body || {};
