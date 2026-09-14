@@ -7064,103 +7064,39 @@ app.post('/api/test-email', async (req, res) => {
   }
 });
 
-// Provider auth: signup start via provider login email
+// First-time enrollment deliberately does not reuse login or location linking.
+const { createProviderEnrollment } = require('./provider-enrollment');
+const providerEnrollment = createProviderEnrollment({ prisma, secret: PROVIDER_JWT_SECRET,
+  hashPassword: (password) => bcrypt.hash(password, 10) });
+const enrollmentHttpStatus = (status) => ({ challenge_sent: 200, enrolled: 200,
+  existing_account: 200, rate_limited: 429, manual_review: 409 }[status] || 400);
+
 app.post('/api/provider-auth/signup-start', authRateLimit, async (req, res) => {
-  const { providerEmail, providerId } = req.body || {};
-  if (!providerEmail || !providerId) return res.status(400).json({ error: 'Provider and email required' });
-  const normEmail = String(providerEmail).trim().toLowerCase();
   try {
-    const provider = await prisma.provider.findUnique({ where: { id: providerId } });
-    if (!provider) return res.status(404).json({ error: 'Provider not found' });
-    const loginEmail = String(provider.providerLoginEmail || provider.email || '').trim().toLowerCase();
-    if (!loginEmail || loginEmail !== normEmail) {
-      return res.status(400).json({ error: 'Email must match the provider login email' });
+    const outcome = await providerEnrollment.start(req.body || {});
+    const { delivery, ...response } = outcome;
+    if (delivery) {
+      if (!EMAIL_ENABLED) return res.status(503).json({ status: 'restart_required', error: 'Email unavailable. Please try again later.' });
+      await sendGenericEmail(delivery.email, 'Finish setting up your provider dashboard',
+        '<p>Your provider signup code is <strong>' + delivery.code + '</strong>.</p>'
+        + '<p>It expires in 20 minutes. Return to the signup page to complete enrollment.</p>');
     }
-
-    let user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
-    if (!user) {
-      user = await prisma.providerUser.create({
-        data: { id: uuid(), email: normEmail, passwordHash: '', activeProviderId: provider.id }
-      });
-    }
-
-    // Ensure link to the chosen provider
-    const existingLink = await prisma.providerUserProvider.findFirst({
-      where: { providerUserId: user.id, providerId: provider.id }
-    });
-    if (!existingLink) {
-      await prisma.providerUserProvider.create({
-        data: { id: uuid(), providerUserId: user.id, providerId: provider.id }
-      });
-    }
-    if (!user.activeProviderId) {
-      await prisma.providerUser.update({ where: { id: user.id }, data: { activeProviderId: provider.id } });
-    }
-
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
-    await prisma.providerUser.update({
-      where: { email: normEmail },
-      data: { verifyCode: code, verifyCodeExpiresAt: expiresAt }
-    });
-
-    if (!EMAIL_ENABLED) {
-      return res.status(500).json({ error: 'Email not configured. Please contact support.' });
-    }
-    try {
-      const html = `
-        <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111">
-          <p>You requested access to the Best Hospice and Home Health Provider Dashboard for <strong>${provider.name}</strong>.</p>
-          <p>Please copy this one-time code and paste it in the dashboard to finish creating your password:</p>
-          <p style="font-size:22px; font-weight:800; letter-spacing:2px;">${code}</p>
-          <p>Open: <a href="${DASHBOARD_VERIFY_URL}">${DASHBOARD_VERIFY_URL}</a> and use the code above. Codes expire in 48 hours.</p>
-        </div>
-      `;
-      await sendGenericEmail(normEmail, 'Finish setting up your Best Hospice and Home Health dashboard', html);
-    } catch (err) {
-      console.error('Send invite email failed', err);
-      return res.status(500).json({ error: 'Failed to send signup email.' });
-    }
-    res.json({ ok: true, message: 'Check your email for the signup token.' });
-  } catch (err) {
-    console.error('Signup start failed', err);
-    res.status(500).json({ error: 'Signup start failed' });
+    res.status(enrollmentHttpStatus(outcome.status)).json({ ...response, error: response.message });
+  } catch (_) {
+    res.status(503).json({ status: 'restart_required', error: 'Signup could not be completed. Please request a new code later.' });
   }
 });
 
-// Provider auth: complete signup with code + password
 app.post('/api/provider-auth/complete', authRateLimit, async (req, res) => {
-  const { email, code, password } = req.body || {};
-  if (!email || !code || !password) return res.status(400).json({ error: 'Email, code, and password are required' });
-  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-  const normEmail = String(email).trim().toLowerCase();
   try {
-    const user = await prisma.providerUser.findUnique({ where: { email: normEmail } });
-    if (!user || !user.verifyCode || !user.verifyCodeExpiresAt) {
-      return res.status(400).json({ error: 'Invalid or missing code' });
+    const outcome = await providerEnrollment.complete(req.body || {});
+    if (outcome.status === 'enrolled') {
+      const token = jwt.sign({ sub: outcome.accountId }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
+      return res.json({ ok: true, status: 'enrolled', token });
     }
-    if (user.verifyCode !== String(code).trim()) {
-      return res.status(400).json({ error: 'Invalid code' });
-    }
-    if (new Date() > user.verifyCodeExpiresAt) {
-      return res.status(400).json({ error: 'Code expired. Please start signup again.' });
-    }
-
-    const passwordHash = await bcrypt.hash(String(password), 10);
-    const updated = await prisma.providerUser.update({
-      where: { id: user.id },
-      data: {
-        passwordHash,
-        emailVerifiedAt: new Date(),
-        verifyCode: null,
-        verifyCodeExpiresAt: null
-      }
-    });
-    const authToken = jwt.sign({ sub: updated.id }, PROVIDER_JWT_SECRET, { expiresIn: '7d' });
-    res.json({ ok: true, token: authToken });
-  } catch (err) {
-    console.error('Complete signup failed', err);
-    res.status(400).json({ error: 'Invalid or expired code' });
+    res.status(enrollmentHttpStatus(outcome.status)).json({ status: outcome.status, error: outcome.message });
+  } catch (_) {
+    res.status(409).json({ status: 'restart_required', error: 'Signup could not be completed. Please request a new code.' });
   }
 });
 
